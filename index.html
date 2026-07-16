@@ -327,6 +327,7 @@ let state = {
   coachClients: [],
   coachEditingClientId: null,
   coachEditingNutritionId: null,
+  checkinSettings: null, // { deadline_day, deadline_time }
   coachEditingMessageId: null,
   documents: null, // null = not loaded yet
   stepsTarget: null,
@@ -342,7 +343,6 @@ let state = {
   checkinExisting: null,
   checkinDraft: null,
   coachViewingCheckinsId: null,
-  checkinSettings: null,
   program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
 
@@ -396,7 +396,7 @@ async function loadClientByCode(code) {
   const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
   state.foodLogsToday = foodRows || [];
 
-  const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("id", 1).maybeSingle();
+  const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("client_id", clientRow.id).maybeSingle();
   state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
 
   localStorage.setItem(ACCESS_KEY, code);
@@ -528,19 +528,6 @@ function renderCoachScreen() {
     <div class="subtitle">Gère tes clients et leurs programmes</div>
   `;
 
-  const cs = state.checkinSettings || { deadline_day: "Dimanche", deadline_time: "20:00" };
-  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:10px;">⏰ Échéance des bilans hebdomadaires</div>
-    <div class="row">
-      <select id="deadlineDay">
-        ${["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"].map(day =>
-          `<option value="${day}" ${cs.deadline_day === day ? "selected" : ""}>${day}</option>`).join("")}
-      </select>
-      <input id="deadlineTime" type="time" value="${esc(cs.deadline_time)}" />
-    </div>
-    <button class="validate-btn" id="saveDeadlineBtn" style="margin-top:0;">✓ Enregistrer l'échéance</button>
-  </div></div>`;
-
   html += `<button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
   `;
 
@@ -606,6 +593,14 @@ function renderCoachScreen() {
         <div class="section-label">Pas et message</div>
         <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" style="margin-bottom:10px;" />
         <textarea id="fMessage" placeholder="Message affiché sur son accueil…" rows="3" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
+        <div class="section-label">⏰ Échéance de son bilan hebdomadaire</div>
+        <div class="row" style="margin-bottom:12px;">
+          <select id="fDeadlineDay">
+            ${["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"].map(day =>
+              `<option value="${day}" ${(c.checkinSettings?.deadline_day || "Dimanche") === day ? "selected" : ""}>${day}</option>`).join("")}
+          </select>
+          <input id="fDeadlineTime" type="time" value="${esc(c.checkinSettings?.deadline_time || "20:00")}" />
+        </div>
         <div style="display:flex;gap:8px;">
           <button class="validate-btn" style="margin-top:0;flex:1;" data-save-followup="${c.id}">✓ Enregistrer</button>
           <button data-cancel-followup="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
@@ -658,8 +653,6 @@ async function attachCoachHandlers() {
         id: c.id, name: c.name, access_code: c.access_code,
         program_json: c.programs ? c.programs.program_json : null,
       }));
-      const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("id", 1).maybeSingle();
-      state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
       render();
     } else {
       state.coachError = "Mot de passe incorrect.";
@@ -756,9 +749,11 @@ async function attachCoachHandlers() {
     const { data: n } = await sb.from("nutrition_targets").select("*").eq("client_id", clientId).maybeSingle();
     const { data: s } = await sb.from("steps_targets").select("*").eq("client_id", clientId).maybeSingle();
     const { data: m } = await sb.from("coach_messages").select("*").eq("client_id", clientId).maybeSingle();
+    const { data: cd } = await sb.from("checkin_settings").select("*").eq("client_id", clientId).maybeSingle();
     c.nutrition = n || {};
     c.steps = s ? s.daily_steps : "";
     c.message = m ? m.message : "";
+    c.checkinSettings = cd || { deadline_day: "Dimanche", deadline_time: "20:00" };
     state.coachEditingNutritionId = clientId;
     state.coachEditingClientId = null;
     state.coachViewingCheckinsId = null;
@@ -783,10 +778,13 @@ async function attachCoachHandlers() {
     };
     const stepsVal = val("fSteps");
     const messageVal = document.getElementById("fMessage").value;
+    const deadlineDay = document.getElementById("fDeadlineDay").value;
+    const deadlineTime = document.getElementById("fDeadlineTime").value;
 
     await sb.from("nutrition_targets").upsert(nutriPayload);
     if (stepsVal !== null) await sb.from("steps_targets").upsert({ client_id: clientId, daily_steps: stepsVal });
     await sb.from("coach_messages").upsert({ client_id: clientId, message: messageVal, updated_at: new Date().toISOString() });
+    await sb.from("checkin_settings").upsert({ client_id: clientId, deadline_day: deadlineDay, deadline_time: deadlineTime });
 
     showToast("Suivi mis à jour.");
     state.coachEditingNutritionId = null;
