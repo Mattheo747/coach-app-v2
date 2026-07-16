@@ -226,8 +226,8 @@ function buildSuggestion(lastEntry, targetRows) {
 
 let uidN = 1;
 const uid = (p) => `${p}-${uidN++}`;
-function ex(name, muscle, sets, rest, superset) {
-  return { id: uid("ex"), name, muscle, sets, rest, superset: superset || null };
+function ex(name, muscle, sets, rest, superset, video) {
+  return { id: uid("ex"), name, muscle, sets, rest, superset: superset || null, video: video || null };
 }
 
 function groupExercises(exercises) {
@@ -251,7 +251,7 @@ function groupExercises(exercises) {
 
 const DEFAULT_PROGRAM = [
   { id: "d1", num: 1, day: "Lundi", name: "Push", exercises: [
-    ex("Développé incliné (Smith)", "Pecs", "2x6-8, 1x10-12", "3min"),
+    ex("Développé incliné (Smith)", "Pecs", "2x6-8, 1x10-12", "3min", null, "https://www.youtube.com/watch?v=LueBdFG8TKI"),
     ex("Pec Fly", "Pecs", "2x8-10, 1x12-15", "2min"),
     ex("Développé militaire", "Épaules", "2x6-8", "3min", "lundi-ss-1"),
     ex("Élévations latérales", "Épaules", "2x8-10, 1x12-15", "3min", "lundi-ss-1"),
@@ -327,6 +327,7 @@ let state = {
   coachClients: [],
   coachEditingClientId: null,
   coachEditingNutritionId: null,
+  coachEditingVideosId: null,
   checkinSettings: null, // { deadline_day, deadline_time }
   coachEditingMessageId: null,
   documents: null, // null = not loaded yet
@@ -551,9 +552,32 @@ function renderCoachScreen() {
         </div>
       </div>
       <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">✎ Programme</button>
+      <button data-edit-videos="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">🎥 Vidéos</button>
       <button data-edit-followup="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">⚙️ Suivi</button>
       <button data-view-checkins="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">📋 Bilans</button>
     </div>`;
+    if (state.coachEditingVideosId === c.id) {
+      const program = c.program_json || DEFAULT_PROGRAM;
+      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+        <div style="font-weight:700;margin-bottom:10px;">🎥 Vidéos des exercices — ${esc(c.name)}</div>
+        ${program.filter(d => !d.isRest).map(d => `
+          <div class="section-label" style="margin-top:14px;">${esc(d.day)} : ${esc(d.name)}</div>
+          ${d.exercises.map(e => `
+            <div style="margin-bottom:10px;">
+              <div style="font-size:13px;color:var(--textDim);margin-bottom:4px;">${esc(e.name)}</div>
+              <input data-video-input="${e.id}" placeholder="Lien YouTube (optionnel)" value="${esc(e.video || "")}" />
+            </div>`).join("")}
+        `).join("")}
+        <label style="display:flex;align-items:center;gap:8px;margin:14px 0;font-size:13.5px;color:var(--textDim);">
+          <input type="checkbox" id="applyAllVideos" style="width:auto;" />
+          Appliquer aussi ces vidéos à tous mes autres clients ayant le même exercice (par nom)
+        </label>
+        <div style="display:flex;gap:8px;">
+          <button class="validate-btn" style="margin-top:0;flex:1;" data-save-videos="${c.id}">✓ Enregistrer les vidéos</button>
+          <button data-cancel-videos="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+        </div>
+      </div></div>`;
+    }
     if (state.coachViewingCheckinsId === c.id) {
       const checkins = c.checkins || [];
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -707,6 +731,7 @@ async function attachCoachHandlers() {
 
   document.querySelectorAll("[data-edit-program]").forEach(b => b.onclick = () => {
     state.coachEditingClientId = state.coachEditingClientId === b.dataset.editProgram ? null : b.dataset.editProgram;
+    state.coachEditingVideosId = null;
     render();
   });
 
@@ -725,6 +750,58 @@ async function attachCoachHandlers() {
     if (c) c.program_json = parsed;
     state.coachEditingClientId = null;
     showToast("Programme mis à jour.");
+    render();
+  };
+
+  document.querySelectorAll("[data-edit-videos]").forEach(b => b.onclick = () => {
+    state.coachEditingVideosId = state.coachEditingVideosId === b.dataset.editVideos ? null : b.dataset.editVideos;
+    state.coachEditingClientId = null;
+    state.coachEditingNutritionId = null;
+    state.coachViewingCheckinsId = null;
+    render();
+  });
+
+  const cancelVideos = document.querySelector("[data-cancel-videos]");
+  if (cancelVideos) cancelVideos.onclick = () => { state.coachEditingVideosId = null; render(); };
+
+  const saveVideos = document.querySelector("[data-save-videos]");
+  if (saveVideos) saveVideos.onclick = async () => {
+    const clientId = saveVideos.dataset.saveVideos;
+    const c = state.coachClients.find(c => c.id === clientId);
+    const program = JSON.parse(JSON.stringify(c.program_json || DEFAULT_PROGRAM));
+    const videoMap = {};
+    program.forEach(d => d.exercises.forEach(e => {
+      const input = document.querySelector(`[data-video-input="${e.id}"]`);
+      if (input) {
+        const val = input.value.trim();
+        e.video = val || null;
+        videoMap[e.name.trim().toLowerCase()] = val || null;
+      }
+    }));
+    saveVideos.textContent = "Enregistrement…";
+    saveVideos.disabled = true;
+    const { error } = await sb.from("programs").update({ program_json: program, updated_at: new Date().toISOString() }).eq("client_id", clientId);
+    if (error) { showToast("Erreur lors de l'enregistrement."); saveVideos.disabled = false; saveVideos.textContent = "✓ Enregistrer les vidéos"; return; }
+    c.program_json = program;
+
+    const applyAll = document.getElementById("applyAllVideos").checked;
+    if (applyAll) {
+      await Promise.all(state.coachClients.filter(oc => oc.id !== clientId).map(async (oc) => {
+        const p = JSON.parse(JSON.stringify(oc.program_json || DEFAULT_PROGRAM));
+        let changed = false;
+        p.forEach(d => d.exercises.forEach(e => {
+          const key = e.name.trim().toLowerCase();
+          if (videoMap[key]) { e.video = videoMap[key]; changed = true; }
+        }));
+        if (changed) {
+          await sb.from("programs").update({ program_json: p, updated_at: new Date().toISOString() }).eq("client_id", oc.id);
+          oc.program_json = p;
+        }
+      }));
+    }
+
+    showToast(applyAll ? "Vidéos enregistrées pour tous les clients concernés." : "Vidéos enregistrées.");
+    state.coachEditingVideosId = null;
     render();
   };
 
@@ -767,6 +844,7 @@ async function attachCoachHandlers() {
     state.coachViewingCheckinsId = clientId;
     state.coachEditingClientId = null;
     state.coachEditingNutritionId = null;
+    state.coachEditingVideosId = null;
     render();
   });
 
@@ -789,6 +867,7 @@ async function attachCoachHandlers() {
     state.coachEditingNutritionId = clientId;
     state.coachEditingClientId = null;
     state.coachViewingCheckinsId = null;
+    state.coachEditingVideosId = null;
     render();
   });
 
