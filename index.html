@@ -109,7 +109,7 @@
   .bottom-nav-inner { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-around;
     padding: 10px 0; }
   .nav-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center;
-    gap: 3px; color: var(--textDim); font-size: 10.5px; padding: 0 4px; }
+    gap: 4px; color: var(--textDim); font-size: 11px; padding: 0 4px; }
   .nav-btn.active { color: var(--accent); font-weight: 700; }
   .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--accent);
     color: var(--accentText); padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
@@ -147,9 +147,9 @@
 <div id="toastHolder"></div>
 <div class="bottom-nav" style="display:none;">
   <div class="bottom-nav-inner">
+    <button class="nav-btn" data-tab="accueil">🏠<span>Accueil</span></button>
     <button class="nav-btn" data-tab="seance">🏋️<span>Séance</span></button>
-    <button class="nav-btn" data-tab="documents">📄<span>Docs</span></button>
-    <button class="nav-btn" data-tab="historique">📜<span>Historique</span></button>
+    <button class="nav-btn" data-tab="nutrition">🍎<span>Nutrition</span></button>
     <button class="nav-btn" data-tab="suivi">📈<span>Suivi</span></button>
     <button class="nav-btn" data-tab="profil">🔥<span>Profil</span></button>
   </div>
@@ -316,7 +316,7 @@ let state = {
   client: null, // { id, name, access_code, program }
   sessionLogs: [], // { id, dayId, date, entries }
   notes: {},
-  tab: "seance",
+  tab: "accueil",
   openDayId: null,
   recapLogId: null,
   historyOpenLogId: null,
@@ -326,7 +326,18 @@ let state = {
   dark: true,
   coachClients: [],
   coachEditingClientId: null,
+  coachEditingNutritionId: null,
+  coachEditingMessageId: null,
   documents: null, // null = not loaded yet
+  stepsTarget: null,
+  coachMessage: null,
+  nutritionTargets: null,
+  foodLogsToday: null,
+  foodSearchResults: [],
+  foodSearchQuery: "",
+  foodSearchLoading: false,
+  selectedFood: null, // { name, kcalPer100, proteinPer100, carbsPer100, fatPer100 }
+  nutritionDayType: null, // "on" | "off" — defaults from today's program
   program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
 
@@ -366,6 +377,20 @@ async function loadClientByCode(code) {
   state.notes = {};
   (notesRows || []).forEach(n => { state.notes[n.exercise_id] = n.note; });
   state.documents = null;
+
+  const { data: nutriRow } = await sb.from("nutrition_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
+  state.nutritionTargets = nutriRow || null;
+  const { data: stepsRow } = await sb.from("steps_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
+  state.stepsTarget = stepsRow ? stepsRow.daily_steps : null;
+  const { data: msgRow } = await sb.from("coach_messages").select("*").eq("client_id", clientRow.id).maybeSingle();
+  state.coachMessage = msgRow ? msgRow.message : null;
+
+  const todayDay = state.program.find(d => d.day === ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][new Date().getDay()]);
+  state.nutritionDayType = (todayDay && !todayDay.isRest) ? "on" : "off";
+
+  const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
+  state.foodLogsToday = foodRows || [];
+
   localStorage.setItem(ACCESS_KEY, code);
   return true;
 }
@@ -408,9 +433,14 @@ function render() {
 
   if (state.recapLogId) {
     app.innerHTML = renderRecap(state.recapLogId);
+  } else if (state.tab === "accueil") {
+    app.innerHTML = renderAccueil();
+    if (state.documents === null) loadDocuments();
   } else if (state.tab === "seance") {
     const day = state.program.find(d => d.id === state.openDayId);
     app.innerHTML = day ? renderSession(day) : renderHome();
+  } else if (state.tab === "nutrition") {
+    app.innerHTML = renderNutrition();
   } else if (state.tab === "historique") {
     app.innerHTML = state.historyOpenLogId ? renderHistoriqueDetail(state.historyOpenLogId) : renderHistorique();
   } else if (state.tab === "documents") {
@@ -502,7 +532,39 @@ function renderCoachScreen() {
         </div>
       </div>
       <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">✎ Programme</button>
+      <button data-edit-followup="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">⚙️ Suivi</button>
     </div>`;
+    if (state.coachEditingNutritionId === c.id) {
+      const n = c.nutrition || {};
+      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+        <div style="font-weight:700;margin-bottom:10px;">🍎 Objectifs nutritionnels — ${esc(c.name)}</div>
+        <div class="section-label">Jour ON (entraînement)</div>
+        <div class="row">
+          <input id="fKcalOn" placeholder="kcal" value="${n.kcal_on ?? ""}" inputmode="numeric" />
+          <input id="fProtOn" placeholder="protéines g" value="${n.protein_on ?? ""}" inputmode="numeric" />
+        </div>
+        <div class="row">
+          <input id="fCarbsOn" placeholder="glucides g" value="${n.carbs_on ?? ""}" inputmode="numeric" />
+          <input id="fFatOn" placeholder="lipides g" value="${n.fat_on ?? ""}" inputmode="numeric" />
+        </div>
+        <div class="section-label">Jour OFF (repos)</div>
+        <div class="row">
+          <input id="fKcalOff" placeholder="kcal" value="${n.kcal_off ?? ""}" inputmode="numeric" />
+          <input id="fProtOff" placeholder="protéines g" value="${n.protein_off ?? ""}" inputmode="numeric" />
+        </div>
+        <div class="row">
+          <input id="fCarbsOff" placeholder="glucides g" value="${n.carbs_off ?? ""}" inputmode="numeric" />
+          <input id="fFatOff" placeholder="lipides g" value="${n.fat_off ?? ""}" inputmode="numeric" />
+        </div>
+        <div class="section-label">Pas et message</div>
+        <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" style="margin-bottom:10px;" />
+        <textarea id="fMessage" placeholder="Message affiché sur son accueil…" rows="3" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
+        <div style="display:flex;gap:8px;">
+          <button class="validate-btn" style="margin-top:0;flex:1;" data-save-followup="${c.id}">✓ Enregistrer</button>
+          <button data-cancel-followup="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+        </div>
+      </div></div>`;
+    }
     if (state.coachEditingClientId === c.id) {
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
         <div style="font-size:13px;color:var(--textDim);margin-bottom:8px;">
@@ -617,9 +679,130 @@ async function attachCoachHandlers() {
     document.getElementById("docTitleInput").value = "";
     document.getElementById("docFileInput").value = "";
   };
+
+  document.querySelectorAll("[data-edit-followup]").forEach(b => b.onclick = async () => {
+    const clientId = b.dataset.editFollowup;
+    if (state.coachEditingNutritionId === clientId) {
+      state.coachEditingNutritionId = null;
+      render();
+      return;
+    }
+    const c = state.coachClients.find(c => c.id === clientId);
+    const { data: n } = await sb.from("nutrition_targets").select("*").eq("client_id", clientId).maybeSingle();
+    const { data: s } = await sb.from("steps_targets").select("*").eq("client_id", clientId).maybeSingle();
+    const { data: m } = await sb.from("coach_messages").select("*").eq("client_id", clientId).maybeSingle();
+    c.nutrition = n || {};
+    c.steps = s ? s.daily_steps : "";
+    c.message = m ? m.message : "";
+    state.coachEditingNutritionId = clientId;
+    state.coachEditingClientId = null;
+    render();
+  });
+
+  const cancelFollowup = document.querySelector("[data-cancel-followup]");
+  if (cancelFollowup) cancelFollowup.onclick = () => { state.coachEditingNutritionId = null; render(); };
+
+  const saveFollowup = document.querySelector("[data-save-followup]");
+  if (saveFollowup) saveFollowup.onclick = async () => {
+    const clientId = saveFollowup.dataset.saveFollowup;
+    const val = (id) => {
+      const v = document.getElementById(id).value;
+      return v === "" ? null : parseInt(v, 10);
+    };
+    const nutriPayload = {
+      client_id: clientId,
+      kcal_on: val("fKcalOn"), protein_on: val("fProtOn"), carbs_on: val("fCarbsOn"), fat_on: val("fFatOn"),
+      kcal_off: val("fKcalOff"), protein_off: val("fProtOff"), carbs_off: val("fCarbsOff"), fat_off: val("fFatOff"),
+      updated_at: new Date().toISOString(),
+    };
+    const stepsVal = val("fSteps");
+    const messageVal = document.getElementById("fMessage").value;
+
+    await sb.from("nutrition_targets").upsert(nutriPayload);
+    if (stepsVal !== null) await sb.from("steps_targets").upsert({ client_id: clientId, daily_steps: stepsVal });
+    await sb.from("coach_messages").upsert({ client_id: clientId, message: messageVal, updated_at: new Date().toISOString() });
+
+    showToast("Suivi mis à jour.");
+    state.coachEditingNutritionId = null;
+    render();
+  };
 }
 
-/* ---------------- Home — weekly list ---------------- */
+/* ---------------- Accueil (dashboard) ---------------- */
+function renderAccueil() {
+  const nutriTotals = (state.foodLogsToday || []).reduce((acc, f) => {
+    acc.kcal += Number(f.kcal) || 0;
+    acc.protein += Number(f.protein) || 0;
+    acc.carbs += Number(f.carbs) || 0;
+    acc.fat += Number(f.fat) || 0;
+    return acc;
+  }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+  const t = state.nutritionTargets;
+  const kcalTarget = t ? (state.nutritionDayType === "on" ? t.kcal_on : t.kcal_off) : null;
+  const pct = kcalTarget ? Math.min(100, Math.round((nutriTotals.kcal / kcalTarget) * 100)) : null;
+
+  const latestDoc = (state.documents || [])[0];
+
+  let html = `
+    <div class="h1">SALUT ${esc(state.client.name).toUpperCase()}</div>
+    <div class="subtitle">${formatDateFR(todayISO())}</div>
+  `;
+
+  if (state.coachMessage) {
+    html += `<div class="info-box">💬 <strong>Message de ton coach :</strong><br/>${esc(state.coachMessage)}</div>`;
+  }
+
+  html += `<div class="stat-row">
+    <div class="stat-card">
+      <div style="color:var(--accentDim);margin-bottom:8px;">👣</div>
+      <div class="stat-value">${state.stepsTarget || "—"}</div>
+      <div class="stat-label">Pas à faire aujourd'hui</div>
+    </div>
+    <div class="stat-card">
+      <div style="color:var(--accentDim);margin-bottom:8px;">🍎</div>
+      <div class="stat-value">${kcalTarget ? Math.round(nutriTotals.kcal) + "/" + kcalTarget : Math.round(nutriTotals.kcal)}</div>
+      <div class="stat-label">kcal aujourd'hui (jour ${state.nutritionDayType === "on" ? "ON" : "OFF"})</div>
+    </div>
+  </div>`;
+
+  if (pct !== null) {
+    html += `<div class="chart-card" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--textDim);margin-bottom:8px;">
+        <span>Progression kcal du jour</span><span>${pct}%</span>
+      </div>
+      <div style="background:var(--border);border-radius:999px;height:10px;overflow:hidden;">
+        <div style="background:var(--accent);height:100%;width:${pct}%;"></div>
+      </div>
+    </div>`;
+  }
+
+  html += `<button class="day-card" data-goto-tab="nutrition" style="margin-bottom:20px;">
+    <div class="day-left"><div class="day-num">🍽️</div>
+      <div><div class="day-title">Nutrition du jour</div><div class="day-sub">Ajouter un aliment, voir mes macros</div></div>
+    </div>
+    <span style="color:var(--textDim);">›</span>
+  </button>`;
+
+  if (latestDoc) {
+    html += `<a href="${esc(latestDoc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
+      <div class="day-left"><div class="day-num">📄</div>
+        <div><div class="day-title">${esc(latestDoc.title)}</div><div class="day-sub">Dernier document · ${formatDateFR(latestDoc.created_at.slice(0,10))}</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </a>`;
+  }
+
+  html += `<button class="day-card" data-goto-tab="documents">
+    <div class="day-left"><div class="day-num">📚</div>
+      <div><div class="day-title">Tous mes documents</div><div class="day-sub">Voir la bibliothèque complète</div></div>
+    </div>
+    <span style="color:var(--textDim);">›</span>
+  </button>`;
+
+  return html;
+}
+
+
 function renderHome() {
   const week = isoWeekKey(todayISO());
   let html = `
@@ -802,7 +985,104 @@ function renderRecap(logId) {
   `;
 }
 
-/* ---------------- Documents ---------------- */
+/* ---------------- Nutrition ---------------- */
+function renderNutrition() {
+  const t = state.nutritionTargets;
+  const dayType = state.nutritionDayType || "on";
+  const kcalTarget = t ? (dayType === "on" ? t.kcal_on : t.kcal_off) : null;
+  const proteinTarget = t ? (dayType === "on" ? t.protein_on : t.protein_off) : null;
+  const carbsTarget = t ? (dayType === "on" ? t.carbs_on : t.carbs_off) : null;
+  const fatTarget = t ? (dayType === "on" ? t.fat_on : t.fat_off) : null;
+
+  const totals = (state.foodLogsToday || []).reduce((acc, f) => {
+    acc.kcal += Number(f.kcal) || 0;
+    acc.protein += Number(f.protein) || 0;
+    acc.carbs += Number(f.carbs) || 0;
+    acc.fat += Number(f.fat) || 0;
+    return acc;
+  }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+
+  let html = `<div class="h1" style="font-size:26px;">NUTRITION</div>
+    <div class="subtitle">${formatDateFR(todayISO())}</div>
+    <div class="day-tabs">
+      <button class="day-tab ${dayType === "on" ? "active" : ""}" data-set-daytype="on">Jour ON (entraînement)</button>
+      <button class="day-tab ${dayType === "off" ? "active" : ""}" data-set-daytype="off">Jour OFF (repos)</button>
+    </div>`;
+
+  if (!t) {
+    html += `<div class="empty-state">🍎<div>Ton coach n'a pas encore défini tes objectifs nutritionnels.</div></div>`;
+  } else {
+    html += `<div class="chart-card" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--textDim);margin-bottom:8px;">
+        <span>Kcal</span><span>${Math.round(totals.kcal)} / ${kcalTarget || "—"}</span>
+      </div>
+      <div style="background:var(--border);border-radius:999px;height:10px;overflow:hidden;margin-bottom:16px;">
+        <div style="background:var(--accent);height:100%;width:${kcalTarget ? Math.min(100, Math.round(totals.kcal / kcalTarget * 100)) : 0}%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:8px;text-align:center;">
+        <div style="flex:1;"><div style="font-weight:800;">${Math.round(totals.protein)}g / ${proteinTarget || "—"}g</div><div style="font-size:12px;color:var(--textDim);">Protéines</div></div>
+        <div style="flex:1;"><div style="font-weight:800;">${Math.round(totals.carbs)}g / ${carbsTarget || "—"}g</div><div style="font-size:12px;color:var(--textDim);">Glucides</div></div>
+        <div style="flex:1;"><div style="font-weight:800;">${Math.round(totals.fat)}g / ${fatTarget || "—"}g</div><div style="font-size:12px;color:var(--textDim);">Lipides</div></div>
+      </div>
+    </div>`;
+  }
+
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
+    <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" style="margin-bottom:10px;" />
+    <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;">Rechercher</button>
+  </div></div>`;
+
+  if (state.foodSearchLoading) {
+    html += `<div class="empty-state">Recherche en cours…</div>`;
+  } else if (state.foodSearchResults.length > 0 && !state.selectedFood) {
+    html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
+    state.foodSearchResults.forEach((food, i) => {
+      html += `<button class="day-card" data-select-food="${i}">
+        <div class="day-left"><div>
+          <div class="day-title">${esc(food.name)}</div>
+          <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
+        </div></div>
+        <span style="color:var(--textDim);">›</span>
+      </button>`;
+    });
+    html += `</div>`;
+  }
+
+  if (state.selectedFood) {
+    const f = state.selectedFood;
+    html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+      <div class="ex-name">${esc(f.name)}</div>
+      <div style="font-size:13px;color:var(--textDim);margin-bottom:12px;">${f.kcalPer100} kcal · ${f.proteinPer100}g prot · ${f.carbsPer100}g gluc · ${f.fatPer100}g lip — pour 100g</div>
+      <div class="row">
+        <span style="color:var(--textDim);font-size:13px;">Poids pesé</span>
+        <input id="foodGramsInput" inputmode="decimal" placeholder="grammes" style="width:100px;" />
+        <span style="color:var(--textDim);font-size:13px;">g</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="validate-btn" id="addFoodBtn" style="margin-top:0;flex:1;">✓ Ajouter</button>
+        <button data-cancel-food="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+      </div>
+    </div></div>`;
+  }
+
+  if ((state.foodLogsToday || []).length > 0) {
+    html += `<div class="section-label" style="margin-top:20px;">Aujourd'hui</div>`;
+    state.foodLogsToday.forEach(f => {
+      html += `<div class="day-card" style="cursor:default;">
+        <div class="day-left"><div>
+          <div class="day-title">${esc(f.food_name)}</div>
+          <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal · ${Math.round(f.protein)}p / ${Math.round(f.carbs)}g / ${Math.round(f.fat)}l</div>
+        </div></div>
+        <button data-delete-food="${f.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:6px 10px;">🗑</button>
+      </div>`;
+    });
+  }
+
+  return html;
+}
+
+
 async function loadDocuments() {
   const { data, error } = await sb.from("documents")
     .select("*")
@@ -813,7 +1093,11 @@ async function loadDocuments() {
 }
 
 function renderDocuments() {
-  let html = `<div class="h1" style="font-size:26px;">DOCUMENTS</div>
+  let html = `
+    <div style="margin:20px 0 4px;">
+      <button class="back-btn" data-back-to-accueil="1">← Retour</button>
+    </div>
+    <div class="h1" style="font-size:26px;margin-top:10px;">DOCUMENTS</div>
     <div class="subtitle">Les documents que ton coach a partagés avec toi</div>`;
   if (state.documents === null) {
     html += `<div class="empty-state">Chargement…</div>`;
@@ -838,7 +1122,11 @@ function renderDocuments() {
 
 function renderHistorique() {
   const logs = [...state.sessionLogs].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  let html = `<div class="h1" style="font-size:26px;">HISTORIQUE</div>
+  let html = `
+    <div style="margin:20px 0 4px;">
+      <button class="back-btn" data-back-to-profil="1">← Retour</button>
+    </div>
+    <div class="h1" style="font-size:26px;margin-top:10px;">HISTORIQUE</div>
     <div class="subtitle">Toutes tes séances validées — appuie pour consulter ou corriger</div>`;
   if (logs.length === 0) {
     html += `<div class="empty-state">📜<div>Aucune séance validée pour l'instant.</div></div>`;
@@ -969,6 +1257,12 @@ function renderProfil() {
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
     </div>
+    <button class="day-card" data-goto-tab="historique" style="margin-bottom:16px;">
+      <div class="day-left"><div class="day-num">📜</div>
+        <div><div class="day-title">Historique complet</div><div class="day-sub">Consulter ou corriger une séance passée</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
       <div style="font-weight:700;margin-bottom:6px;">Compte</div>
       <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">Tes données sont sauvegardées en ligne, liées à ton code d'accès personnel.</div>
@@ -1123,6 +1417,95 @@ function attachHandlers() {
     state.client = null;
     render();
   };
+
+  app.querySelectorAll("[data-goto-tab]").forEach(b => b.onclick = () => {
+    state.tab = b.dataset.gotoTab;
+    render();
+  });
+
+  const backToAccueil = app.querySelector("[data-back-to-accueil]");
+  if (backToAccueil) backToAccueil.onclick = () => { state.tab = "accueil"; render(); };
+
+  const backToProfil = app.querySelector("[data-back-to-profil]");
+  if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; render(); };
+
+  app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
+    state.nutritionDayType = b.dataset.setDaytype;
+    render();
+  });
+
+  const foodSearchBtn = app.querySelector("#foodSearchBtn");
+  if (foodSearchBtn) foodSearchBtn.onclick = async () => {
+    const query = document.getElementById("foodSearchInput").value.trim();
+    if (!query) return;
+    state.foodSearchQuery = query;
+    state.foodSearchLoading = true;
+    state.selectedFood = null;
+    render();
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=8`);
+      const data = await res.json();
+      state.foodSearchResults = (data.products || [])
+        .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
+        .map(p => ({
+          name: p.product_name,
+          brand: p.brands || "",
+          kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
+          proteinPer100: Math.round(p.nutriments["proteins_100g"] || 0),
+          carbsPer100: Math.round(p.nutriments["carbohydrates_100g"] || 0),
+          fatPer100: Math.round(p.nutriments["fat_100g"] || 0),
+        }));
+    } catch (e) {
+      showToast("Erreur de recherche, réessaie.");
+      state.foodSearchResults = [];
+    }
+    state.foodSearchLoading = false;
+    render();
+  };
+
+  app.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
+    state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
+    render();
+  });
+
+  const cancelFoodBtn = app.querySelector("[data-cancel-food]");
+  if (cancelFoodBtn) cancelFoodBtn.onclick = () => { state.selectedFood = null; render(); };
+
+  const addFoodBtn = app.querySelector("#addFoodBtn");
+  if (addFoodBtn) addFoodBtn.onclick = async () => {
+    const grams = parseFloat(document.getElementById("foodGramsInput").value);
+    if (!grams || grams <= 0) { alert("Entre un poids valide."); return; }
+    const f = state.selectedFood;
+    const ratio = grams / 100;
+    const entry = {
+      client_id: state.client.id,
+      log_date: todayISO(),
+      food_name: f.name,
+      grams,
+      kcal: Math.round(f.kcalPer100 * ratio),
+      protein: Math.round(f.proteinPer100 * ratio),
+      carbs: Math.round(f.carbsPer100 * ratio),
+      fat: Math.round(f.fatPer100 * ratio),
+    };
+    addFoodBtn.textContent = "Ajout…";
+    addFoodBtn.disabled = true;
+    const { data, error } = await sb.from("food_logs").insert(entry).select().single();
+    if (error) { showToast("Erreur lors de l'ajout."); addFoodBtn.disabled = false; addFoodBtn.textContent = "✓ Ajouter"; return; }
+    state.foodLogsToday.push(data);
+    state.selectedFood = null;
+    state.foodSearchResults = [];
+    state.foodSearchQuery = "";
+    showToast("Aliment ajouté.");
+    render();
+  };
+
+  app.querySelectorAll("[data-delete-food]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.deleteFood;
+    const { error } = await sb.from("food_logs").delete().eq("id", id);
+    if (error) { showToast("Erreur lors de la suppression."); return; }
+    state.foodLogsToday = state.foodLogsToday.filter(f => f.id !== id);
+    render();
+  });
 }
 
 function updateCountersOnly() {
@@ -1157,6 +1540,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
   state.recapLogId = null;
   state.historyOpenLogId = null;
   state.historyDraft = null;
+  state.selectedFood = null;
   render();
 });
 
