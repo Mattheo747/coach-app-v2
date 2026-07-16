@@ -108,7 +108,7 @@
   .bottom-nav-inner { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-around;
     padding: 10px 0; }
   .nav-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center;
-    gap: 4px; color: var(--textDim); font-size: 11px; }
+    gap: 3px; color: var(--textDim); font-size: 10.5px; padding: 0 4px; }
   .nav-btn.active { color: var(--accent); font-weight: 700; }
   .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--accent);
     color: #0a0a0b; padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
@@ -147,6 +147,7 @@
 <div class="bottom-nav" style="display:none;">
   <div class="bottom-nav-inner">
     <button class="nav-btn" data-tab="seance">🏋️<span>Séance</span></button>
+    <button class="nav-btn" data-tab="documents">📄<span>Docs</span></button>
     <button class="nav-btn" data-tab="historique">📜<span>Historique</span></button>
     <button class="nav-btn" data-tab="suivi">📈<span>Suivi</span></button>
     <button class="nav-btn" data-tab="profil">🔥<span>Profil</span></button>
@@ -324,6 +325,7 @@ let state = {
   dark: true,
   coachClients: [],
   coachEditingClientId: null,
+  documents: null, // null = not loaded yet
   program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
 
@@ -362,6 +364,7 @@ async function loadClientByCode(code) {
   state.sessionLogs = (logs || []).map(l => ({ id: l.id, dayId: l.day_id, date: l.log_date, entries: l.entries }));
   state.notes = {};
   (notesRows || []).forEach(n => { state.notes[n.exercise_id] = n.note; });
+  state.documents = null;
   localStorage.setItem(ACCESS_KEY, code);
   return true;
 }
@@ -409,6 +412,9 @@ function render() {
     app.innerHTML = day ? renderSession(day) : renderHome();
   } else if (state.tab === "historique") {
     app.innerHTML = state.historyOpenLogId ? renderHistoriqueDetail(state.historyOpenLogId) : renderHistorique();
+  } else if (state.tab === "documents") {
+    app.innerHTML = renderDocuments();
+    if (state.documents === null) loadDocuments();
   } else if (state.tab === "suivi") {
     app.innerHTML = renderProgress();
   } else {
@@ -510,6 +516,17 @@ function renderCoachScreen() {
     }
   });
 
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:10px;">📄 Envoyer un document PDF</div>
+    <input id="docTitleInput" placeholder="Titre du document" style="margin-bottom:10px;" />
+    <select id="docClientSelect" style="margin-bottom:10px;">
+      <option value="">Visible par tous les clients</option>
+      ${state.coachClients.map(c => `<option value="${c.id}">${esc(c.name)} uniquement</option>`).join("")}
+    </select>
+    <input id="docFileInput" type="file" accept="application/pdf" style="margin-bottom:10px;" />
+    <button class="validate-btn" id="docUploadBtn" style="margin-top:0;">⬆ Envoyer le document</button>
+  </div></div>`;
+
   html += `<div style="margin-top:24px;text-align:center;">
     <button class="link-btn" data-logout-coach="1">Quitter l'espace coach</button>
   </div>`;
@@ -576,6 +593,29 @@ async function attachCoachHandlers() {
 
   const logoutCoach = document.querySelector("[data-logout-coach]");
   if (logoutCoach) logoutCoach.onclick = () => { state.screen = "access"; state.coachAuthed = false; render(); };
+
+  const docUploadBtn = document.getElementById("docUploadBtn");
+  if (docUploadBtn) docUploadBtn.onclick = async () => {
+    const title = document.getElementById("docTitleInput").value.trim();
+    const clientId = document.getElementById("docClientSelect").value || null;
+    const file = document.getElementById("docFileInput").files[0];
+    if (!title || !file) { alert("Ajoute un titre et choisis un fichier PDF."); return; }
+    docUploadBtn.textContent = "Envoi…";
+    docUploadBtn.disabled = true;
+    const path = `${Date.now()}-${file.name}`;
+    const { error: uploadError } = await sb.storage.from("documents").upload(path, file);
+    if (uploadError) { alert("Erreur d'upload : " + uploadError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
+    const { data: urlData } = sb.storage.from("documents").getPublicUrl(path);
+    const { error: insertError } = await sb.from("documents").insert({
+      title, client_id: clientId, file_url: urlData.publicUrl,
+    });
+    if (insertError) { alert("Erreur : " + insertError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
+    showToast("Document envoyé !");
+    docUploadBtn.textContent = "⬆ Envoyer le document";
+    docUploadBtn.disabled = false;
+    document.getElementById("docTitleInput").value = "";
+    document.getElementById("docFileInput").value = "";
+  };
 }
 
 /* ---------------- Home — weekly list ---------------- */
@@ -761,7 +801,40 @@ function renderRecap(logId) {
   `;
 }
 
-/* ---------------- Historique ---------------- */
+/* ---------------- Documents ---------------- */
+async function loadDocuments() {
+  const { data, error } = await sb.from("documents")
+    .select("*")
+    .or(`client_id.is.null,client_id.eq.${state.client.id}`)
+    .order("created_at", { ascending: false });
+  state.documents = error ? [] : (data || []);
+  render();
+}
+
+function renderDocuments() {
+  let html = `<div class="h1" style="font-size:26px;">DOCUMENTS</div>
+    <div class="subtitle">Les documents que ton coach a partagés avec toi</div>`;
+  if (state.documents === null) {
+    html += `<div class="empty-state">Chargement…</div>`;
+    return html;
+  }
+  if (state.documents.length === 0) {
+    html += `<div class="empty-state">📄<div>Aucun document pour l'instant.</div></div>`;
+    return html;
+  }
+  state.documents.forEach(doc => {
+    html += `<a href="${esc(doc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
+      <div class="day-left">
+        <div class="day-num">📄</div>
+        <div><div class="day-title">${esc(doc.title)}</div><div class="day-sub">${formatDateFR(doc.created_at.slice(0, 10))} · ouvrir le PDF</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </a>`;
+  });
+  return html;
+}
+
+
 function renderHistorique() {
   const logs = [...state.sessionLogs].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   let html = `<div class="h1" style="font-size:26px;">HISTORIQUE</div>
