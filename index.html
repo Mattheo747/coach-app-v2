@@ -302,6 +302,129 @@ const DEFAULT_PROGRAM = [
   { id: "d7", num: 7, day: "Dimanche", name: "Repos", exercises: [], isRest: true },
 ];
 
+const EXERCISE_LIBRARY = [
+  // Pecs
+  { name: "Développé couché barre", muscle: "Pecs" },
+  { name: "Développé couché haltères", muscle: "Pecs" },
+  { name: "Développé incliné barre", muscle: "Pecs" },
+  { name: "Développé incliné haltères", muscle: "Pecs" },
+  { name: "Développé incliné (Smith)", muscle: "Pecs" },
+  { name: "Développé décliné barre", muscle: "Pecs" },
+  { name: "Développé décliné haltères", muscle: "Pecs" },
+  { name: "Développé prise serrée", muscle: "Pecs" },
+  { name: "Pec Fly (machine)", muscle: "Pecs" },
+  { name: "Écarté couché haltères", muscle: "Pecs" },
+  { name: "Écarté incliné haltères", muscle: "Pecs" },
+  { name: "Écarté incliné poulie", muscle: "Pecs" },
+  { name: "Écarté poulie vis-à-vis", muscle: "Pecs" },
+  { name: "Dips (pecs)", muscle: "Pecs" },
+  { name: "Pompes", muscle: "Pecs" },
+  { name: "Pompes lestées", muscle: "Pecs" },
+  // Dos
+  { name: "Tirage vertical prise large", muscle: "Dos" },
+  { name: "Tirage vertical prise serré", muscle: "Dos" },
+  { name: "Tirage vertical prise neutre poulie", muscle: "Dos" },
+  { name: "Tirage vertical pronation", muscle: "Dos" },
+  { name: "Tractions prise pronation", muscle: "Dos" },
+  { name: "Tractions prise supination", muscle: "Dos" },
+  { name: "Rowing barre buste penché", muscle: "Dos" },
+  { name: "Rowing haltère unilatéral", muscle: "Dos" },
+  { name: "Rowing T-bar", muscle: "Dos" },
+  { name: "Rowing Yates", muscle: "Dos" },
+  { name: "Tirage horizontal prise serrée", muscle: "Dos" },
+  { name: "Tirage horizontal prise large", muscle: "Dos" },
+  { name: "Tirage horizontal unilatéral", muscle: "Dos" },
+  { name: "Tirage horizontal pronation machine", muscle: "Dos" },
+  { name: "Soulevé de terre conventionnel", muscle: "Dos" },
+  { name: "Soulevé de terre roumain", muscle: "Dos" },
+  { name: "Soulevé de terre sumo", muscle: "Dos" },
+  { name: "Soulevé de terre jambes tendues", muscle: "Ischios" },
+  { name: "Face pull", muscle: "Dos" },
+  { name: "Pull-over haltère", muscle: "Dos" },
+  { name: "Extension lombaires", muscle: "Lombaires" },
+  { name: "Good morning", muscle: "Lombaires" },
+  { name: "Hyperextensions", muscle: "Lombaires" },
+  // Épaules
+  { name: "Développé militaire barre", muscle: "Épaules" },
+  { name: "Développé militaire haltères", muscle: "Épaules" },
+  { name: "Développé militaire (Smith)", muscle: "Épaules" },
+  { name: "Développé assis machine convergente", muscle: "Épaules" },
+  { name: "Développé Arnold", muscle: "Épaules" },
+  { name: "Élévations latérales haltères", muscle: "Épaules" },
+  { name: "Élévations latérales poulie", muscle: "Épaules" },
+  { name: "Élévations frontales haltères", muscle: "Épaules" },
+  { name: "Élévations frontales barre", muscle: "Épaules" },
+  { name: "Oiseau (élévation arrière) haltères", muscle: "Épaules" },
+  { name: "Oiseau poulie vis-à-vis", muscle: "Épaules" },
+  { name: "Rowing menton", muscle: "Épaules" },
+  { name: "Shrugs haltères", muscle: "Trapèzes" },
+  { name: "Shrugs barre", muscle: "Trapèzes" },
+  // Biceps
+  { name: "Curl barre droite", muscle: "Biceps" },
+  { name: "Curl barre EZ", muscle: "Biceps" },
+  { name: "Curl haltères alterné", muscle: "Biceps" },
+  { name: "Curl incliné haltères", muscle: "Biceps" },
+  { name: "Curl pupitre", muscle: "Biceps" },
+  { name: "Curl marteau haltères", muscle: "Biceps" },
+  { name: "Curl poulie basse", muscle: "Biceps" },
+  { name: "Curl concentré", muscle: "Biceps" },
+  { name: "Curl araignée (spider curl)", muscle: "Biceps" },
+  // Triceps
+  { name: "Extension triceps poulie haute (corde)", muscle: "Triceps" },
+  { name: "Extension triceps poulie haute (barre)", muscle: "Triceps" },
+  { name: "Barre au front", muscle: "Triceps" },
+  { name: "Extension triceps unilatéral poulie", muscle: "Triceps" },
+  { name: "Dips (triceps)", muscle: "Triceps" },
+  { name: "Extension nuque haltère", muscle: "Triceps" },
+  { name: "Kick-back haltère", muscle: "Triceps" },
+  { name: "Développé prise serrée (triceps)", muscle: "Triceps" },
+  // Quadriceps
+  { name: "Squat barre", muscle: "Quadriceps" },
+  { name: "Front squat", muscle: "Quadriceps" },
+  { name: "Hack squat", muscle: "Quadriceps" },
+  { name: "Presse à cuisses", muscle: "Quadriceps" },
+  { name: "Presse à cuisses (pieds bas)", muscle: "Quadriceps" },
+  { name: "Presse à cuisses unilatérale", muscle: "Quadriceps" },
+  { name: "Leg extension", muscle: "Quadriceps" },
+  { name: "Leg extension unilatéral", muscle: "Quadriceps" },
+  { name: "Fentes marchées haltères", muscle: "Quadriceps" },
+  { name: "Fentes bulgares", muscle: "Quadriceps" },
+  { name: "Squat gobelet", muscle: "Quadriceps" },
+  { name: "Squat bulgare", muscle: "Quadriceps" },
+  // Ischios / Fessiers
+  { name: "Leg curl allongé", muscle: "Ischios" },
+  { name: "Leg curl assis", muscle: "Ischios" },
+  { name: "Leg curl debout unilatéral", muscle: "Ischios" },
+  { name: "Hip thrust barre", muscle: "Fessiers" },
+  { name: "Hip thrust unilatéral", muscle: "Fessiers" },
+  { name: "Extension de hanche poulie", muscle: "Fessiers" },
+  { name: "Kickback fessier poulie", muscle: "Fessiers" },
+  { name: "Abduction hanche machine", muscle: "Fessiers" },
+  { name: "Adducteurs machine", muscle: "Adducteurs" },
+  { name: "Abducteurs machine", muscle: "Adducteurs" },
+  // Mollets
+  { name: "Extension mollets debout", muscle: "Mollets" },
+  { name: "Extension mollets assis", muscle: "Mollets" },
+  { name: "Extension mollets presse", muscle: "Mollets" },
+  { name: "Extension mollet unilatéral haltère", muscle: "Mollets" },
+  // Abdos
+  { name: "Crunch poulie haute", muscle: "Abdos" },
+  { name: "Crunch au sol", muscle: "Abdos" },
+  { name: "Relevé de jambes suspendu", muscle: "Abdos" },
+  { name: "Relevé de jambes au sol", muscle: "Abdos" },
+  { name: "Gainage planche", muscle: "Abdos" },
+  { name: "Gainage latéral", muscle: "Abdos" },
+  { name: "Roulette à abdos", muscle: "Abdos" },
+  { name: "Russian twist", muscle: "Abdos" },
+  { name: "Rotation buste poulie", muscle: "Abdos" },
+  { name: "Mountain climbers", muscle: "Abdos" },
+  // Cardio / accessoire
+  { name: "Vélo elliptique", muscle: "Cardio" },
+  { name: "Tapis de course", muscle: "Cardio" },
+  { name: "Rameur", muscle: "Cardio" },
+  { name: "Corde à sauter", muscle: "Cardio" },
+];
+
 function randomAccessCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans caractères ambigus
   let s = "";
@@ -328,6 +451,12 @@ let state = {
   coachEditingClientId: null,
   coachEditingNutritionId: null,
   coachEditingVideosId: null,
+  programBuilderOpen: false,
+  programBuilderClientId: null,
+  programBuilderDraft: null,
+  programBuilderDayId: null,
+  libraryOpenForDay: null,
+  libraryQuery: "",
   checkinSettings: null, // { deadline_day, deadline_time }
   coachEditingMessageId: null,
   documents: null, // null = not loaded yet
@@ -434,7 +563,7 @@ function render() {
   }
   if (state.screen === "coach") {
     nav.style.display = "none";
-    app.innerHTML = renderCoachScreen();
+    app.innerHTML = state.programBuilderOpen ? renderProgramBuilder() : renderCoachScreen();
     attachCoachHandlers();
     return;
   }
@@ -511,6 +640,88 @@ function attachAccessHandlers() {
 }
 
 /* ---------------- Coach screen ---------------- */
+/* ---------------- Program builder ---------------- */
+function openProgramBuilder(clientId) {
+  const c = state.coachClients.find(c => c.id === clientId);
+  state.programBuilderClientId = clientId;
+  state.programBuilderDraft = JSON.parse(JSON.stringify(c.program_json || DEFAULT_PROGRAM));
+  state.programBuilderDayId = (state.programBuilderDraft.find(d => !d.isRest) || state.programBuilderDraft[0]).id;
+  state.libraryOpenForDay = null;
+  state.libraryQuery = "";
+  state.programBuilderOpen = true;
+  render();
+}
+
+function renderProgramBuilder() {
+  const draft = state.programBuilderDraft;
+  const day = draft.find(d => d.id === state.programBuilderDayId);
+  const clientName = state.coachClients.find(c => c.id === state.programBuilderClientId)?.name || "";
+
+  let html = `
+    <div style="margin:20px 0 4px;">
+      <button class="back-btn" data-close-builder="1">← Retour</button>
+    </div>
+    <div class="h1" style="font-size:26px;margin-top:10px;">CONSTRUCTEUR DE PROGRAMME</div>
+    <div class="subtitle">${esc(clientName)}</div>
+    <div class="day-tabs">
+      ${draft.map(d => `<button class="day-tab ${d.id === state.programBuilderDayId ? "active" : ""}" data-builder-day="${d.id}">${esc(d.day)}</button>`).join("")}
+    </div>
+  `;
+
+  html += `<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--textDim);margin-bottom:16px;">
+    <input type="checkbox" id="dayIsRest" style="width:auto;" ${day.isRest ? "checked" : ""} />
+    Jour de repos
+  </label>`;
+
+  if (!day.isRest) {
+    html += `<input id="dayName" placeholder="Nom de la séance (ex: Push)" value="${esc(day.name || "")}" style="margin-bottom:16px;font-weight:700;" />`;
+
+    (day.exercises || []).forEach((e, i) => {
+      const next = day.exercises[i + 1];
+      const isLinkedWithNext = e.superset && next && next.superset === e.superset;
+      html += `<div class="ex-card" style="${e.superset ? "border:1.5px solid var(--orange);" : ""}">
+        <div class="ex-body" style="padding-top:16px;">
+          <div class="row">
+            <input data-b-field="name" data-idx="${i}" value="${esc(e.name)}" style="flex:2;font-weight:700;" />
+            <input data-b-field="muscle" data-idx="${i}" value="${esc(e.muscle)}" style="flex:1;" placeholder="muscle" />
+          </div>
+          <div class="row">
+            <input data-b-field="sets" data-idx="${i}" value="${esc(e.sets)}" placeholder="ex: 3x8-10" />
+            <input data-b-field="rest" data-idx="${i}" value="${esc(e.rest)}" placeholder="repos" style="width:90px;" />
+          </div>
+          <input data-b-field="video" data-idx="${i}" value="${esc(e.video || "")}" placeholder="lien vidéo (optionnel)" style="margin-bottom:10px;" />
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <button data-b-move="up" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">↑</button>
+            <button data-b-move="down" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">↓</button>
+            ${next ? `<button data-b-superset="${i}" style="border:1px solid ${isLinkedWithNext ? "var(--orange)" : "var(--border)"};background:none;color:${isLinkedWithNext ? "var(--orange)" : "var(--textDim)"};border-radius:8px;padding:6px 10px;font-size:12.5px;">🔗 ${isLinkedWithNext ? "Superset activé" : "Lier en superset au suivant"}</button>` : ""}
+            <button data-b-delete="${i}" style="border:1px solid var(--danger);background:none;color:var(--danger);border-radius:8px;padding:6px 10px;margin-left:auto;">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    });
+
+    html += `<button data-open-library="1" style="display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--border);border-radius:14px;padding:14px;background:none;color:var(--textDim);width:100%;margin-bottom:16px;">+ Ajouter un exercice</button>`;
+
+    if (state.libraryOpenForDay === day.id) {
+      const q = state.libraryQuery.toLowerCase();
+      const results = EXERCISE_LIBRARY.filter(ex => !q || (ex.name + " " + ex.muscle).toLowerCase().includes(q)).slice(0, 40);
+      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+        <input id="libraryQuery" placeholder="Rechercher un exercice ou un muscle…" value="${esc(state.libraryQuery)}" style="margin-bottom:12px;" />
+        <div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+          ${results.map(ex => `<button data-add-from-library="${esc(ex.name)}|${esc(ex.muscle)}" style="text-align:left;border:1px solid var(--border);background:none;color:var(--text);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
+            <span>${esc(ex.name)}</span><span class="pill" style="font-size:11px;">${esc(ex.muscle)}</span>
+          </button>`).join("")}
+          ${results.length === 0 ? `<div style="color:var(--textDim);font-size:13.5px;padding:8px 0;">Aucun résultat — essaie "+ Exercice personnalisé" ci-dessous.</div>` : ""}
+        </div>
+        <button data-add-custom="1" style="margin-top:12px;width:100%;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;">+ Exercice personnalisé (nom libre)</button>
+      </div></div>`;
+    }
+  }
+
+  html += `<button class="validate-btn" data-save-builder="1">✓ Enregistrer le programme complet</button>`;
+  return html;
+}
+
 function renderCoachScreen() {
   if (!state.coachAuthed) {
     return `
@@ -551,7 +762,8 @@ function renderCoachScreen() {
           </div>` : `<div style="font-size:12.5px;color:var(--textDim);margin-top:8px;">Chargement du suivi…</div>`}
         </div>
       </div>
-      <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">✎ Programme</button>
+      <button data-open-builder="${c.id}" style="background:var(--accent);border:none;color:var(--accentText);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;">🏗️ Construire</button>
+      <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">{ } JSON avancé</button>
       <button data-edit-videos="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">🎥 Vidéos</button>
       <button data-edit-followup="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">⚙️ Suivi</button>
       <button data-view-checkins="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">📋 Bilans</button>
@@ -672,6 +884,132 @@ function renderCoachScreen() {
 }
 
 async function attachCoachHandlers() {
+  document.querySelectorAll("[data-open-builder]").forEach(b => b.onclick = () => openProgramBuilder(b.dataset.openBuilder));
+
+  const closeBuilderBtn = document.querySelector("[data-close-builder]");
+  if (closeBuilderBtn) closeBuilderBtn.onclick = () => {
+    if (!confirm("Quitter sans enregistrer ? Les modifications non enregistrées seront perdues.")) return;
+    state.programBuilderOpen = false;
+    state.programBuilderClientId = null;
+    state.programBuilderDraft = null;
+    render();
+  };
+
+  document.querySelectorAll("[data-builder-day]").forEach(b => b.onclick = () => {
+    state.programBuilderDayId = b.dataset.builderDay;
+    state.libraryOpenForDay = null;
+    render();
+  });
+
+  const dayIsRestInput = document.getElementById("dayIsRest");
+  if (dayIsRestInput) dayIsRestInput.onchange = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    day.isRest = dayIsRestInput.checked;
+    if (!day.isRest) {
+      if (!day.exercises) day.exercises = [];
+      if (!day.name) day.name = "Séance";
+    }
+    render();
+  };
+
+  const dayNameInput = document.getElementById("dayName");
+  if (dayNameInput) dayNameInput.onblur = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    day.name = dayNameInput.value;
+  };
+
+  document.querySelectorAll("[data-b-field]").forEach(inp => {
+    inp.onblur = () => {
+      const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+      const idx = parseInt(inp.dataset.idx, 10);
+      const field = inp.dataset.bField;
+      day.exercises[idx][field] = field === "video" ? (inp.value.trim() || null) : inp.value;
+    };
+  });
+
+  document.querySelectorAll("[data-b-move]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const idx = parseInt(b.dataset.idx, 10);
+    const newIdx = idx + (b.dataset.bMove === "up" ? -1 : 1);
+    if (newIdx < 0 || newIdx >= day.exercises.length) return;
+    [day.exercises[idx], day.exercises[newIdx]] = [day.exercises[newIdx], day.exercises[idx]];
+    render();
+  });
+
+  document.querySelectorAll("[data-b-superset]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const idx = parseInt(b.dataset.bSuperset, 10);
+    const current = day.exercises[idx];
+    const next = day.exercises[idx + 1];
+    if (!next) return;
+    const alreadyLinked = current.superset && next.superset === current.superset;
+    if (alreadyLinked) {
+      const key = current.superset;
+      current.superset = null;
+      if (next.superset === key) next.superset = null;
+    } else {
+      const key = current.superset || uid("ss");
+      current.superset = key;
+      next.superset = key;
+    }
+    render();
+  });
+
+  document.querySelectorAll("[data-b-delete]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    day.exercises.splice(parseInt(b.dataset.bDelete, 10), 1);
+    render();
+  });
+
+  const openLibraryBtn = document.querySelector("[data-open-library]");
+  if (openLibraryBtn) openLibraryBtn.onclick = () => {
+    state.libraryOpenForDay = state.libraryOpenForDay === state.programBuilderDayId ? null : state.programBuilderDayId;
+    state.libraryQuery = "";
+    render();
+  };
+
+  const libraryQueryInput = document.getElementById("libraryQuery");
+  if (libraryQueryInput) libraryQueryInput.oninput = () => {
+    state.libraryQuery = libraryQueryInput.value;
+    render();
+    const el = document.getElementById("libraryQuery");
+    if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+  };
+
+  document.querySelectorAll("[data-add-from-library]").forEach(b => b.onclick = () => {
+    const [name, muscle] = b.dataset.addFromLibrary.split("|");
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+    state.libraryOpenForDay = null;
+    render();
+  });
+
+  const addCustomBtn = document.querySelector("[data-add-custom]");
+  if (addCustomBtn) addCustomBtn.onclick = () => {
+    const name = prompt("Nom de l'exercice :");
+    if (!name) return;
+    const muscle = prompt("Groupe musculaire :") || "Muscle";
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+    state.libraryOpenForDay = null;
+    render();
+  };
+
+  const saveBuilderBtn = document.querySelector("[data-save-builder]");
+  if (saveBuilderBtn) saveBuilderBtn.onclick = async () => {
+    saveBuilderBtn.textContent = "Enregistrement…";
+    saveBuilderBtn.disabled = true;
+    const { error } = await sb.from("programs").update({ program_json: state.programBuilderDraft, updated_at: new Date().toISOString() }).eq("client_id", state.programBuilderClientId);
+    if (error) { showToast("Erreur : " + error.message); saveBuilderBtn.disabled = false; saveBuilderBtn.textContent = "✓ Enregistrer le programme complet"; return; }
+    const c = state.coachClients.find(c => c.id === state.programBuilderClientId);
+    if (c) c.program_json = state.programBuilderDraft;
+    showToast("Programme enregistré !");
+    state.programBuilderOpen = false;
+    state.programBuilderClientId = null;
+    state.programBuilderDraft = null;
+    render();
+  };
+
   const backAccess = document.querySelector("[data-back-access]");
   if (backAccess) backAccess.onclick = () => { state.screen = "access"; render(); };
 
