@@ -343,6 +343,8 @@ let state = {
   checkinExisting: null,
   checkinDraft: null,
   coachViewingCheckinsId: null,
+  suiviView: "exercices", // "exercices" | "corps"
+  checkinsHistory: null,
   program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
 
@@ -455,7 +457,8 @@ function render() {
     app.innerHTML = renderDocuments();
     if (state.documents === null) loadDocuments();
   } else if (state.tab === "suivi") {
-    app.innerHTML = renderProgress();
+    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress() : renderProgress();
+    if (state.suiviView === "corps" && state.checkinsHistory === null) loadCheckinsHistory();
   } else {
     app.innerHTML = state.checkinOpen ? renderCheckin() : renderProfil();
   }
@@ -532,13 +535,19 @@ function renderCoachScreen() {
   `;
 
   state.coachClients.forEach(c => {
-    html += `<div class="day-card" style="cursor:default;">
+    const ov = c.overview;
+    html += `<div class="day-card" style="cursor:default;flex-wrap:wrap;">
       <div class="day-left" style="flex:1;">
         <div style="flex:1;">
           <div class="day-title">${esc(c.name)}</div>
           <div class="day-sub" style="margin-top:4px;">
             <span class="access-code-chip">${esc(c.access_code)}</span>
           </div>
+          ${ov ? `<div style="font-size:12.5px;color:var(--textDim);margin-top:8px;line-height:1.6;">
+            🏋️ ${ov.sessionsThisWeek}/${ov.trainingDaysTotal} séances cette semaine
+            ${ov.checkinSubmittedThisWeek ? ' · 📋 bilan envoyé ✓' : ' · 📋 bilan pas encore reçu'}
+            ${ov.weightDelta !== null ? ` · ⚖️ ${ov.weightDelta > 0 ? "+" : ""}${ov.weightDelta}kg` : ""}
+          </div>` : `<div style="font-size:12.5px;color:var(--textDim);margin-top:8px;">Chargement du suivi…</div>`}
         </div>
       </div>
       <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">✎ Programme</button>
@@ -654,11 +663,34 @@ async function attachCoachHandlers() {
         program_json: c.programs ? c.programs.program_json : null,
       }));
       render();
+      await loadCoachOverview();
+      render();
     } else {
       state.coachError = "Mot de passe incorrect.";
       render();
     }
   };
+
+  async function loadCoachOverview() {
+    const week = isoWeekKey(todayISO());
+    await Promise.all(state.coachClients.map(async (c) => {
+      const program = c.program_json || DEFAULT_PROGRAM;
+      const trainingDaysTotal = program.filter(d => !d.isRest).length;
+
+      const { data: logs } = await sb.from("session_logs").select("log_date").eq("client_id", c.id);
+      const sessionsThisWeek = (logs || []).filter(l => isoWeekKey(l.log_date) === week).length;
+
+      const { data: checkins } = await sb.from("weekly_checkins").select("week_key,bodyweight,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
+      const latest = (checkins || [])[0];
+      const previous = (checkins || [])[1];
+      c.overview = {
+        sessionsThisWeek, trainingDaysTotal,
+        checkinSubmittedThisWeek: latest ? latest.week_key === week : false,
+        weightDelta: (latest && previous && latest.bodyweight != null && previous.bodyweight != null)
+          ? Math.round((latest.bodyweight - previous.bodyweight) * 10) / 10 : null,
+      };
+    }));
+  }
 
   const newClientBtn = document.querySelector("[data-new-client]");
   if (newClientBtn) newClientBtn.onclick = async () => {
@@ -953,7 +985,7 @@ function renderExerciseCard(exo, day, opts) {
   return `<div class="${cardClass}">
     <button class="ex-head" data-toggle-ex="${exo.id}">
       <div style="flex:1;padding-right:10px;">
-        <div class="ex-name">${esc(exo.name)}</div>
+        <div class="ex-name">${esc(exo.name)} ${exo.video ? `<a href="${esc(exo.video)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;">🎥</a>` : ""}</div>
         <span class="pill">${esc(exo.muscle)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
@@ -1256,6 +1288,74 @@ function renderHistoriqueDetail(logId) {
 }
 
 /* ---------------- Progress ---------------- */
+function suiviToggle() {
+  return `<div class="day-tabs" style="margin-bottom:16px;">
+    <button class="day-tab ${state.suiviView !== "corps" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
+    <button class="day-tab ${state.suiviView === "corps" ? "active" : ""}" data-suivi-view="corps">Poids & Photos</button>
+  </div>`;
+}
+
+async function loadCheckinsHistory() {
+  const { data } = await sb.from("weekly_checkins").select("*").eq("client_id", state.client.id).order("created_at", { ascending: true });
+  state.checkinsHistory = data || [];
+  render();
+}
+
+function renderBodyProgress() {
+  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
+
+  const checkins = state.checkinsHistory;
+  if (checkins === null) {
+    html += `<div class="empty-state">Chargement…</div>`;
+    return html;
+  }
+  const withWeight = checkins.filter(c => c.bodyweight != null);
+  if (withWeight.length === 0) {
+    html += `<div class="empty-state">⚖️<div>Pas encore de bilan avec un poids renseigné.</div></div>`;
+  } else {
+    const w = 300, h = 160, padX = 24, padY = 16;
+    const maxKg = Math.max(...withWeight.map(c => c.bodyweight));
+    const minKg = Math.min(...withWeight.map(c => c.bodyweight));
+    const range = (maxKg - minKg) || 1;
+    const stepX = withWeight.length > 1 ? (w - padX * 2) / (withWeight.length - 1) : 0;
+    const coords = withWeight.map((c, i) => {
+      const x = padX + stepX * i;
+      const y = h - padY - ((c.bodyweight - minKg) / range) * (h - padY * 2);
+      return { x, y, date: c.created_at.slice(0, 10), kg: c.bodyweight };
+    });
+    const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+    html += `<div class="chart-card" style="margin-bottom:20px;">
+      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Poids (kg) — à jeun, semaine après semaine</div>
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:180px;">
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
+        ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)"><title>${formatDateFR(c.date)} — ${c.kg}kg</title></circle>`).join("")}
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--textDim);margin-top:4px;">
+        <span>${formatDateFR(coords[0].date)}</span>
+        <span>${formatDateFR(coords[coords.length - 1].date)}</span>
+      </div>
+    </div>`;
+  }
+
+  const withPhotos = [...checkins].reverse().filter(c => c.photo_front_url || c.photo_back_url || c.photo_side_url);
+  if (withPhotos.length === 0) {
+    html += `<div class="empty-state">📸<div>Pas encore de photo de bilan.</div></div>`;
+  } else {
+    html += `<div class="section-label">Photos, du plus récent au plus ancien</div>`;
+    withPhotos.forEach(c => {
+      html += `<div style="margin-bottom:16px;">
+        <div style="font-size:13px;color:var(--textDim);margin-bottom:8px;">${formatDateFR(c.created_at.slice(0, 10))}${c.bodyweight != null ? ` · ${c.bodyweight}kg` : ""}</div>
+        <div style="display:flex;gap:8px;">
+          ${["photo_front_url", "photo_back_url", "photo_side_url"].map(k => c[k]
+            ? `<a href="${esc(c[k])}" target="_blank" rel="noopener"><img src="${esc(c[k])}" style="width:31%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;border:1px solid var(--border);" /></a>`
+            : `<div style="width:31%;aspect-ratio:3/4;border-radius:10px;border:1px dashed var(--border);"></div>`).join("")}
+        </div>
+      </div>`;
+    });
+  }
+  return html;
+}
+
 function renderProgress() {
   const trainingDays = state.program.filter(d => !d.isRest);
   if (!state.progressDayId) state.progressDayId = trainingDays[0]?.id;
@@ -1266,7 +1366,7 @@ function renderProgress() {
   const exo = day.exercises.find(e => e.id === state.progressExId);
   const hist = exo ? getExerciseHistory(exo.id) : [];
 
-  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>
+  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle() + `
     <div class="day-tabs">
       ${trainingDays.map(d => `<button class="day-tab ${d.id === state.progressDayId ? "active" : ""}" data-progress-day="${d.id}">${esc(d.name)}</button>`).join("")}
     </div>
@@ -1581,6 +1681,11 @@ function attachHandlers() {
     state.historyDraft = null;
     render();
   };
+
+  app.querySelectorAll("[data-suivi-view]").forEach(b => b.onclick = () => {
+    state.suiviView = b.dataset.suiviView;
+    render();
+  });
 
   app.querySelectorAll("[data-progress-day]").forEach(b => b.onclick = () => {
     state.progressDayId = b.dataset.progressDay;
