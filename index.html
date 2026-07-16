@@ -295,6 +295,7 @@ let state = {
   openDayId: null,
   recapLogId: null,
   historyOpenLogId: null,
+  historyDraft: null, // working copy of a log's entries while editing in Historique
   sessionInputs: {}, // exId -> [{reps,kg}]
   openEx: {}, // exId -> bool (accordion open state, default true)
   dark: true,
@@ -618,6 +619,8 @@ function renderHistorique() {
 function renderHistoriqueDetail(logId) {
   const log = state.sessionLogs.find(l => l.id === logId);
   if (!log) return renderHistorique();
+  if (!state.historyDraft) state.historyDraft = JSON.parse(JSON.stringify(log.entries));
+  const draft = state.historyDraft;
   const day = state.program.find(d => d.id === log.dayId);
   let html = `
     <div style="margin:20px 0 4px;">
@@ -627,7 +630,7 @@ function renderHistoriqueDetail(logId) {
     <div class="subtitle">${formatDateFR(log.date)} — corrige si besoin</div>
   `;
   day.exercises.forEach(e => {
-    const sets = log.entries[e.id];
+    const sets = draft[e.id];
     if (!sets || !sets.length) return;
     html += `<div class="ex-card">
       <div class="ex-body" style="padding-top:16px;">
@@ -648,6 +651,8 @@ function renderHistoriqueDetail(logId) {
     </div>`;
   });
   html += `<button class="validate-btn" data-save-history="${log.id}">✓ Enregistrer les modifications</button>`;
+  html += `<button data-cancel-history="1" style="margin-top:10px;width:100%;padding:14px;border-radius:14px;border:1px solid var(--border);background:none;color:var(--textDim);font-weight:700;font-size:14.5px;">Annuler les modifications</button>`;
+  html += `<button data-delete-log="${log.id}" class="danger-btn" style="margin-top:22px;width:100%;">🗑 Supprimer cette séance de l'historique</button>`;
   return html;
 }
 
@@ -740,28 +745,40 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-open-log]").forEach(b => b.onclick = () => {
     state.historyOpenLogId = b.dataset.openLog;
+    state.historyDraft = null;
     render();
   });
 
   const backHistory = app.querySelector("[data-back-history]");
-  if (backHistory) backHistory.onclick = () => { state.historyOpenLogId = null; render(); };
+  if (backHistory) backHistory.onclick = () => {
+    state.historyOpenLogId = null;
+    state.historyDraft = null;
+    render();
+  };
 
   app.querySelectorAll("[data-hist-field]").forEach(inp => {
     inp.oninput = () => {
-      const logId = inp.dataset.logId, exId = inp.dataset.exId,
-        idx = parseInt(inp.dataset.idx, 10), field = inp.dataset.histField;
-      const log = state.sessionLogs.find(l => l.id === logId);
-      if (log && log.entries[exId] && log.entries[exId][idx]) {
-        log.entries[exId][idx][field] = inp.value;
+      const exId = inp.dataset.exId, idx = parseInt(inp.dataset.idx, 10), field = inp.dataset.histField;
+      if (state.historyDraft && state.historyDraft[exId] && state.historyDraft[exId][idx]) {
+        state.historyDraft[exId][idx][field] = inp.value;
       }
     };
   });
+
+  const cancelHistBtn = app.querySelector("[data-cancel-history]");
+  if (cancelHistBtn) cancelHistBtn.onclick = () => {
+    state.historyOpenLogId = null;
+    state.historyDraft = null;
+    showToast("Modifications annulées.");
+    render();
+  };
 
   const saveHistBtn = app.querySelector("[data-save-history]");
   if (saveHistBtn) saveHistBtn.onclick = () => {
     const logId = saveHistBtn.dataset.saveHistory;
     const log = state.sessionLogs.find(l => l.id === logId);
-    if (log) {
+    if (log && state.historyDraft) {
+      log.entries = state.historyDraft;
       // keep the per-exercise history array (used for the progression chart) in sync
       Object.entries(log.entries).forEach(([exId, sets]) => {
         const histArr = state.history[exId];
@@ -774,6 +791,36 @@ function attachHandlers() {
       showToast("Séance mise à jour.");
     }
     state.historyOpenLogId = null;
+    state.historyDraft = null;
+    render();
+  };
+
+  const deleteLogBtn = app.querySelector("[data-delete-log]");
+  if (deleteLogBtn) deleteLogBtn.onclick = () => {
+    const logId = deleteLogBtn.dataset.deleteLog;
+    if (!confirm("Supprimer définitivement cette séance de l'historique ? Elle ne comptera plus comme faite cette semaine-là.")) return;
+    const log = state.sessionLogs.find(l => l.id === logId);
+    if (log) {
+      // remove one occurrence of this date from the day's completions ("fait" badge)
+      const comp = state.completions[log.dayId];
+      if (comp) {
+        const idx = comp.indexOf(log.date);
+        if (idx !== -1) comp.splice(idx, 1);
+      }
+      // remove the matching entries from each exercise's progression history
+      Object.keys(log.entries).forEach(exId => {
+        const histArr = state.history[exId];
+        if (histArr) {
+          const idx = histArr.findIndex(h => h.date === log.date);
+          if (idx !== -1) histArr.splice(idx, 1);
+        }
+      });
+      state.sessionLogs = state.sessionLogs.filter(l => l.id !== logId);
+      persist();
+      showToast("Séance supprimée de l'historique.");
+    }
+    state.historyOpenLogId = null;
+    state.historyDraft = null;
     render();
   };
 
@@ -828,6 +875,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
   state.openDayId = null;
   state.recapLogId = null;
   state.historyOpenLogId = null;
+  state.historyDraft = null;
   render();
 });
 
