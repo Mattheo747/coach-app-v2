@@ -336,8 +336,13 @@ let state = {
   foodSearchResults: [],
   foodSearchQuery: "",
   foodSearchLoading: false,
-  selectedFood: null, // { name, kcalPer100, proteinPer100, carbsPer100, fatPer100 }
-  nutritionDayType: null, // "on" | "off" — defaults from today's program
+  selectedFood: null,
+  nutritionDayType: null,
+  checkinOpen: false,
+  checkinExisting: null,
+  checkinDraft: null,
+  coachViewingCheckinsId: null,
+  checkinSettings: null,
   program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
 
@@ -390,6 +395,9 @@ async function loadClientByCode(code) {
 
   const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
   state.foodLogsToday = foodRows || [];
+
+  const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("id", 1).maybeSingle();
+  state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
 
   localStorage.setItem(ACCESS_KEY, code);
   return true;
@@ -449,7 +457,7 @@ function render() {
   } else if (state.tab === "suivi") {
     app.innerHTML = renderProgress();
   } else {
-    app.innerHTML = renderProfil();
+    app.innerHTML = state.checkinOpen ? renderCheckin() : renderProfil();
   }
   attachHandlers();
 }
@@ -518,7 +526,22 @@ function renderCoachScreen() {
   let html = `
     <div class="h1" style="font-size:26px;margin-top:20px;">ESPACE COACH</div>
     <div class="subtitle">Gère tes clients et leurs programmes</div>
-    <button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
+  `;
+
+  const cs = state.checkinSettings || { deadline_day: "Dimanche", deadline_time: "20:00" };
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:10px;">⏰ Échéance des bilans hebdomadaires</div>
+    <div class="row">
+      <select id="deadlineDay">
+        ${["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"].map(day =>
+          `<option value="${day}" ${cs.deadline_day === day ? "selected" : ""}>${day}</option>`).join("")}
+      </select>
+      <input id="deadlineTime" type="time" value="${esc(cs.deadline_time)}" />
+    </div>
+    <button class="validate-btn" id="saveDeadlineBtn" style="margin-top:0;">✓ Enregistrer l'échéance</button>
+  </div></div>`;
+
+  html += `<button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
   `;
 
   state.coachClients.forEach(c => {
@@ -533,7 +556,31 @@ function renderCoachScreen() {
       </div>
       <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">✎ Programme</button>
       <button data-edit-followup="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">⚙️ Suivi</button>
+      <button data-view-checkins="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;margin-left:6px;">📋 Bilans</button>
     </div>`;
+    if (state.coachViewingCheckinsId === c.id) {
+      const checkins = c.checkins || [];
+      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+        <div style="font-weight:700;margin-bottom:10px;">📋 Bilans de ${esc(c.name)}</div>
+        ${checkins.length === 0 ? `<div style="color:var(--textDim);font-size:13.5px;">Aucun bilan envoyé pour l'instant.</div>` : checkins.map(ck => `
+          <div style="border-top:1px solid var(--border);padding:12px 0;">
+            <div style="font-weight:700;margin-bottom:6px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0,10))}</div>
+            <div style="font-size:13px;color:var(--textDim);line-height:1.6;">
+              Ressenti : ${ck.feeling ?? "—"}/5 · Sommeil : ${ck.sleep_quality ?? "—"}/5 · Stress : ${ck.stress_level ?? "—"}/5 · Motivation : ${ck.motivation ?? "—"}/5<br/>
+              Eau 3L : ${ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—"} · Douleurs : ${ck.pain_other === true ? "Oui — " + esc(ck.pain_detail || "") : ck.pain_other === false ? "Non" : "—"}<br/>
+              Nutrition respectée : ${esc(ck.nutrition_respect || "—")} · Séances manquées : ${ck.missed_sessions === true ? "Oui — " + esc(ck.missed_reason || "") : ck.missed_sessions === false ? "Non" : "—"}<br/>
+              Poids : ${ck.bodyweight ?? "—"}kg · Bras G/D : ${ck.arm_left ?? "—"}/${ck.arm_right ?? "—"}cm · Jambe G/D : ${ck.leg_left ?? "—"}/${ck.leg_right ?? "—"}cm · Épaules : ${ck.shoulders ?? "—"}cm · Taille : ${ck.waist ?? "—"}cm
+            </div>
+            <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+              ${ck.photo_front_url ? `<a href="${esc(ck.photo_front_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo face</a>` : ""}
+              ${ck.photo_back_url ? `<a href="${esc(ck.photo_back_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo dos</a>` : ""}
+              ${ck.photo_side_url ? `<a href="${esc(ck.photo_side_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo profil</a>` : ""}
+              ${ck.steps_screenshot_url ? `<a href="${esc(ck.steps_screenshot_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Capture pas</a>` : ""}
+            </div>
+          </div>
+        `).join("")}
+      </div></div>`;
+    }
     if (state.coachEditingNutritionId === c.id) {
       const n = c.nutrition || {};
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -611,6 +658,8 @@ async function attachCoachHandlers() {
         id: c.id, name: c.name, access_code: c.access_code,
         program_json: c.programs ? c.programs.program_json : null,
       }));
+      const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("id", 1).maybeSingle();
+      state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
       render();
     } else {
       state.coachError = "Mot de passe incorrect.";
@@ -680,6 +729,22 @@ async function attachCoachHandlers() {
     document.getElementById("docFileInput").value = "";
   };
 
+  document.querySelectorAll("[data-view-checkins]").forEach(b => b.onclick = async () => {
+    const clientId = b.dataset.viewCheckins;
+    if (state.coachViewingCheckinsId === clientId) {
+      state.coachViewingCheckinsId = null;
+      render();
+      return;
+    }
+    const c = state.coachClients.find(c => c.id === clientId);
+    const { data } = await sb.from("weekly_checkins").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+    c.checkins = data || [];
+    state.coachViewingCheckinsId = clientId;
+    state.coachEditingClientId = null;
+    state.coachEditingNutritionId = null;
+    render();
+  });
+
   document.querySelectorAll("[data-edit-followup]").forEach(b => b.onclick = async () => {
     const clientId = b.dataset.editFollowup;
     if (state.coachEditingNutritionId === clientId) {
@@ -696,6 +761,7 @@ async function attachCoachHandlers() {
     c.message = m ? m.message : "";
     state.coachEditingNutritionId = clientId;
     state.coachEditingClientId = null;
+    state.coachViewingCheckinsId = null;
     render();
   });
 
@@ -1257,6 +1323,12 @@ function renderProfil() {
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
     </div>
+    <button class="day-card" data-open-checkin="1" style="margin-bottom:16px;">
+      <div class="day-left"><div class="day-num">📋</div>
+        <div><div class="day-title">Bilan hebdomadaire</div><div class="day-sub">Ressenti, mensurations, photos de la semaine</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
     <button class="day-card" data-goto-tab="historique" style="margin-bottom:16px;">
       <div class="day-left"><div class="day-num">📜</div>
         <div><div class="day-title">Historique complet</div><div class="day-sub">Consulter ou corriger une séance passée</div></div>
@@ -1271,7 +1343,118 @@ function renderProfil() {
   `;
 }
 
-/* ---------------- Event handling (main app) ---------------- */
+/* ---------------- Bilan hebdomadaire ---------------- */
+async function openCheckin() {
+  const weekKey = isoWeekKey(todayISO());
+  const { data } = await sb.from("weekly_checkins").select("*").eq("client_id", state.client.id).eq("week_key", weekKey).maybeSingle();
+  state.checkinExisting = data || null;
+  state.checkinDraft = data ? { ...data } : {};
+  state.checkinOpen = true;
+  render();
+}
+
+function photoField(id, label, existingUrl) {
+  return `<div style="margin-bottom:14px;">
+    <div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">${label}${existingUrl ? ` — <a href="${esc(existingUrl)}" target="_blank" style="color:var(--accent);">voir l'actuelle</a>` : ""}</div>
+    <input id="${id}" type="file" accept="image/*" />
+  </div>`;
+}
+
+function renderCheckin() {
+  const d = state.checkinDraft || {};
+  const deadline = state.checkinSettings ? `${state.checkinSettings.deadline_day} avant ${state.checkinSettings.deadline_time}` : "chaque semaine";
+
+  if (state.checkinExisting) {
+    const ck = state.checkinExisting;
+    return `
+      <div style="margin:20px 0 4px;">
+        <button class="back-btn" data-back-to-profil="1">← Retour</button>
+      </div>
+      <div class="h1" style="font-size:26px;margin-top:10px;">BILAN HEBDOMADAIRE</div>
+      <div class="subtitle">Envoyé le ${formatDateFR(ck.created_at.slice(0, 10))}</div>
+      <div class="info-box">✓ Ton bilan de cette semaine a bien été envoyé à ton coach. Il n'est plus modifiable — rendez-vous la semaine prochaine (${esc(deadline)}) pour le suivant.</div>
+      <div class="ex-card"><div class="ex-body" style="padding-top:16px;font-size:13.5px;color:var(--textDim);line-height:1.8;">
+        Ressenti : <strong style="color:var(--text);">${ck.feeling ?? "—"}/5</strong> · Sommeil : <strong style="color:var(--text);">${ck.sleep_quality ?? "—"}/5</strong> · Stress : <strong style="color:var(--text);">${ck.stress_level ?? "—"}/5</strong> · Motivation : <strong style="color:var(--text);">${ck.motivation ?? "—"}/5</strong><br/>
+        Eau 3L/jour : <strong style="color:var(--text);">${ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—"}</strong> · Douleurs : <strong style="color:var(--text);">${ck.pain_other === true ? "Oui" : ck.pain_other === false ? "Non" : "—"}</strong><br/>
+        Nutrition respectée : <strong style="color:var(--text);">${esc(ck.nutrition_respect || "—")}</strong> · Séances manquées : <strong style="color:var(--text);">${ck.missed_sessions === true ? "Oui" : ck.missed_sessions === false ? "Non" : "—"}</strong><br/>
+        Poids : <strong style="color:var(--text);">${ck.bodyweight ?? "—"}kg</strong> · Bras G/D : <strong style="color:var(--text);">${ck.arm_left ?? "—"}/${ck.arm_right ?? "—"}cm</strong> · Jambe G/D : <strong style="color:var(--text);">${ck.leg_left ?? "—"}/${ck.leg_right ?? "—"}cm</strong><br/>
+        Épaules : <strong style="color:var(--text);">${ck.shoulders ?? "—"}cm</strong> · Taille : <strong style="color:var(--text);">${ck.waist ?? "—"}cm</strong>
+      </div></div>
+    `;
+  }
+
+  let html = `
+    <div style="margin:20px 0 4px;">
+      <button class="back-btn" data-back-to-profil="1">← Retour</button>
+    </div>
+    <div class="h1" style="font-size:26px;margin-top:10px;">BILAN HEBDOMADAIRE</div>
+    <div class="subtitle">À rendre chaque ${esc(deadline)} — semaine du ${formatDateFR(todayISO())}</div>
+  `;
+
+  const scaleRow = (id, label) => `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:14px;margin-bottom:8px;">${label}</div>
+      <div style="display:flex;gap:6px;">
+        ${[1, 2, 3, 4, 5].map(n => `<button data-scale="${id}" data-value="${n}" style="flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${d[id] == n ? "var(--accent)" : "transparent"};color:${d[id] == n ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">${n}</button>`).join("")}
+      </div>
+    </div>`;
+
+  const yesNo = (id, label) => `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:14px;margin-bottom:8px;">${label}</div>
+      <div style="display:flex;gap:8px;">
+        <button data-bool="${id}" data-value="true" style="flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${d[id] === true ? "var(--accent)" : "transparent"};color:${d[id] === true ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">Oui</button>
+        <button data-bool="${id}" data-value="false" style="flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${d[id] === false ? "var(--accent)" : "transparent"};color:${d[id] === false ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">Non</button>
+      </div>
+    </div>`;
+
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">`;
+  html += scaleRow("feeling", "Ressenti global de la semaine (1 = épuisé, 5 = en pleine forme)");
+  html += yesNo("water_3l", "As-tu bu 3L d'eau par jour ?");
+  html += yesNo("pain_other", "Des douleurs autres que des courbatures ?");
+  if (d.pain_other === true) {
+    html += `<textarea id="painDetail" placeholder="Détaille où et depuis quand…" rows="2" style="margin-bottom:16px;">${esc(d.pain_detail || "")}</textarea>`;
+  }
+  html += scaleRow("sleep_quality", "Qualité de ton sommeil (1 = mauvais, 5 = excellent)");
+  html += scaleRow("stress_level", "Niveau de stress de la semaine (1 = faible, 5 = élevé)");
+  html += `<div style="margin-bottom:16px;">
+    <div style="font-size:14px;margin-bottom:8px;">As-tu respecté ton plan nutritionnel ?</div>
+    <select id="nutritionRespect">
+      <option value="">—</option>
+      <option value="oui" ${d.nutrition_respect === "oui" ? "selected" : ""}>Oui</option>
+      <option value="partiel" ${d.nutrition_respect === "partiel" ? "selected" : ""}>En partie</option>
+      <option value="non" ${d.nutrition_respect === "non" ? "selected" : ""}>Non</option>
+    </select>
+  </div>`;
+  html += scaleRow("motivation", "Motivation à poursuivre le programme (1 = faible, 5 = au top)");
+  html += yesNo("missed_sessions", "As-tu manqué des séances cette semaine ?");
+  if (d.missed_sessions === true) {
+    html += `<textarea id="missedReason" placeholder="Pourquoi ?" rows="2" style="margin-bottom:6px;">${esc(d.missed_reason || "")}</textarea>`;
+  }
+  html += `</div></div>`;
+
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:12px;">📏 Mensurations</div>
+    <div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">Poids actuel (à jeun)</div>
+    <input id="bodyweight" inputmode="decimal" placeholder="kg" value="${d.bodyweight ?? ""}" style="margin-bottom:12px;" />
+    <div class="row"><input id="armLeft" inputmode="decimal" placeholder="Bras gauche contracté (cm)" value="${d.arm_left ?? ""}" /><input id="armRight" inputmode="decimal" placeholder="Bras droit contracté (cm)" value="${d.arm_right ?? ""}" /></div>
+    <div class="row"><input id="legLeft" inputmode="decimal" placeholder="Jambe gauche contractée (cm)" value="${d.leg_left ?? ""}" /><input id="legRight" inputmode="decimal" placeholder="Jambe droite contractée (cm)" value="${d.leg_right ?? ""}" /></div>
+    <div class="row"><input id="shoulders" inputmode="decimal" placeholder="Tour d'épaules (cm)" value="${d.shoulders ?? ""}" /><input id="waist" inputmode="decimal" placeholder="Tour de taille (cm)" value="${d.waist ?? ""}" /></div>
+  </div></div>`;
+
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:12px;">📸 Photos & pas</div>
+    ${photoField("photoFront", "Photo de face", state.checkinExisting?.photo_front_url)}
+    ${photoField("photoBack", "Photo de dos", state.checkinExisting?.photo_back_url)}
+    ${photoField("photoSide", "Photo de profil", state.checkinExisting?.photo_side_url)}
+    ${photoField("stepsScreenshot", "Capture d'écran de tes pas de la semaine", state.checkinExisting?.steps_screenshot_url)}
+  </div></div>`;
+
+  html += `<button class="validate-btn" id="submitCheckinBtn">✓ Envoyer mon bilan</button>`;
+  return html;
+}
+
+
 function attachHandlers() {
   const app = document.getElementById("app");
 
@@ -1427,7 +1610,7 @@ function attachHandlers() {
   if (backToAccueil) backToAccueil.onclick = () => { state.tab = "accueil"; render(); };
 
   const backToProfil = app.querySelector("[data-back-to-profil]");
-  if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; render(); };
+  if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; state.checkinOpen = false; render(); };
 
   app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
     state.nutritionDayType = b.dataset.setDaytype;
@@ -1499,13 +1682,76 @@ function attachHandlers() {
     render();
   };
 
-  app.querySelectorAll("[data-delete-food]").forEach(b => b.onclick = async () => {
-    const id = b.dataset.deleteFood;
-    const { error } = await sb.from("food_logs").delete().eq("id", id);
-    if (error) { showToast("Erreur lors de la suppression."); return; }
-    state.foodLogsToday = state.foodLogsToday.filter(f => f.id !== id);
+  const openCheckinBtn = app.querySelector("[data-open-checkin]");
+  if (openCheckinBtn) openCheckinBtn.onclick = () => { openCheckin(); };
+
+  app.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => {
+    if (!state.checkinDraft) state.checkinDraft = {};
+    state.checkinDraft[b.dataset.scale] = parseInt(b.dataset.value, 10);
     render();
   });
+
+  app.querySelectorAll("[data-bool]").forEach(b => b.onclick = () => {
+    if (!state.checkinDraft) state.checkinDraft = {};
+    state.checkinDraft[b.dataset.bool] = b.dataset.value === "true";
+    render();
+  });
+
+  const submitCheckinBtn = app.querySelector("#submitCheckinBtn");
+  if (submitCheckinBtn) submitCheckinBtn.onclick = async () => {
+    submitCheckinBtn.textContent = "Envoi…";
+    submitCheckinBtn.disabled = true;
+    const d = state.checkinDraft || {};
+    const num = (id) => {
+      const v = document.getElementById(id)?.value;
+      return v === "" || v === undefined ? null : parseFloat(v);
+    };
+
+    const uploadIfPresent = async (inputId, existingUrl) => {
+      const input = document.getElementById(inputId);
+      const file = input && input.files[0];
+      if (!file) return existingUrl || null;
+      const path = `${state.client.id}-${isoWeekKey(todayISO())}-${inputId}-${Date.now()}-${file.name}`;
+      const { error } = await sb.storage.from("checkin-photos").upload(path, file);
+      if (error) { showToast("Erreur d'upload : " + inputId); return existingUrl || null; }
+      const { data } = sb.storage.from("checkin-photos").getPublicUrl(path);
+      return data.publicUrl;
+    };
+
+    const photoFrontUrl = await uploadIfPresent("photoFront", state.checkinExisting?.photo_front_url);
+    const photoBackUrl = await uploadIfPresent("photoBack", state.checkinExisting?.photo_back_url);
+    const photoSideUrl = await uploadIfPresent("photoSide", state.checkinExisting?.photo_side_url);
+    const stepsUrl = await uploadIfPresent("stepsScreenshot", state.checkinExisting?.steps_screenshot_url);
+
+    const payload = {
+      client_id: state.client.id,
+      week_key: isoWeekKey(todayISO()),
+      feeling: d.feeling ?? null,
+      water_3l: d.water_3l ?? null,
+      pain_other: d.pain_other ?? null,
+      pain_detail: document.getElementById("painDetail")?.value || null,
+      sleep_quality: d.sleep_quality ?? null,
+      stress_level: d.stress_level ?? null,
+      nutrition_respect: document.getElementById("nutritionRespect")?.value || null,
+      motivation: d.motivation ?? null,
+      missed_sessions: d.missed_sessions ?? null,
+      missed_reason: document.getElementById("missedReason")?.value || null,
+      bodyweight: num("bodyweight"),
+      arm_left: num("armLeft"), arm_right: num("armRight"),
+      leg_left: num("legLeft"), leg_right: num("legRight"),
+      shoulders: num("shoulders"), waist: num("waist"),
+      photo_front_url: photoFrontUrl, photo_back_url: photoBackUrl,
+      photo_side_url: photoSideUrl, steps_screenshot_url: stepsUrl,
+    };
+
+    const { error } = await sb.from("weekly_checkins").upsert(payload, { onConflict: "client_id,week_key" });
+    if (error) { showToast("Erreur : " + error.message); submitCheckinBtn.textContent = "✓ Envoyer mon bilan"; submitCheckinBtn.disabled = false; return; }
+    showToast("Bilan envoyé, bravo !");
+    state.checkinOpen = false;
+    state.checkinDraft = null;
+    state.checkinExisting = null;
+    render();
+  };
 }
 
 function updateCountersOnly() {
@@ -1541,6 +1787,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
   state.historyOpenLogId = null;
   state.historyDraft = null;
   state.selectedFood = null;
+  state.checkinOpen = false;
   render();
 });
 
