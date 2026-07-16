@@ -7,7 +7,8 @@
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTUFUVEhFT1BIWVNJQyIsInNob3J0X25hbWUiOiJNYXR0aGVvcGh5c2ljIiwic3RhcnRfdXJsIjoiLiIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiMwYTBhMGIiLCJ0aGVtZV9jb2xvciI6IiMwYTBhMGIifQ==" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Mattheophysic" />
+<meta name="apple-mobile-web-app-title" content="Mathéophysique" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
     --bg: #0a0a0b; --card: #18191b; --border: #26272a;
@@ -27,10 +28,9 @@
     font-family: var(--body); }
   body { padding-bottom: 90px; min-height: 100vh; }
   #app { max-width: 480px; margin: 0 auto; padding: 0 16px; }
-  input, select { font-family: var(--mono); font-size: 15px; color: var(--text);
+  input, select, textarea { font-family: var(--mono); font-size: 15px; color: var(--text);
     background: transparent; border: 1px solid var(--border); border-radius: 10px;
     padding: 9px 10px; width: 100%; outline: none; }
-  input[type="text"].name-input { font-family: var(--body); font-weight: 700; }
   button { font-family: var(--body); cursor: pointer; }
   .header { border-bottom: 1px solid var(--border); }
   .header-inner { max-width: 480px; margin: 0 auto; padding: 18px 16px;
@@ -123,6 +123,11 @@
   .day-tab.active { background: var(--accent); color: #0a0a0b; }
   .chart-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
   .empty-state { text-align: center; padding: 40px 0; color: var(--textDim); }
+  .center-screen { min-height: 70vh; display: flex; flex-direction: column; justify-content: center; }
+  .access-code-chip { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--accent);
+    background: rgba(200,245,87,0.1); padding: 8px 14px; border-radius: 10px; letter-spacing: 1px; }
+  .link-btn { background: none; border: none; color: var(--textDim); text-decoration: underline;
+    font-size: 13.5px; padding: 0; }
 </style>
 </head>
 <body class="dark">
@@ -136,7 +141,7 @@
 </div>
 <div id="app"></div>
 <div id="toastHolder"></div>
-<div class="bottom-nav">
+<div class="bottom-nav" style="display:none;">
   <div class="bottom-nav-inner">
     <button class="nav-btn" data-tab="seance">🏋️<span>Séance</span></button>
     <button class="nav-btn" data-tab="historique">📜<span>Historique</span></button>
@@ -147,12 +152,20 @@
 
 <script>
 /* =========================================================
-   MATTHEOPHYSIC — Suivi d'entraînement (version autonome)
-   Aucune dépendance, aucun compte requis. Données en
-   localStorage sur l'appareil de l'utilisateur.
+   MATTHEOPHYSIC — Suivi d'entraînement (version Cloud/Supabase)
+   Chaque client a son propre code d'accès et son propre
+   programme. Les données vivent dans Supabase, pas sur
+   l'appareil — le coach ne peut jamais rien y modifier
+   côté client, et peut créer/gérer des clients via l'espace
+   Coach (mot de passe requis).
 ========================================================= */
 
-const STORAGE_KEY = "mattheophysic-app-data";
+const SUPABASE_URL = "https://axqwkvmceonkscdkqucr.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_lP5XnDQKWwc-pBlRg82lTA_2ZOID061";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const ACCESS_KEY = "mattheophysic_access_code";
+const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -284,44 +297,32 @@ const DEFAULT_PROGRAM = [
   { id: "d7", num: 7, day: "Dimanche", name: "Repos", exercises: [], isRest: true },
 ];
 
+function randomAccessCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans caractères ambigus
+  let s = "";
+  for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s.slice(0, 4) + "-" + s.slice(4);
+}
+
 /* ---------------- State ---------------- */
 let state = {
-  program: DEFAULT_PROGRAM,
-  history: {},
+  screen: "loading", // loading | access | app | coach
+  accessError: "",
+  client: null, // { id, name, access_code, program }
+  sessionLogs: [], // { id, dayId, date, entries }
   notes: {},
-  completions: {},
-  sessionLogs: [], // { id, dayId, date, entries: { exId: [{reps,kg}] } }
   tab: "seance",
   openDayId: null,
   recapLogId: null,
   historyOpenLogId: null,
-  historyDraft: null, // working copy of a log's entries while editing in Historique
-  sessionInputs: {}, // exId -> [{reps,kg}]
-  openEx: {}, // exId -> bool (accordion open state, default true)
+  historyDraft: null,
+  sessionInputs: {},
+  openEx: {},
   dark: true,
+  coachClients: [],
+  coachEditingClientId: null,
+  program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      state.program = data.program || DEFAULT_PROGRAM;
-      state.history = data.history || {};
-      state.notes = data.notes || {};
-      state.completions = data.completions || {};
-      state.sessionLogs = data.sessionLogs || [];
-    }
-  } catch (e) { console.error("Erreur de chargement", e); }
-}
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      program: state.program, history: state.history, notes: state.notes,
-      completions: state.completions, sessionLogs: state.sessionLogs,
-    }));
-  } catch (e) { console.error("Erreur de sauvegarde", e); }
-}
 
 function showToast(msg) {
   const holder = document.getElementById("toastHolder");
@@ -337,9 +338,65 @@ function esc(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/* ---------------- Render ---------------- */
+function getExerciseHistory(exId) {
+  return state.sessionLogs
+    .filter(l => l.entries[exId] && l.entries[exId].length)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(l => ({ date: l.date, sets: l.entries[exId] }));
+}
+
+/* ---------------- Data loading (Supabase) ---------------- */
+async function loadClientByCode(code) {
+  const { data: clientRow, error } = await sb.from("clients").select("*").eq("access_code", code).maybeSingle();
+  if (error || !clientRow) return false;
+  const { data: progRow } = await sb.from("programs").select("program_json").eq("client_id", clientRow.id).maybeSingle();
+  const program = (progRow && progRow.program_json) ? progRow.program_json : DEFAULT_PROGRAM;
+  const { data: logs } = await sb.from("session_logs").select("*").eq("client_id", clientRow.id).order("log_date", { ascending: true });
+  const { data: notesRows } = await sb.from("exercise_notes").select("*").eq("client_id", clientRow.id);
+  state.client = { id: clientRow.id, name: clientRow.name, access_code: clientRow.access_code };
+  state.program = program;
+  state.sessionLogs = (logs || []).map(l => ({ id: l.id, dayId: l.day_id, date: l.log_date, entries: l.entries }));
+  state.notes = {};
+  (notesRows || []).forEach(n => { state.notes[n.exercise_id] = n.note; });
+  localStorage.setItem(ACCESS_KEY, code);
+  return true;
+}
+
+async function boot() {
+  const saved = localStorage.getItem(ACCESS_KEY);
+  if (saved) {
+    const ok = await loadClientByCode(saved);
+    if (ok) { state.screen = "app"; render(); return; }
+  }
+  state.screen = "access";
+  render();
+}
+
+/* ---------------- Render dispatcher ---------------- */
 function render() {
   const app = document.getElementById("app");
+  const nav = document.querySelector(".bottom-nav");
+
+  if (state.screen === "loading") {
+    nav.style.display = "none";
+    app.innerHTML = `<div class="center-screen" style="text-align:center;color:var(--textDim);">Chargement…</div>`;
+    return;
+  }
+  if (state.screen === "access") {
+    nav.style.display = "none";
+    app.innerHTML = renderAccessScreen();
+    attachAccessHandlers();
+    return;
+  }
+  if (state.screen === "coach") {
+    nav.style.display = "none";
+    app.innerHTML = renderCoachScreen();
+    attachCoachHandlers();
+    return;
+  }
+
+  nav.style.display = "";
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === state.tab));
 
   if (state.recapLogId) {
@@ -357,16 +414,178 @@ function render() {
   attachHandlers();
 }
 
+/* ---------------- Access screen ---------------- */
+function renderAccessScreen() {
+  return `
+    <div class="center-screen">
+      <div style="text-align:center;margin-bottom:28px;">
+        <div class="h1" style="margin-bottom:6px;">BIENVENUE</div>
+        <div class="subtitle">Entre le code d'accès que ton coach t'a donné</div>
+      </div>
+      <input id="accessCodeInput" placeholder="ex : AB3D-K9PZ" style="text-align:center;font-size:18px;letter-spacing:2px;padding:14px;margin-bottom:12px;" autocapitalize="characters" />
+      ${state.accessError ? `<div style="color:var(--danger);font-size:13.5px;margin-bottom:12px;text-align:center;">${esc(state.accessError)}</div>` : ""}
+      <button class="validate-btn" id="accessSubmitBtn">Valider</button>
+      <div style="text-align:center;margin-top:24px;">
+        <button class="link-btn" data-go-coach="1">Je suis le coach →</button>
+      </div>
+    </div>
+  `;
+}
+
+function attachAccessHandlers() {
+  const submitBtn = document.getElementById("accessSubmitBtn");
+  const input = document.getElementById("accessCodeInput");
+  const submit = async () => {
+    const code = input.value.trim().toUpperCase();
+    if (!code) return;
+    submitBtn.textContent = "Vérification…";
+    submitBtn.disabled = true;
+    const ok = await loadClientByCode(code);
+    if (ok) {
+      state.screen = "app";
+      state.accessError = "";
+      render();
+    } else {
+      state.accessError = "Code inconnu — vérifie auprès de ton coach.";
+      submitBtn.textContent = "Valider";
+      submitBtn.disabled = false;
+      render();
+    }
+  };
+  if (submitBtn) submitBtn.onclick = submit;
+  if (input) input.onkeydown = (e) => { if (e.key === "Enter") submit(); };
+  const goCoach = document.querySelector("[data-go-coach]");
+  if (goCoach) goCoach.onclick = () => { state.screen = "coach"; state.coachAuthed = false; render(); };
+}
+
+/* ---------------- Coach screen ---------------- */
+function renderCoachScreen() {
+  if (!state.coachAuthed) {
+    return `
+      <div class="center-screen">
+        <div class="h1" style="text-align:center;">ESPACE COACH</div>
+        <div class="subtitle" style="text-align:center;">Mot de passe requis</div>
+        <input id="coachPasswordInput" type="password" placeholder="Mot de passe" style="margin-bottom:12px;" />
+        ${state.coachError ? `<div style="color:var(--danger);font-size:13.5px;margin-bottom:12px;text-align:center;">${esc(state.coachError)}</div>` : ""}
+        <button class="validate-btn" id="coachSubmitBtn">Entrer</button>
+        <div style="text-align:center;margin-top:24px;">
+          <button class="link-btn" data-back-access="1">← Retour</button>
+        </div>
+      </div>
+    `;
+  }
+
+  let html = `
+    <div class="h1" style="font-size:26px;margin-top:20px;">ESPACE COACH</div>
+    <div class="subtitle">Gère tes clients et leurs programmes</div>
+    <button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
+  `;
+
+  state.coachClients.forEach(c => {
+    html += `<div class="day-card" style="cursor:default;">
+      <div class="day-left" style="flex:1;">
+        <div style="flex:1;">
+          <div class="day-title">${esc(c.name)}</div>
+          <div class="day-sub" style="margin-top:4px;">
+            <span class="access-code-chip">${esc(c.access_code)}</span>
+          </div>
+        </div>
+      </div>
+      <button data-edit-program="${c.id}" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">✎ Programme</button>
+    </div>`;
+    if (state.coachEditingClientId === c.id) {
+      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+        <div style="font-size:13px;color:var(--textDim);margin-bottom:8px;">
+          Programme JSON de ${esc(c.name)} — modifie avec précaution, format technique.
+        </div>
+        <textarea id="programJsonEditor" rows="14" style="font-size:12.5px;">${esc(JSON.stringify(c.program_json || DEFAULT_PROGRAM, null, 2))}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="validate-btn" style="margin-top:0;flex:1;" data-save-program="${c.id}">✓ Enregistrer</button>
+          <button data-cancel-program="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+        </div>
+      </div></div>`;
+    }
+  });
+
+  html += `<div style="margin-top:24px;text-align:center;">
+    <button class="link-btn" data-logout-coach="1">Quitter l'espace coach</button>
+  </div>`;
+  return html;
+}
+
+async function attachCoachHandlers() {
+  const backAccess = document.querySelector("[data-back-access]");
+  if (backAccess) backAccess.onclick = () => { state.screen = "access"; render(); };
+
+  const coachSubmitBtn = document.getElementById("coachSubmitBtn");
+  if (coachSubmitBtn) coachSubmitBtn.onclick = async () => {
+    const val = document.getElementById("coachPasswordInput").value;
+    if (val === COACH_PASSWORD) {
+      state.coachAuthed = true;
+      state.coachError = "";
+      const { data } = await sb.from("clients").select("*, programs(program_json)").order("created_at", { ascending: false });
+      state.coachClients = (data || []).map(c => ({
+        id: c.id, name: c.name, access_code: c.access_code,
+        program_json: c.programs ? c.programs.program_json : null,
+      }));
+      render();
+    } else {
+      state.coachError = "Mot de passe incorrect.";
+      render();
+    }
+  };
+
+  const newClientBtn = document.querySelector("[data-new-client]");
+  if (newClientBtn) newClientBtn.onclick = async () => {
+    const name = prompt("Prénom du nouveau client :");
+    if (!name) return;
+    const code = randomAccessCode();
+    const { data: newClient, error } = await sb.from("clients").insert({ name, access_code: code }).select().single();
+    if (error) { showToast("Erreur lors de la création."); return; }
+    await sb.from("programs").insert({ client_id: newClient.id, program_json: DEFAULT_PROGRAM });
+    state.coachClients.unshift({ id: newClient.id, name, access_code: code, program_json: DEFAULT_PROGRAM });
+    render();
+    alert(`Client créé !\n\nDonne-lui ce code d'accès :\n${code}`);
+  };
+
+  document.querySelectorAll("[data-edit-program]").forEach(b => b.onclick = () => {
+    state.coachEditingClientId = state.coachEditingClientId === b.dataset.editProgram ? null : b.dataset.editProgram;
+    render();
+  });
+
+  const cancelProgram = document.querySelector("[data-cancel-program]");
+  if (cancelProgram) cancelProgram.onclick = () => { state.coachEditingClientId = null; render(); };
+
+  const saveProgram = document.querySelector("[data-save-program]");
+  if (saveProgram) saveProgram.onclick = async () => {
+    const clientId = saveProgram.dataset.saveProgram;
+    const raw = document.getElementById("programJsonEditor").value;
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (e) { alert("JSON invalide : " + e.message); return; }
+    const { error } = await sb.from("programs").update({ program_json: parsed, updated_at: new Date().toISOString() }).eq("client_id", clientId);
+    if (error) { showToast("Erreur lors de l'enregistrement."); return; }
+    const c = state.coachClients.find(c => c.id === clientId);
+    if (c) c.program_json = parsed;
+    state.coachEditingClientId = null;
+    showToast("Programme mis à jour.");
+    render();
+  };
+
+  const logoutCoach = document.querySelector("[data-logout-coach]");
+  if (logoutCoach) logoutCoach.onclick = () => { state.screen = "access"; state.coachAuthed = false; render(); };
+}
+
+/* ---------------- Home — weekly list ---------------- */
 function renderHome() {
   const week = isoWeekKey(todayISO());
   let html = `
     <div class="h1">ENTRAÎNEMENT</div>
-    <div class="subtitle">Programme hebdomadaire — Lee</div>
-    <div class="info-box">Push / Pull + Abdos / Bas du corps (quadriceps) / Repos / Upper + Abdos / Lower / Repos — chaque semaine.</div>
+    <div class="subtitle">${esc(state.client.name)} — programme hebdomadaire</div>
+    <div class="info-box">Choisis ta séance du jour selon ton programme.</div>
     <div class="section-label">Choisis ta séance du jour</div>
   `;
   state.program.forEach(day => {
-    const doneDates = state.completions[day.id] || [];
+    const doneDates = state.sessionLogs.filter(l => l.dayId === day.id).map(l => l.date);
     const doneThisWeek = doneDates.some(d => isoWeekKey(d) === week);
     if (day.isRest) {
       html += `
@@ -393,13 +612,14 @@ function renderHome() {
   return html;
 }
 
+/* ---------------- Exercise card ---------------- */
 function renderExerciseCard(exo, day, opts) {
   opts = opts || {};
   const rows = parseTargetSets(exo.sets);
-  const hist = state.history[exo.id] || [];
+  const hist = getExerciseHistory(exo.id);
   const last = hist[hist.length - 1];
   const suggestion = buildSuggestion(last, rows);
-  const isOpen = state.openEx[exo.id] !== false; // default open
+  const isOpen = state.openEx[exo.id] !== false;
   const currentRows = state.sessionInputs[exo.id] || rows.map(r => ({ reps: r, kg: "" }));
   const doneCount = currentRows.filter(r => r.kg !== "" && r.kg !== undefined).length;
 
@@ -454,6 +674,7 @@ function renderExerciseCard(exo, day, opts) {
   </div>`;
 }
 
+/* ---------------- Session ---------------- */
 function renderSession(day) {
   const groups = groupExercises(day.exercises);
   let totalSets = 0, filledSets = 0;
@@ -494,59 +715,7 @@ function renderSession(day) {
   return html;
 }
 
-function renderProgress() {
-  const trainingDays = state.program.filter(d => !d.isRest);
-  if (!state.progressDayId) state.progressDayId = trainingDays[0]?.id;
-  const day = state.program.find(d => d.id === state.progressDayId);
-  if (!state.progressExId || !day.exercises.find(e => e.id === state.progressExId)) {
-    state.progressExId = day.exercises[0]?.id;
-  }
-  const exo = day.exercises.find(e => e.id === state.progressExId);
-  const hist = (exo && state.history[exo.id]) || [];
-
-  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>
-    <div class="day-tabs">
-      ${trainingDays.map(d => `<button class="day-tab ${d.id === state.progressDayId ? "active" : ""}" data-progress-day="${d.id}">${esc(d.name)}</button>`).join("")}
-    </div>
-    <select data-progress-ex style="margin-bottom:20px;">
-      ${day.exercises.map(e => `<option value="${e.id}" ${e.id === state.progressExId ? "selected" : ""}>${esc(e.name)}</option>`).join("")}
-    </select>`;
-
-  if (hist.length === 0) {
-    html += `<div class="empty-state">🏋️<div>Pas encore de données pour cet exercice.</div>
-      <div style="font-size:13px;">Valide une séance pour voir ta progression ici.</div></div>`;
-  } else {
-    const points = hist.map(entry => {
-      const best = entry.sets.reduce((max, s) => {
-        const kg = parseFloat(s.kg) || 0;
-        return kg > max.kg ? { kg, reps: s.reps } : max;
-      }, { kg: 0, reps: "" });
-      return { date: entry.date, kg: best.kg, reps: best.reps };
-    });
-    const maxKg = Math.max(...points.map(p => p.kg), 1);
-    const w = 300, h = 160, padX = 24, padY = 16;
-    const stepX = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
-    const coords = points.map((p, i) => {
-      const x = padX + stepX * i;
-      const y = h - padY - (p.kg / maxKg) * (h - padY * 2);
-      return { x, y, ...p };
-    });
-    const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
-    html += `<div class="chart-card">
-      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Charge max par séance (kg)</div>
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:180px;">
-        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
-        ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)"><title>${formatDateFR(c.date)} — ${c.kg}kg × ${esc(c.reps)}</title></circle>`).join("")}
-      </svg>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--textDim);margin-top:4px;">
-        <span>${formatDateFR(points[0].date)}</span>
-        <span>${formatDateFR(points[points.length - 1].date)}</span>
-      </div>
-    </div>`;
-  }
-  return html;
-}
-
+/* ---------------- Recap ---------------- */
 function renderRecap(logId) {
   const log = state.sessionLogs.find(l => l.id === logId);
   if (!log) return renderHome();
@@ -589,6 +758,7 @@ function renderRecap(logId) {
   `;
 }
 
+/* ---------------- Historique ---------------- */
 function renderHistorique() {
   const logs = [...state.sessionLogs].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   let html = `<div class="h1" style="font-size:26px;">HISTORIQUE</div>
@@ -656,23 +826,81 @@ function renderHistoriqueDetail(logId) {
   return html;
 }
 
-function renderProfil() {
-  const totalSessions = Object.values(state.completions).reduce((s, arr) => s + arr.length, 0);
-  const totalEntries = Object.values(state.history).reduce((s, arr) => s + arr.length, 0);
-  return `
-    <div class="h1" style="font-size:26px;">PROFIL</div>
-    <div class="stat-row">
-      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
-      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${Object.keys(state.history).length}</div><div class="stat-label">Exercices suivis</div></div>
+/* ---------------- Progress ---------------- */
+function renderProgress() {
+  const trainingDays = state.program.filter(d => !d.isRest);
+  if (!state.progressDayId) state.progressDayId = trainingDays[0]?.id;
+  const day = state.program.find(d => d.id === state.progressDayId);
+  if (!state.progressExId || !day.exercises.find(e => e.id === state.progressExId)) {
+    state.progressExId = day.exercises[0]?.id;
+  }
+  const exo = day.exercises.find(e => e.id === state.progressExId);
+  const hist = exo ? getExerciseHistory(exo.id) : [];
+
+  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>
+    <div class="day-tabs">
+      ${trainingDays.map(d => `<button class="day-tab ${d.id === state.progressDayId ? "active" : ""}" data-progress-day="${d.id}">${esc(d.name)}</button>`).join("")}
     </div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
-      <div style="font-weight:700;margin-bottom:6px;">Données</div>
-      <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">${totalEntries} enregistrements de charges sauvegardés sur cet appareil (localStorage).</div>
-      <button class="danger-btn" data-reset="1">Réinitialiser toutes les données</button>
+    <select data-progress-ex style="margin-bottom:20px;">
+      ${day.exercises.map(e => `<option value="${e.id}" ${e.id === state.progressExId ? "selected" : ""}>${esc(e.name)}</option>`).join("")}
+    </select>`;
+
+  if (hist.length === 0) {
+    html += `<div class="empty-state">🏋️<div>Pas encore de données pour cet exercice.</div>
+      <div style="font-size:13px;">Valide une séance pour voir ta progression ici.</div></div>`;
+  } else {
+    const points = hist.map(entry => {
+      const best = entry.sets.reduce((max, s) => {
+        const kg = parseFloat(s.kg) || 0;
+        return kg > max.kg ? { kg, reps: s.reps } : max;
+      }, { kg: 0, reps: "" });
+      return { date: entry.date, kg: best.kg, reps: best.reps };
+    });
+    const maxKg = Math.max(...points.map(p => p.kg), 1);
+    const w = 300, h = 160, padX = 24, padY = 16;
+    const stepX = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
+    const coords = points.map((p, i) => {
+      const x = padX + stepX * i;
+      const y = h - padY - (p.kg / maxKg) * (h - padY * 2);
+      return { x, y, ...p };
+    });
+    const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+    html += `<div class="chart-card">
+      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Charge max par séance (kg)</div>
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:180px;">
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
+        ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)"><title>${formatDateFR(c.date)} — ${c.kg}kg × ${esc(c.reps)}</title></circle>`).join("")}
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--textDim);margin-top:4px;">
+        <span>${formatDateFR(points[0].date)}</span>
+        <span>${formatDateFR(points[points.length - 1].date)}</span>
+      </div>
     </div>`;
+  }
+  return html;
 }
 
-/* ---------------- Event handling ---------------- */
+/* ---------------- Profil ---------------- */
+function renderProfil() {
+  const totalSessions = state.sessionLogs.length;
+  const totalExercisesTracked = new Set();
+  state.sessionLogs.forEach(l => Object.keys(l.entries).forEach(exId => totalExercisesTracked.add(exId)));
+  return `
+    <div class="h1" style="font-size:26px;">PROFIL</div>
+    <div class="subtitle">${esc(state.client.name)}</div>
+    <div class="stat-row">
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
+      <div style="font-weight:700;margin-bottom:6px;">Compte</div>
+      <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">Tes données sont sauvegardées en ligne, liées à ton code d'accès personnel.</div>
+      <button class="danger-btn" data-logout="1">Changer de compte / me déconnecter</button>
+    </div>
+  `;
+}
+
+/* ---------------- Event handling (main app) ---------------- */
 function attachHandlers() {
   const app = document.getElementById("app");
 
@@ -686,7 +914,7 @@ function attachHandlers() {
   const back = app.querySelector("[data-back]");
   if (back) back.onclick = () => { state.openDayId = null; render(); };
 
-  app.querySelectorAll("[data-toggle-ex]").forEach(b => b.onclick = (e) => {
+  app.querySelectorAll("[data-toggle-ex]").forEach(b => b.onclick = () => {
     const id = b.dataset.toggleEx;
     state.openEx[id] = state.openEx[id] === false ? true : false;
     render();
@@ -700,17 +928,20 @@ function attachHandlers() {
       const rows = parseTargetSets(exo.sets);
       if (!state.sessionInputs[exId]) state.sessionInputs[exId] = rows.map(r => ({ reps: r, kg: "" }));
       state.sessionInputs[exId][idx][field] = inp.value;
-      // update button counter + validate button without full re-render to keep focus
       updateCountersOnly();
     };
   });
 
   app.querySelectorAll("[data-note-ex]").forEach(inp => {
-    inp.onblur = () => { state.notes[inp.dataset.noteEx] = inp.value; persist(); };
+    inp.onblur = async () => {
+      const exId = inp.dataset.noteEx;
+      state.notes[exId] = inp.value;
+      await sb.from("exercise_notes").upsert({ client_id: state.client.id, exercise_id: exId, note: inp.value });
+    };
   });
 
   const validateBtn = app.querySelector("[data-validate]");
-  if (validateBtn) validateBtn.onclick = () => {
+  if (validateBtn) validateBtn.onclick = async () => {
     const dayId = validateBtn.dataset.validate;
     const day = state.program.find(d => d.id === dayId);
     const dateStr = todayISO();
@@ -719,20 +950,18 @@ function attachHandlers() {
       const rows = state.sessionInputs[e.id] || [];
       const filled = rows.filter(r => r.kg !== "" && r.kg !== undefined && r.kg !== null)
         .map(r => ({ reps: r.reps, kg: r.kg }));
-      if (filled.length) {
-        entries[e.id] = filled;
-        if (!state.history[e.id]) state.history[e.id] = [];
-        state.history[e.id].push({ date: dateStr, sets: filled });
-      }
+      if (filled.length) entries[e.id] = filled;
     });
-    if (!state.completions[dayId]) state.completions[dayId] = [];
-    state.completions[dayId].push(dateStr);
-    const logId = uid("log");
-    state.sessionLogs.push({ id: logId, dayId, date: dateStr, entries });
-    persist();
+    validateBtn.textContent = "Enregistrement…";
+    validateBtn.disabled = true;
+    const { data, error } = await sb.from("session_logs").insert({
+      client_id: state.client.id, day_id: dayId, log_date: dateStr, entries,
+    }).select().single();
+    if (error) { showToast("Erreur, réessaie."); validateBtn.disabled = false; return; }
+    state.sessionLogs.push({ id: data.id, dayId, date: dateStr, entries });
     state.openDayId = null;
     state.sessionInputs = {};
-    state.recapLogId = logId;
+    state.recapLogId = data.id;
     render();
   };
 
@@ -774,20 +1003,13 @@ function attachHandlers() {
   };
 
   const saveHistBtn = app.querySelector("[data-save-history]");
-  if (saveHistBtn) saveHistBtn.onclick = () => {
+  if (saveHistBtn) saveHistBtn.onclick = async () => {
     const logId = saveHistBtn.dataset.saveHistory;
     const log = state.sessionLogs.find(l => l.id === logId);
     if (log && state.historyDraft) {
       log.entries = state.historyDraft;
-      // keep the per-exercise history array (used for the progression chart) in sync
-      Object.entries(log.entries).forEach(([exId, sets]) => {
-        const histArr = state.history[exId];
-        if (histArr) {
-          const entry = histArr.find(h => h.date === log.date);
-          if (entry) entry.sets = sets;
-        }
-      });
-      persist();
+      const { error } = await sb.from("session_logs").update({ entries: log.entries }).eq("id", logId);
+      if (error) { showToast("Erreur lors de l'enregistrement."); return; }
       showToast("Séance mise à jour.");
     }
     state.historyOpenLogId = null;
@@ -796,29 +1018,13 @@ function attachHandlers() {
   };
 
   const deleteLogBtn = app.querySelector("[data-delete-log]");
-  if (deleteLogBtn) deleteLogBtn.onclick = () => {
+  if (deleteLogBtn) deleteLogBtn.onclick = async () => {
     const logId = deleteLogBtn.dataset.deleteLog;
     if (!confirm("Supprimer définitivement cette séance de l'historique ? Elle ne comptera plus comme faite cette semaine-là.")) return;
-    const log = state.sessionLogs.find(l => l.id === logId);
-    if (log) {
-      // remove one occurrence of this date from the day's completions ("fait" badge)
-      const comp = state.completions[log.dayId];
-      if (comp) {
-        const idx = comp.indexOf(log.date);
-        if (idx !== -1) comp.splice(idx, 1);
-      }
-      // remove the matching entries from each exercise's progression history
-      Object.keys(log.entries).forEach(exId => {
-        const histArr = state.history[exId];
-        if (histArr) {
-          const idx = histArr.findIndex(h => h.date === log.date);
-          if (idx !== -1) histArr.splice(idx, 1);
-        }
-      });
-      state.sessionLogs = state.sessionLogs.filter(l => l.id !== logId);
-      persist();
-      showToast("Séance supprimée de l'historique.");
-    }
+    const { error } = await sb.from("session_logs").delete().eq("id", logId);
+    if (error) { showToast("Erreur lors de la suppression."); return; }
+    state.sessionLogs = state.sessionLogs.filter(l => l.id !== logId);
+    showToast("Séance supprimée de l'historique.");
     state.historyOpenLogId = null;
     state.historyDraft = null;
     render();
@@ -832,18 +1038,17 @@ function attachHandlers() {
   const progressSel = app.querySelector("[data-progress-ex]");
   if (progressSel) progressSel.onchange = () => { state.progressExId = progressSel.value; render(); };
 
-  const resetBtn = app.querySelector("[data-reset]");
-  if (resetBtn) resetBtn.onclick = () => {
-    if (!confirm("Ceci supprime définitivement ton programme, ton historique et tes notes. Confirmer ?")) return;
-    state.program = DEFAULT_PROGRAM; state.history = {}; state.notes = {}; state.completions = {};
-    persist();
-    showToast("Données réinitialisées.");
+  const logoutBtn = app.querySelector("[data-logout]");
+  if (logoutBtn) logoutBtn.onclick = () => {
+    if (!confirm("Te déconnecter de ce compte sur cet appareil ?")) return;
+    localStorage.removeItem(ACCESS_KEY);
+    state.screen = "access";
+    state.client = null;
     render();
   };
 }
 
 function updateCountersOnly() {
-  // Recompute filled counts without re-rendering (keeps input focus while typing)
   const app = document.getElementById("app");
   const day = state.program.find(d => d.id === state.openDayId);
   if (!day) return;
@@ -859,7 +1064,6 @@ function updateCountersOnly() {
     validateBtn.textContent = `✓ Valider la séance (${filledSets}/${totalSets} séries)`;
     validateBtn.disabled = filledSets === 0;
   }
-  // update per-exercise done counters
   day.exercises.forEach(e => {
     const rows = parseTargetSets(e.sets);
     const cur = state.sessionInputs[e.id] || rows.map(r => ({ reps: r, kg: "" }));
@@ -885,8 +1089,7 @@ document.getElementById("themeToggle").onclick = () => {
   document.getElementById("themeToggle").textContent = state.dark ? "🌙" : "☀️";
 };
 
-loadState();
-render();
+boot();
 </script>
 </body>
 </html>
