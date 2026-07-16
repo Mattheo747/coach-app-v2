@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Mathéophysique" />
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
@@ -59,7 +60,7 @@
     display: flex; align-items: center; justify-content: center; font-family: var(--mono);
     font-weight: 800; font-size: 14px; color: var(--accentDim); flex-shrink: 0; }
   .day-num.rest { background: var(--border); color: var(--textDim); }
-  .day-title { font-weight: 800; font-size: 16.5px; }
+  .day-title { font-weight: 800; font-size: 16.5px; color: var(--accent); }
   .day-sub { font-size: 13px; color: var(--textDim); }
   .pill { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px;
     font-size: 13px; font-family: var(--mono); font-weight: 600;
@@ -72,7 +73,7 @@
   .ex-card.superset-member { border: 1.5px solid var(--orange); }
   .ex-head { width: 100%; text-align: left; background: none; border: none; padding: 16px 18px;
     display: flex; justify-content: space-between; align-items: flex-start; }
-  .ex-name { font-weight: 800; font-size: 17px; margin-bottom: 8px; }
+  .ex-name { font-weight: 800; font-size: 17px; margin-bottom: 8px; color: var(--text); }
   .ex-body { padding: 0 18px 18px; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .set-row { display: grid; grid-template-columns: 44px 1fr 1fr; gap: 8px; margin-bottom: 8px;
@@ -691,7 +692,7 @@ function renderSession(day) {
     <div style="margin:20px 0 4px;">
       <button class="back-btn" data-back="1">← Retour</button>
     </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;">${esc(day.day).toUpperCase()} : ${esc(day.name).toUpperCase()}</div>
+    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(day.day).toUpperCase()} : ${esc(day.name).toUpperCase()}</div>
     <div class="subtitle">${day.exercises.length} exercices · ${formatDateFR(todayISO())}</div>
   `;
 
@@ -798,7 +799,7 @@ function renderHistoriqueDetail(logId) {
     <div style="margin:20px 0 4px;">
       <button class="back-btn" data-back-history="1">← Retour</button>
     </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;">${esc(day.day).toUpperCase()} : ${esc(day.name).toUpperCase()}</div>
+    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(day.day).toUpperCase()} : ${esc(day.name).toUpperCase()}</div>
     <div class="subtitle">${formatDateFR(log.date)} — corrige si besoin</div>
   `;
   day.exercises.forEach(e => {
