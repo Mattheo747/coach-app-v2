@@ -174,6 +174,24 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+function getDeadlineDate() {
+  const cs = state.checkinSettings;
+  if (!cs) return null;
+  const order = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+  const targetIdx = order.indexOf(cs.deadline_day);
+  if (targetIdx === -1) return null;
+  const now = new Date();
+  const jsDay = (now.getDay() + 6) % 7; // Monday = 0
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - jsDay);
+  monday.setHours(0, 0, 0, 0);
+  const deadline = new Date(monday);
+  deadline.setDate(monday.getDate() + targetIdx);
+  const [h, m] = (cs.deadline_time || "20:00").split(":").map(Number);
+  deadline.setHours(h, m, 0, 0);
+  return deadline;
+}
+
 function isoWeekKey(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   const day = (d.getDay() + 6) % 7;
@@ -442,6 +460,8 @@ let state = {
   tab: "accueil",
   openDayId: null,
   recapLogId: null,
+  recapRpe: null,
+  recapComment: "",
   historyOpenLogId: null,
   historyDraft: null,
   sessionInputs: {},
@@ -472,6 +492,7 @@ let state = {
   checkinOpen: false,
   checkinExisting: null,
   checkinDraft: null,
+  checkinSubmittedThisWeek: null,
   coachViewingCheckinsId: null,
   suiviView: "exercices", // "exercices" | "corps"
   checkinsHistory: null,
@@ -510,7 +531,7 @@ async function loadClientByCode(code) {
   const { data: notesRows } = await sb.from("exercise_notes").select("*").eq("client_id", clientRow.id);
   state.client = { id: clientRow.id, name: clientRow.name, access_code: clientRow.access_code };
   state.program = program;
-  state.sessionLogs = (logs || []).map(l => ({ id: l.id, dayId: l.day_id, date: l.log_date, entries: l.entries }));
+  state.sessionLogs = (logs || []).map(l => ({ id: l.id, dayId: l.day_id, date: l.log_date, entries: l.entries, rpe: l.rpe, session_comment: l.session_comment }));
   state.notes = {};
   (notesRows || []).forEach(n => { state.notes[n.exercise_id] = n.note; });
   state.documents = null;
@@ -530,6 +551,9 @@ async function loadClientByCode(code) {
 
   const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("client_id", clientRow.id).maybeSingle();
   state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
+
+  const { data: thisWeekCheckin } = await sb.from("weekly_checkins").select("id").eq("client_id", clientRow.id).eq("week_key", isoWeekKey(todayISO())).maybeSingle();
+  state.checkinSubmittedThisWeek = !!thisWeekCheckin;
 
   localStorage.setItem(ACCESS_KEY, code);
   return true;
@@ -1265,6 +1289,25 @@ function renderAccueil() {
     html += `<div class="info-box">💬 <strong>Message de ton coach :</strong><br/>${esc(state.coachMessage)}</div>`;
   }
 
+  if (!state.checkinSubmittedThisWeek) {
+    const deadline = getDeadlineDate();
+    if (deadline) {
+      const diffMs = deadline - new Date();
+      const isPast = diffMs < 0;
+      const absHours = Math.abs(diffMs) / 3600000;
+      let timeText;
+      if (absHours < 1) timeText = `${Math.round(Math.abs(diffMs) / 60000)} min`;
+      else if (absHours < 24) timeText = `${Math.round(absHours)}h`;
+      else timeText = `${Math.round(absHours / 24)}j`;
+      html += `<div class="info-box" style="${isPast ? "border-color:var(--danger);background:rgba(255,107,107,0.12);" : ""}">
+        ⏰ ${isPast
+          ? `Ton bilan hebdomadaire est en retard (attendu ${esc(state.checkinSettings.deadline_day)} à ${esc(state.checkinSettings.deadline_time)}) !`
+          : `Bilan à envoyer avant ${esc(state.checkinSettings.deadline_day)} ${esc(state.checkinSettings.deadline_time)} — encore ${timeText}`}
+        <button data-goto-checkin="1" style="display:block;margin-top:8px;background:none;border:none;padding:0;color:inherit;text-decoration:underline;font-weight:700;cursor:pointer;">Remplir maintenant →</button>
+      </div>`;
+    }
+  }
+
   html += `<div class="stat-row">
     <div class="stat-card">
       <div style="color:var(--accentDim);margin-bottom:8px;">👣</div>
@@ -1494,6 +1537,15 @@ function renderRecap(logId) {
           </div>
         </div>`).join("")}
     </div>
+    <div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">Comment tu as vécu cette séance ?</div>
+      <div style="font-size:13px;color:var(--textDim);margin-bottom:8px;">Ressenti (RPE) — 1 = très facile, 10 = à l'échec total</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+        ${Array.from({ length: 10 }, (_, i) => i + 1).map(n => `<button data-recap-rpe="${n}" style="flex:1 1 16%;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${state.recapRpe == n ? "var(--accent)" : "transparent"};color:${state.recapRpe == n ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">${n}</button>`).join("")}
+      </div>
+      <textarea id="recapComment" placeholder="Un commentaire sur la séance ? (optionnel)" rows="3" style="margin-bottom:12px;">${esc(state.recapComment || "")}</textarea>
+      <button class="validate-btn" style="margin-top:0;" data-save-rpe="${log.id}">✓ Enregistrer mon ressenti</button>
+    </div></div>
     <button class="validate-btn" data-close-recap="1">Retour à l'accueil</button>
   `;
 }
@@ -1656,7 +1708,7 @@ function renderHistorique() {
     html += `<button class="day-card" data-open-log="${log.id}">
       <div class="day-left">
         <div class="day-num">${day.num}</div>
-        <div><div class="day-title">${esc(day.day)} : ${esc(day.name)}</div><div class="day-sub">${formatDateFR(log.date)} · ${Math.round(tonnage).toLocaleString("fr-FR")}kg · ${sets} séries</div></div>
+        <div><div class="day-title">${esc(day.day)} : ${esc(day.name)}</div><div class="day-sub">${formatDateFR(log.date)} · ${Math.round(tonnage).toLocaleString("fr-FR")}kg · ${sets} séries${log.rpe ? ` · RPE ${log.rpe}/10` : ""}</div></div>
       </div>
       <span style="color:var(--textDim);">›</span>
     </button>`;
@@ -2031,6 +2083,8 @@ function attachHandlers() {
     state.openDayId = null;
     state.sessionInputs = {};
     state.recapLogId = data.id;
+    state.recapRpe = null;
+    state.recapComment = "";
     render();
   };
 
@@ -2039,6 +2093,26 @@ function attachHandlers() {
     state.recapLogId = null;
     state.tab = "seance";
     render();
+  };
+
+  app.querySelectorAll("[data-recap-rpe]").forEach(b => b.onclick = () => {
+    state.recapRpe = parseInt(b.dataset.recapRpe, 10);
+    render();
+  });
+
+  const saveRpeBtn = app.querySelector("[data-save-rpe]");
+  if (saveRpeBtn) saveRpeBtn.onclick = async () => {
+    const logId = saveRpeBtn.dataset.saveRpe;
+    const comment = document.getElementById("recapComment").value;
+    state.recapComment = comment;
+    saveRpeBtn.textContent = "Enregistrement…";
+    saveRpeBtn.disabled = true;
+    const { error } = await sb.from("session_logs").update({ rpe: state.recapRpe, session_comment: comment || null }).eq("id", logId);
+    if (error) { showToast("Erreur : " + error.message); saveRpeBtn.disabled = false; saveRpeBtn.textContent = "✓ Enregistrer mon ressenti"; return; }
+    const localLog = state.sessionLogs.find(l => l.id === logId);
+    if (localLog) { localLog.rpe = state.recapRpe; localLog.session_comment = comment || null; }
+    showToast("Ressenti enregistré, merci !");
+    saveRpeBtn.textContent = "✓ Enregistré";
   };
 
   app.querySelectorAll("[data-open-log]").forEach(b => b.onclick = () => {
@@ -2205,6 +2279,9 @@ function attachHandlers() {
   const openCheckinBtn = app.querySelector("[data-open-checkin]");
   if (openCheckinBtn) openCheckinBtn.onclick = () => { openCheckin(); };
 
+  const gotoCheckinBtn = app.querySelector("[data-goto-checkin]");
+  if (gotoCheckinBtn) gotoCheckinBtn.onclick = () => { state.tab = "profil"; openCheckin(); };
+
   app.querySelectorAll("[data-scale]").forEach(b => b.onclick = () => {
     if (!state.checkinDraft) state.checkinDraft = {};
     state.checkinDraft[b.dataset.scale] = parseInt(b.dataset.value, 10);
@@ -2270,6 +2347,7 @@ function attachHandlers() {
     state.checkinOpen = false;
     state.checkinDraft = null;
     state.checkinExisting = null;
+    state.checkinSubmittedThisWeek = true;
     render();
   };
 }
