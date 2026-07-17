@@ -611,7 +611,7 @@ function render() {
     app.innerHTML = renderDocuments();
     if (state.documents === null) loadDocuments();
   } else if (state.tab === "suivi") {
-    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress() : renderProgress();
+    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress() : state.suiviView === "tonnage" ? renderTonnageProgress() : renderProgress();
     if (state.suiviView === "corps" && state.checkinsHistory === null) loadCheckinsHistory();
   } else {
     app.innerHTML = state.checkinOpen ? renderCheckin() : renderProfil();
@@ -1759,9 +1759,64 @@ function renderHistoriqueDetail(logId) {
 /* ---------------- Progress ---------------- */
 function suiviToggle() {
   return `<div class="day-tabs" style="margin-bottom:16px;">
-    <button class="day-tab ${state.suiviView !== "corps" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
+    <button class="day-tab ${state.suiviView !== "corps" && state.suiviView !== "tonnage" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
+    <button class="day-tab ${state.suiviView === "tonnage" ? "active" : ""}" data-suivi-view="tonnage">Tonnage</button>
     <button class="day-tab ${state.suiviView === "corps" ? "active" : ""}" data-suivi-view="corps">Poids & Photos</button>
   </div>`;
+}
+
+function logTonnage(log) {
+  let t = 0;
+  Object.values(log.entries).forEach(sets => sets.forEach(s => {
+    t += (parseInt(s.reps, 10) || 0) * (parseFloat(s.kg) || 0);
+  }));
+  return t;
+}
+
+function renderTonnageProgress() {
+  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
+
+  if (state.sessionLogs.length === 0) {
+    html += `<div class="empty-state">🏋️<div>Valide des séances pour voir ton tonnage total évoluer ici.</div></div>`;
+    return html;
+  }
+
+  const weekly = {};
+  state.sessionLogs.forEach(log => {
+    const wk = isoWeekKey(log.date);
+    weekly[wk] = (weekly[wk] || 0) + logTonnage(log);
+  });
+  const weeks = Object.keys(weekly).sort();
+
+  const w = 300, h = 160, padX = 24, padY = 16;
+  const maxT = Math.max(...weeks.map(wk => weekly[wk]), 1);
+  const stepX = weeks.length > 1 ? (w - padX * 2) / (weeks.length - 1) : 0;
+  const coords = weeks.map((wk, i) => {
+    const x = padX + stepX * i;
+    const y = h - padY - (weekly[wk] / maxT) * (h - padY * 2);
+    return { x, y, wk, t: weekly[wk] };
+  });
+  const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+  const totalAllTime = weeks.reduce((s, wk) => s + weekly[wk], 0);
+
+  html += `<div class="stat-row">
+    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${Math.round(totalAllTime).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage cumulé total</div></div>
+    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">📅</div><div class="stat-value">${Math.round(weekly[weeks[weeks.length - 1]]).toLocaleString("fr-FR")} kg</div><div class="stat-label">Cette semaine</div></div>
+  </div>`;
+
+  html += `<div class="chart-card">
+    <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Tonnage total soulevé, par semaine (toutes séances confondues)</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:180px;">
+      <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
+      ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)"><title>Semaine ${c.wk} — ${Math.round(c.t).toLocaleString("fr-FR")}kg</title></circle>`).join("")}
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--textDim);margin-top:4px;">
+      <span>${weeks[0]}</span>
+      <span>${weeks[weeks.length - 1]}</span>
+    </div>
+  </div>`;
+
+  return html;
 }
 
 async function loadCheckinsHistory() {
