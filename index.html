@@ -109,7 +109,7 @@
   .bottom-nav-inner { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-around;
     padding: 10px 0; }
   .nav-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center;
-    gap: 4px; color: var(--textDim); font-size: 11px; padding: 0 4px; }
+    gap: 3px; color: var(--textDim); font-size: 10px; padding: 0 2px; }
   .nav-btn.active { color: var(--accent); font-weight: 700; }
   .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--accent);
     color: var(--accentText); padding: 10px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
@@ -150,6 +150,7 @@
     <button class="nav-btn" data-tab="accueil">🏠<span>Accueil</span></button>
     <button class="nav-btn" data-tab="seance">🏋️<span>Séance</span></button>
     <button class="nav-btn" data-tab="nutrition">🍎<span>Nutrition</span></button>
+    <button class="nav-btn" data-tab="documents">📚<span>Docs</span></button>
     <button class="nav-btn" data-tab="suivi">📈<span>Suivi</span></button>
     <button class="nav-btn" data-tab="profil">🔥<span>Profil</span></button>
   </div>
@@ -481,6 +482,7 @@ let state = {
   coachEditingMessageId: null,
   documents: null, // null = not loaded yet
   stepsTarget: null,
+  waterTarget: null,
   coachMessage: null,
   nutritionTargets: null,
   foodLogsToday: null,
@@ -490,6 +492,7 @@ let state = {
   selectedFood: null,
   nutritionDayType: null,
   checkinOpen: false,
+  checkinView: "current",
   checkinExisting: null,
   checkinDraft: null,
   checkinSubmittedThisWeek: null,
@@ -540,6 +543,7 @@ async function loadClientByCode(code) {
   state.nutritionTargets = nutriRow || null;
   const { data: stepsRow } = await sb.from("steps_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
   state.stepsTarget = stepsRow ? stepsRow.daily_steps : null;
+  state.waterTarget = stepsRow ? stepsRow.water_liters : null;
   const { data: msgRow } = await sb.from("coach_messages").select("*").eq("client_id", clientRow.id).maybeSingle();
   state.coachMessage = msgRow ? msgRow.message : null;
 
@@ -859,8 +863,11 @@ function renderCoachScreen() {
           <input id="fCarbsOff" placeholder="glucides g" value="${n.carbs_off ?? ""}" inputmode="numeric" />
           <input id="fFatOff" placeholder="lipides g" value="${n.fat_off ?? ""}" inputmode="numeric" />
         </div>
-        <div class="section-label">Pas et message</div>
-        <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" style="margin-bottom:10px;" />
+        <div class="section-label">Pas, eau et message</div>
+        <div class="row" style="margin-bottom:10px;">
+          <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" />
+          <input id="fWater" placeholder="objectif d'eau (L/jour)" value="${c.water ?? ""}" inputmode="decimal" />
+        </div>
         <textarea id="fMessage" placeholder="Message affiché sur son accueil…" rows="3" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
         <div class="section-label">⏰ Échéance de son bilan hebdomadaire</div>
         <div class="row" style="margin-bottom:12px;">
@@ -893,6 +900,10 @@ function renderCoachScreen() {
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
     <div style="font-weight:700;margin-bottom:10px;">📄 Envoyer un document PDF</div>
     <input id="docTitleInput" placeholder="Titre du document" style="margin-bottom:10px;" />
+    <input id="docCategoryInput" placeholder="Catégorie (ex: Nutrition, Entraînement, Général)" list="docCategoryList" style="margin-bottom:10px;" />
+    <datalist id="docCategoryList">
+      ${[...new Set((state.documents || []).map(d => d.category || "Général"))].map(c => `<option value="${esc(c)}"></option>`).join("")}
+    </datalist>
     <select id="docClientSelect" style="margin-bottom:10px;">
       <option value="">Visible par tous les clients</option>
       ${state.coachClients.map(c => `<option value="${c.id}">${esc(c.name)} uniquement</option>`).join("")}
@@ -1173,6 +1184,7 @@ async function attachCoachHandlers() {
   const docUploadBtn = document.getElementById("docUploadBtn");
   if (docUploadBtn) docUploadBtn.onclick = async () => {
     const title = document.getElementById("docTitleInput").value.trim();
+    const category = document.getElementById("docCategoryInput").value.trim() || "Général";
     const clientId = document.getElementById("docClientSelect").value || null;
     const file = document.getElementById("docFileInput").files[0];
     if (!title || !file) { alert("Ajoute un titre et choisis un fichier PDF."); return; }
@@ -1183,13 +1195,14 @@ async function attachCoachHandlers() {
     if (uploadError) { alert("Erreur d'upload : " + uploadError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
     const { data: urlData } = sb.storage.from("documents").getPublicUrl(path);
     const { error: insertError } = await sb.from("documents").insert({
-      title, client_id: clientId, file_url: urlData.publicUrl,
+      title, category, client_id: clientId, file_url: urlData.publicUrl,
     });
     if (insertError) { alert("Erreur : " + insertError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
     showToast("Document envoyé !");
     docUploadBtn.textContent = "⬆ Envoyer le document";
     docUploadBtn.disabled = false;
     document.getElementById("docTitleInput").value = "";
+    document.getElementById("docCategoryInput").value = "";
     document.getElementById("docFileInput").value = "";
   };
 
@@ -1224,6 +1237,7 @@ async function attachCoachHandlers() {
     const { data: cd } = await sb.from("checkin_settings").select("*").eq("client_id", clientId).maybeSingle();
     c.nutrition = n || {};
     c.steps = s ? s.daily_steps : "";
+    c.water = s ? s.water_liters : "";
     c.message = m ? m.message : "";
     c.checkinSettings = cd || { deadline_day: "Dimanche", deadline_time: "20:00" };
     state.coachEditingNutritionId = clientId;
@@ -1250,12 +1264,16 @@ async function attachCoachHandlers() {
       updated_at: new Date().toISOString(),
     };
     const stepsVal = val("fSteps");
+    const waterValRaw = document.getElementById("fWater").value;
+    const waterVal = waterValRaw === "" ? null : parseFloat(waterValRaw);
     const messageVal = document.getElementById("fMessage").value;
     const deadlineDay = document.getElementById("fDeadlineDay").value;
     const deadlineTime = document.getElementById("fDeadlineTime").value;
 
     await sb.from("nutrition_targets").upsert(nutriPayload);
-    if (stepsVal !== null) await sb.from("steps_targets").upsert({ client_id: clientId, daily_steps: stepsVal });
+    if (stepsVal !== null || waterVal !== null) {
+      await sb.from("steps_targets").upsert({ client_id: clientId, daily_steps: stepsVal, water_liters: waterVal });
+    }
     await sb.from("coach_messages").upsert({ client_id: clientId, message: messageVal, updated_at: new Date().toISOString() });
     await sb.from("checkin_settings").upsert({ client_id: clientId, deadline_day: deadlineDay, deadline_time: deadlineTime });
 
@@ -1279,15 +1297,18 @@ function renderAccueil() {
   const pct = kcalTarget ? Math.min(100, Math.round((nutriTotals.kcal / kcalTarget) * 100)) : null;
 
   const latestDoc = (state.documents || [])[0];
-  const docsCount = (state.documents || []).length;
 
   let html = `
     <div class="h1">SALUT ${esc(state.client.name).toUpperCase()}</div>
     <div class="subtitle">${formatDateFR(todayISO())}</div>
   `;
 
-  // --- À faire : rappels prioritaires, en premier ---
-  let reminders = "";
+  // --- Message du coach, tout en haut ---
+  if (state.coachMessage) {
+    html += `<div class="info-box">💬 <strong>Message de ton coach :</strong><br/>${esc(state.coachMessage)}</div>`;
+  }
+
+  // --- Rappel de bilan, si applicable ---
   if (!state.checkinSubmittedThisWeek) {
     const deadline = getDeadlineDate();
     if (deadline) {
@@ -1298,7 +1319,7 @@ function renderAccueil() {
       if (absHours < 1) timeText = `${Math.round(Math.abs(diffMs) / 60000)} min`;
       else if (absHours < 24) timeText = `${Math.round(absHours)}h`;
       else timeText = `${Math.round(absHours / 24)}j`;
-      reminders += `<div class="info-box" style="${isPast ? "border-color:var(--danger);background:rgba(255,107,107,0.12);" : ""}">
+      html += `<div class="info-box" style="${isPast ? "border-color:var(--danger);background:rgba(255,107,107,0.12);" : ""}">
         ⏰ ${isPast
           ? `Ton bilan hebdomadaire est en retard (attendu ${esc(state.checkinSettings.deadline_day)} à ${esc(state.checkinSettings.deadline_time)}) !`
           : `Bilan à envoyer avant ${esc(state.checkinSettings.deadline_day)} ${esc(state.checkinSettings.deadline_time)} — encore ${timeText}`}
@@ -1306,25 +1327,40 @@ function renderAccueil() {
       </div>`;
     }
   }
-  if (state.coachMessage) {
-    reminders += `<div class="info-box">💬 <strong>Message de ton coach :</strong><br/>${esc(state.coachMessage)}</div>`;
-  }
-  if (reminders) {
-    html += `<div class="section-label">À faire</div>${reminders}`;
+
+  // --- Dernier document ajouté ---
+  html += `<div class="section-label">Dernier document</div>`;
+  if (latestDoc) {
+    html += `<a href="${esc(latestDoc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
+      <div class="day-left"><div class="day-num">📄</div>
+        <div><div class="day-title">${esc(latestDoc.title)}</div><div class="day-sub">Ajouté le ${formatDateFR(latestDoc.created_at.slice(0, 10))}</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </a>`;
+  } else {
+    html += `<div style="font-size:13.5px;color:var(--textDim);margin-bottom:12px;">Ton coach n'a pas encore ajouté de document.</div>`;
   }
 
-  // --- Aujourd'hui : pas, kcal, accès rapide nutrition ---
-  html += `<div class="section-label" style="margin-top:${reminders ? "6" : "0"}px;">Aujourd'hui</div>`;
+  // --- Objectifs du jour : pas, kcal, eau ---
+  html += `<div class="section-label" style="margin-top:20px;">Objectifs du jour</div>`;
   html += `<div class="stat-row">
     <div class="stat-card">
       <div style="color:var(--accentDim);margin-bottom:8px;">👣</div>
       <div class="stat-value">${state.stepsTarget || "—"}</div>
-      <div class="stat-label">Pas à faire aujourd'hui</div>
+      <div class="stat-label">Pas à faire</div>
     </div>
     <div class="stat-card">
+      <div style="color:var(--accentDim);margin-bottom:8px;">💧</div>
+      <div class="stat-value">${state.waterTarget || "2-3"}L</div>
+      <div class="stat-label">Eau minimum</div>
+    </div>
+  </div>`;
+
+  html += `<div class="stat-row">
+    <div class="stat-card" style="flex:1;">
       <div style="color:var(--accentDim);margin-bottom:8px;">🍎</div>
       <div class="stat-value">${kcalTarget ? Math.round(nutriTotals.kcal) + "/" + kcalTarget : Math.round(nutriTotals.kcal)}</div>
-      <div class="stat-label">kcal aujourd'hui (jour ${state.nutritionDayType === "on" ? "ON" : "OFF"})</div>
+      <div class="stat-label">kcal (jour ${state.nutritionDayType === "on" ? "ON" : "OFF"})</div>
     </div>
   </div>`;
 
@@ -1342,25 +1378,6 @@ function renderAccueil() {
   html += `<button class="day-card" data-goto-tab="nutrition">
     <div class="day-left"><div class="day-num">🍽️</div>
       <div><div class="day-title">Nutrition du jour</div><div class="day-sub">Ajouter un aliment, voir mes macros</div></div>
-    </div>
-    <span style="color:var(--textDim);">›</span>
-  </button>`;
-
-  // --- Documents : le dernier, + accès à tous ---
-  html += `<div class="section-label" style="margin-top:20px;">Documents</div>`;
-  if (latestDoc) {
-    html += `<a href="${esc(latestDoc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
-      <div class="day-left"><div class="day-num">📄</div>
-        <div><div class="day-title">${esc(latestDoc.title)}</div><div class="day-sub">Dernier document ajouté · ${formatDateFR(latestDoc.created_at.slice(0, 10))}</div></div>
-      </div>
-      <span style="color:var(--textDim);">›</span>
-    </a>`;
-  } else {
-    html += `<div style="font-size:13.5px;color:var(--textDim);margin-bottom:12px;">Ton coach n'a pas encore ajouté de document.</div>`;
-  }
-  html += `<button class="day-card" data-goto-tab="documents" style="margin-bottom:0;">
-    <div class="day-left"><div class="day-num">📚</div>
-      <div><div class="day-title">Tous mes documents</div><div class="day-sub">${docsCount > 0 ? `${docsCount} document${docsCount > 1 ? "s" : ""} disponible${docsCount > 1 ? "s" : ""}` : "Bibliothèque complète"}</div></div>
     </div>
     <span style="color:var(--textDim);">›</span>
   </button>`;
@@ -1669,10 +1686,7 @@ async function loadDocuments() {
 
 function renderDocuments() {
   let html = `
-    <div style="margin:20px 0 4px;">
-      <button class="back-btn" data-back-to-accueil="1">← Retour</button>
-    </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;">DOCUMENTS</div>
+    <div class="h1" style="font-size:26px;">DOCUMENTS</div>
     <div class="subtitle">Les documents que ton coach a partagés avec toi</div>`;
   if (state.documents === null) {
     html += `<div class="empty-state">Chargement…</div>`;
@@ -1682,14 +1696,23 @@ function renderDocuments() {
     html += `<div class="empty-state">📄<div>Aucun document pour l'instant.</div></div>`;
     return html;
   }
+  const groups = {};
   state.documents.forEach(doc => {
-    html += `<a href="${esc(doc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
-      <div class="day-left">
-        <div class="day-num">📄</div>
-        <div><div class="day-title">${esc(doc.title)}</div><div class="day-sub">${formatDateFR(doc.created_at.slice(0, 10))} · ouvrir le PDF</div></div>
-      </div>
-      <span style="color:var(--textDim);">›</span>
-    </a>`;
+    const cat = doc.category || "Général";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(doc);
+  });
+  Object.keys(groups).sort().forEach(cat => {
+    html += `<div class="section-label">${esc(cat)}</div>`;
+    groups[cat].forEach(doc => {
+      html += `<a href="${esc(doc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
+        <div class="day-left">
+          <div class="day-num">📄</div>
+          <div><div class="day-title">${esc(doc.title)}</div><div class="day-sub">${formatDateFR(doc.created_at.slice(0, 10))} · ouvrir le PDF</div></div>
+        </div>
+        <span style="color:var(--textDim);">›</span>
+      </a>`;
+    });
   });
   return html;
 }
@@ -1983,6 +2006,7 @@ async function openCheckin() {
   state.checkinExisting = data || null;
   state.checkinDraft = data ? { ...data } : {};
   state.checkinOpen = true;
+  state.checkinView = "current";
   render();
 }
 
@@ -1993,17 +2017,13 @@ function photoField(id, label, existingUrl) {
   </div>`;
 }
 
-function renderCheckin() {
+function renderCheckinCurrent() {
   const d = state.checkinDraft || {};
   const deadline = state.checkinSettings ? `${state.checkinSettings.deadline_day} avant ${state.checkinSettings.deadline_time}` : "chaque semaine";
 
   if (state.checkinExisting) {
     const ck = state.checkinExisting;
     return `
-      <div style="margin:20px 0 4px;">
-        <button class="back-btn" data-back-to-profil="1">← Retour</button>
-      </div>
-      <div class="h1" style="font-size:26px;margin-top:10px;">BILAN HEBDOMADAIRE</div>
       <div class="subtitle">Envoyé le ${formatDateFR(ck.created_at.slice(0, 10))}</div>
       <div class="info-box">✓ Ton bilan de cette semaine a bien été envoyé à ton coach. Il n'est plus modifiable — rendez-vous la semaine prochaine (${esc(deadline)}) pour le suivant.</div>
       <div class="ex-card"><div class="ex-body" style="padding-top:16px;font-size:13.5px;color:var(--textDim);line-height:1.8;">
@@ -2016,13 +2036,7 @@ function renderCheckin() {
     `;
   }
 
-  let html = `
-    <div style="margin:20px 0 4px;">
-      <button class="back-btn" data-back-to-profil="1">← Retour</button>
-    </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;">BILAN HEBDOMADAIRE</div>
-    <div class="subtitle">À rendre chaque ${esc(deadline)} — semaine du ${formatDateFR(todayISO())}</div>
-  `;
+  let html = `<div class="subtitle">À rendre chaque ${esc(deadline)} — semaine du ${formatDateFR(todayISO())}</div>`;
 
   const scaleRow = (id, label) => `
     <div style="margin-bottom:16px;">
@@ -2084,6 +2098,52 @@ function renderCheckin() {
   </div></div>`;
 
   html += `<button class="validate-btn" id="submitCheckinBtn">✓ Envoyer mon bilan</button>`;
+  return html;
+}
+
+function renderCheckinHistorique() {
+  if (state.checkinsHistory === null) {
+    return `<div class="empty-state">Chargement…</div>`;
+  }
+  const past = [...state.checkinsHistory].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (past.length === 0) {
+    return `<div class="empty-state">📋<div>Aucun bilan envoyé pour l'instant.</div></div>`;
+  }
+  return past.map(ck => `
+    <div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+      <div style="font-weight:700;margin-bottom:8px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0, 10))}</div>
+      <div style="font-size:13.5px;color:var(--textDim);line-height:1.8;">
+        Ressenti : <strong style="color:var(--text);">${ck.feeling ?? "—"}/5</strong> · Sommeil : <strong style="color:var(--text);">${ck.sleep_quality ?? "—"}/5</strong> · Stress : <strong style="color:var(--text);">${ck.stress_level ?? "—"}/5</strong> · Motivation : <strong style="color:var(--text);">${ck.motivation ?? "—"}/5</strong><br/>
+        Eau 3L/jour : <strong style="color:var(--text);">${ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—"}</strong> · Douleurs : <strong style="color:var(--text);">${ck.pain_other === true ? "Oui" : ck.pain_other === false ? "Non" : "—"}</strong><br/>
+        Poids : <strong style="color:var(--text);">${ck.bodyweight ?? "—"}kg</strong> · Bras G/D : <strong style="color:var(--text);">${ck.arm_left ?? "—"}/${ck.arm_right ?? "—"}cm</strong> · Jambe G/D : <strong style="color:var(--text);">${ck.leg_left ?? "—"}/${ck.leg_right ?? "—"}cm</strong><br/>
+        Épaules : <strong style="color:var(--text);">${ck.shoulders ?? "—"}cm</strong> · Taille : <strong style="color:var(--text);">${ck.waist ?? "—"}cm</strong>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+        ${ck.photo_front_url ? `<a href="${esc(ck.photo_front_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo face</a>` : ""}
+        ${ck.photo_back_url ? `<a href="${esc(ck.photo_back_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo dos</a>` : ""}
+        ${ck.photo_side_url ? `<a href="${esc(ck.photo_side_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo profil</a>` : ""}
+        ${ck.steps_screenshot_url ? `<a href="${esc(ck.steps_screenshot_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Capture pas</a>` : ""}
+      </div>
+    </div></div>`).join("");
+}
+
+function renderCheckin() {
+  let html = `
+    <div style="margin:20px 0 4px;">
+      <button class="back-btn" data-back-to-profil="1">← Retour</button>
+    </div>
+    <div class="h1" style="font-size:26px;margin-top:10px;">BILAN</div>
+    <div class="day-tabs">
+      <button class="day-tab ${state.checkinView !== "historique" ? "active" : ""}" data-checkin-view="current">Cette semaine</button>
+      <button class="day-tab ${state.checkinView === "historique" ? "active" : ""}" data-checkin-view="historique">Historique</button>
+    </div>
+  `;
+  if (state.checkinView === "historique") {
+    if (state.checkinsHistory === null) loadCheckinsHistory();
+    html += renderCheckinHistorique();
+  } else {
+    html += renderCheckinCurrent();
+  }
   return html;
 }
 
@@ -2344,6 +2404,11 @@ function attachHandlers() {
 
   const openCheckinBtn = app.querySelector("[data-open-checkin]");
   if (openCheckinBtn) openCheckinBtn.onclick = () => { openCheckin(); };
+
+  app.querySelectorAll("[data-checkin-view]").forEach(b => b.onclick = () => {
+    state.checkinView = b.dataset.checkinView;
+    render();
+  });
 
   const gotoCheckinBtn = app.querySelector("[data-goto-checkin]");
   if (gotoCheckinBtn) gotoCheckinBtn.onclick = () => { state.tab = "profil"; openCheckin(); };
