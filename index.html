@@ -480,7 +480,9 @@ let state = {
   libraryQuery: "",
   checkinSettings: null, // { deadline_day, deadline_time }
   coachEditingMessageId: null,
-  documents: null, // null = not loaded yet
+  documents: null, // null = not loaded yet (client-side)
+  documentsOpenCategory: null,
+  coachDocuments: null, // all uploaded documents, loaded for the coach panel
   stepsTarget: null,
   waterTarget: null,
   coachMessage: null,
@@ -902,7 +904,7 @@ function renderCoachScreen() {
     <input id="docTitleInput" placeholder="Titre du document" style="margin-bottom:10px;" />
     <input id="docCategoryInput" placeholder="Catégorie (ex: Nutrition, Entraînement, Général)" list="docCategoryList" style="margin-bottom:10px;" />
     <datalist id="docCategoryList">
-      ${[...new Set((state.documents || []).map(d => d.category || "Général"))].map(c => `<option value="${esc(c)}"></option>`).join("")}
+      ${[...new Set((state.coachDocuments || []).map(d => d.category || "Général"))].map(c => `<option value="${esc(c)}"></option>`).join("")}
     </datalist>
     <select id="docClientSelect" style="margin-bottom:10px;">
       <option value="">Visible par tous les clients</option>
@@ -911,6 +913,22 @@ function renderCoachScreen() {
     <input id="docFileInput" type="file" accept="application/pdf" style="margin-bottom:10px;" />
     <button class="validate-btn" id="docUploadBtn" style="margin-top:0;">⬆ Envoyer le document</button>
   </div></div>`;
+
+  if ((state.coachDocuments || []).length > 0) {
+    html += `<div class="section-label" style="margin-top:20px;">Documents envoyés</div>`;
+    state.coachDocuments.forEach(doc => {
+      html += `<div class="day-card" style="cursor:default;">
+        <div class="day-left">
+          <div class="day-num">📄</div>
+          <div>
+            <div class="day-title">${esc(doc.title)}</div>
+            <div class="day-sub">${esc(doc.category || "Général")} · ${doc.clients ? esc(doc.clients.name) : "Tous les clients"} · ${formatDateFR(doc.created_at.slice(0, 10))}</div>
+          </div>
+        </div>
+        <button data-delete-doc="${doc.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:13px;">🗑</button>
+      </div>`;
+    });
+  }
 
   html += `<div style="margin-top:24px;text-align:center;">
     <button class="link-btn" data-logout-coach="1">Quitter l'espace coach</button>
@@ -1059,6 +1077,8 @@ async function attachCoachHandlers() {
         id: c.id, name: c.name, access_code: c.access_code,
         program_json: c.programs ? c.programs.program_json : null,
       }));
+      const { data: docsData } = await sb.from("documents").select("*, clients(name)").order("created_at", { ascending: false });
+      state.coachDocuments = docsData || [];
       render();
       await loadCoachOverview();
       render();
@@ -1194,17 +1214,32 @@ async function attachCoachHandlers() {
     const { error: uploadError } = await sb.storage.from("documents").upload(path, file);
     if (uploadError) { alert("Erreur d'upload : " + uploadError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
     const { data: urlData } = sb.storage.from("documents").getPublicUrl(path);
-    const { error: insertError } = await sb.from("documents").insert({
-      title, category, client_id: clientId, file_url: urlData.publicUrl,
-    });
+    const { data: inserted, error: insertError } = await sb.from("documents").insert({
+      title, category, client_id: clientId, file_url: urlData.publicUrl, file_path: path,
+    }).select("*, clients(name)").single();
     if (insertError) { alert("Erreur : " + insertError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
+    state.coachDocuments = [inserted, ...(state.coachDocuments || [])];
     showToast("Document envoyé !");
     docUploadBtn.textContent = "⬆ Envoyer le document";
     docUploadBtn.disabled = false;
     document.getElementById("docTitleInput").value = "";
     document.getElementById("docCategoryInput").value = "";
     document.getElementById("docFileInput").value = "";
+    render();
   };
+
+  document.querySelectorAll("[data-delete-doc]").forEach(b => b.onclick = async () => {
+    const docId = b.dataset.deleteDoc;
+    const doc = (state.coachDocuments || []).find(d => d.id === docId);
+    if (!doc) return;
+    if (!confirm(`Supprimer définitivement "${doc.title}" ? Il ne sera plus visible par les clients concernés.`)) return;
+    if (doc.file_path) await sb.storage.from("documents").remove([doc.file_path]);
+    const { error } = await sb.from("documents").delete().eq("id", docId);
+    if (error) { showToast("Erreur lors de la suppression."); return; }
+    state.coachDocuments = state.coachDocuments.filter(d => d.id !== docId);
+    showToast("Document supprimé.");
+    render();
+  });
 
   document.querySelectorAll("[data-view-checkins]").forEach(b => b.onclick = async () => {
     const clientId = b.dataset.viewCheckins;
@@ -1685,25 +1720,28 @@ async function loadDocuments() {
 }
 
 function renderDocuments() {
-  let html = `
-    <div class="h1" style="font-size:26px;">DOCUMENTS</div>
-    <div class="subtitle">Les documents que ton coach a partagés avec toi</div>`;
   if (state.documents === null) {
-    html += `<div class="empty-state">Chargement…</div>`;
-    return html;
+    return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state">Chargement…</div>`;
   }
   if (state.documents.length === 0) {
-    html += `<div class="empty-state">📄<div>Aucun document pour l'instant.</div></div>`;
-    return html;
+    return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state">📄<div>Aucun document pour l'instant.</div></div>`;
   }
+
   const groups = {};
   state.documents.forEach(doc => {
     const cat = doc.category || "Général";
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push(doc);
   });
-  Object.keys(groups).sort().forEach(cat => {
-    html += `<div class="section-label">${esc(cat)}</div>`;
+
+  if (state.documentsOpenCategory && groups[state.documentsOpenCategory]) {
+    const cat = state.documentsOpenCategory;
+    let html = `
+      <div style="margin:20px 0 4px;">
+        <button class="back-btn" data-back-documents-category="1">← Retour</button>
+      </div>
+      <div class="h1" style="font-size:26px;margin-top:10px;">${esc(cat).toUpperCase()}</div>
+      <div class="subtitle">${groups[cat].length} document${groups[cat].length > 1 ? "s" : ""}</div>`;
     groups[cat].forEach(doc => {
       html += `<a href="${esc(doc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
         <div class="day-left">
@@ -1713,6 +1751,20 @@ function renderDocuments() {
         <span style="color:var(--textDim);">›</span>
       </a>`;
     });
+    return html;
+  }
+
+  let html = `
+    <div class="h1" style="font-size:26px;">DOCUMENTS</div>
+    <div class="subtitle">Choisis une catégorie</div>`;
+  Object.keys(groups).sort().forEach(cat => {
+    html += `<button class="day-card" data-open-doc-category="${esc(cat)}">
+      <div class="day-left">
+        <div class="day-num">📁</div>
+        <div><div class="day-title">${esc(cat)}</div><div class="day-sub">${groups[cat].length} document${groups[cat].length > 1 ? "s" : ""}</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>`;
   });
   return html;
 }
@@ -2323,8 +2375,17 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-goto-tab]").forEach(b => b.onclick = () => {
     state.tab = b.dataset.gotoTab;
+    state.documentsOpenCategory = null;
     render();
   });
+
+  document.querySelectorAll("[data-open-doc-category]").forEach(b => b.onclick = () => {
+    state.documentsOpenCategory = b.dataset.openDocCategory;
+    render();
+  });
+
+  const backDocCategory = app.querySelector("[data-back-documents-category]");
+  if (backDocCategory) backDocCategory.onclick = () => { state.documentsOpenCategory = null; render(); };
 
   const backToAccueil = app.querySelector("[data-back-to-accueil]");
   if (backToAccueil) backToAccueil.onclick = () => { state.tab = "accueil"; render(); };
@@ -2517,6 +2578,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
   state.historyDraft = null;
   state.selectedFood = null;
   state.checkinOpen = false;
+  state.documentsOpenCategory = null;
   render();
 });
 
