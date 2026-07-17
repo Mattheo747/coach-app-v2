@@ -2024,7 +2024,12 @@ function renderProfil() {
   const totalExercisesTracked = new Set();
   state.sessionLogs.forEach(l => Object.keys(l.entries).forEach(exId => totalExercisesTracked.add(exId)));
   return `
-    <div class="h1" style="font-size:26px;">PROFIL</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;">
+      <div class="h1" style="font-size:26px;margin:0;">PROFIL</div>
+      <button data-open-checkin="1" style="background:var(--accent);border:none;color:var(--accentText);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;">
+        📋 Bilan${!state.checkinSubmittedThisWeek ? " •" : ""}
+      </button>
+    </div>
     <div class="subtitle">${esc(state.client.name)}</div>
     <div class="stat-row">
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
@@ -2463,8 +2468,7 @@ function attachHandlers() {
     render();
   };
 
-  const openCheckinBtn = app.querySelector("[data-open-checkin]");
-  if (openCheckinBtn) openCheckinBtn.onclick = () => { openCheckin(); };
+  app.querySelectorAll("[data-open-checkin]").forEach(b => b.onclick = () => { openCheckin(); });
 
   app.querySelectorAll("[data-checkin-view]").forEach(b => b.onclick = () => {
     state.checkinView = b.dataset.checkinView;
