@@ -152,7 +152,14 @@
     <button id="scannerCloseBtn" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:10px;padding:8px 14px;font-size:14px;">✕ Fermer</button>
   </div>
   <div id="qr-reader" style="width:100%;max-width:480px;margin:0 auto;"></div>
-  <div id="scannerStatus" style="color:#ccc;text-align:center;padding:16px;font-size:13.5px;">Vise le code-barres du produit avec la caméra.</div>
+  <div id="scannerStatus" style="color:#ccc;text-align:center;padding:16px 16px 8px;font-size:13.5px;">Vise le code-barres du produit avec la caméra.</div>
+  <div style="max-width:480px;margin:0 auto;padding:0 16px 24px;width:100%;box-sizing:border-box;">
+    <div style="color:#888;font-size:12.5px;text-align:center;margin-bottom:8px;">La caméra a du mal à faire le point ? Tape les chiffres sous le code-barres :</div>
+    <div style="display:flex;gap:8px;">
+      <input id="manualBarcodeInput" inputmode="numeric" placeholder="ex : 3017620422003" style="flex:1;border:1px solid #444;background:#111;color:#fff;border-radius:10px;padding:10px 12px;font-family:ui-monospace, monospace;" />
+      <button id="manualBarcodeBtn" style="background:var(--accent);border:none;color:var(--accentText);border-radius:10px;padding:0 16px;font-weight:700;">OK</button>
+    </div>
+  </div>
 </div>
 <div class="bottom-nav" style="display:none;">
   <div class="bottom-nav-inner">
@@ -569,8 +576,20 @@ async function openScanner() {
       Html5QrcodeSupportedFormats.CODE_128,
     ];
     await scannerInstance.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 260, height: 160 }, formatsToSupport: formats },
+      { facingMode: { ideal: "environment" }, advanced: [{ focusMode: "continuous" }] },
+      {
+        fps: 8,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const w = Math.min(viewfinderWidth * 0.9, 380);
+          return { width: w, height: Math.round(w * 0.42) };
+        },
+        formatsToSupport: formats,
+        videoConstraints: {
+          facingMode: { ideal: "environment" },
+          advanced: [{ focusMode: "continuous" }],
+          width: { ideal: 1920 }, height: { ideal: 1080 },
+        },
+      },
       (decodedText) => { onBarcodeScanned(decodedText); },
       () => { /* échec de lecture sur une frame donnée : normal, on continue */ }
     );
@@ -2960,6 +2979,15 @@ document.getElementById("themeToggle").onclick = () => {
 };
 
 document.getElementById("scannerCloseBtn").onclick = () => { closeScanner(); };
+
+document.getElementById("manualBarcodeBtn").onclick = () => {
+  const val = document.getElementById("manualBarcodeInput").value.trim();
+  if (!val) return;
+  onBarcodeScanned(val);
+};
+document.getElementById("manualBarcodeInput").onkeydown = (e) => {
+  if (e.key === "Enter") document.getElementById("manualBarcodeBtn").click();
+};
 
 boot();
 </script>
