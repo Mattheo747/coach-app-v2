@@ -472,6 +472,7 @@ const RAW_FOOD_LIBRARY = [
   rf("Fenouil", 31, 1.2, 7.3, 0.2), rf("Endive", 17, 1, 4, 0.1), rf("Maïs", 86, 3.2, 19, 1.2),
   rf("Potiron / Citrouille", 26, 1, 7, 0.1),
   // Viandes
+  rf("Filet de poulet", 110, 23, 0, 1.5), rf("Filet de dinde", 104, 24, 0, 1),
   rf("Poulet blanc (filet), cru", 110, 23, 0, 1.5), rf("Poulet cuisse sans peau, cru", 130, 19, 0, 5.5),
   rf("Dinde blanc (filet), cru", 104, 24, 0, 1), rf("Dinde cuisse, crue", 120, 20, 0, 4),
   rf("Bœuf haché 5% MG, cru", 137, 21, 0, 5), rf("Bœuf haché 10% MG, cru", 176, 20, 0, 10),
@@ -514,7 +515,12 @@ const RAW_FOOD_LIBRARY = [
 function searchLocalFoods(query) {
   const q = query.toLowerCase().trim();
   if (!q) return [];
-  return RAW_FOOD_LIBRARY.filter(f => f.name.toLowerCase().includes(q)).map(f => ({ ...f, brand: "", source: "local" }));
+  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => f.name.toLowerCase().includes(q)).map(f => ({ ...f, brand: "", source: "local" }));
+  const fromCustom = (state.customFoods || []).filter(f => f.name.toLowerCase().includes(q)).map(f => ({
+    name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
+    carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
+  }));
+  return [...fromCustom, ...fromLibrary];
 }
 
 
@@ -567,6 +573,10 @@ let state = {
   foodSearchLoading: false,
   selectedFood: null,
   nutritionDayType: null,
+  nutritionSubView: "recherche", // "recherche" | "recent" | "frequent"
+  showCreateFood: false,
+  customFoods: null,
+  allFoodLogs: null,
   checkinOpen: false,
   checkinView: "current",
   checkinExisting: null,
@@ -629,6 +639,9 @@ async function loadClientByCode(code) {
 
   const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
   state.foodLogsToday = foodRows || [];
+
+  const { data: customFoodsData } = await sb.from("custom_foods").select("*").order("name", { ascending: true });
+  state.customFoods = customFoodsData || [];
 
   const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("client_id", clientRow.id).maybeSingle();
   state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
@@ -1745,6 +1758,12 @@ function renderRecap(logId) {
 }
 
 /* ---------------- Nutrition ---------------- */
+async function loadAllFoodLogs() {
+  const { data } = await sb.from("food_logs").select("*").eq("client_id", state.client.id).order("created_at", { ascending: false }).limit(500);
+  state.allFoodLogs = data || [];
+  render();
+}
+
 function renderNutrition() {
   const t = state.nutritionTargets;
   const dayType = state.nutritionDayType || "on";
@@ -1786,26 +1805,94 @@ function renderNutrition() {
     </div>`;
   }
 
-  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
-    <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" style="margin-bottom:10px;" />
-    <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;">Rechercher</button>
-  </div></div>`;
+  html += `<div class="day-tabs">
+    <button class="day-tab ${state.nutritionSubView === "recherche" ? "active" : ""}" data-nutrition-subview="recherche">🔍 Rechercher</button>
+    <button class="day-tab ${state.nutritionSubView === "recent" ? "active" : ""}" data-nutrition-subview="recent">🕐 Récemment</button>
+    <button class="day-tab ${state.nutritionSubView === "frequent" ? "active" : ""}" data-nutrition-subview="frequent">🔥 Plus mangé</button>
+  </div>`;
 
-  if (state.foodSearchLoading) {
-    html += `<div class="empty-state">Recherche en cours…</div>`;
-  } else if (state.foodSearchResults.length > 0 && !state.selectedFood) {
-    html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
-    state.foodSearchResults.forEach((food, i) => {
-      html += `<button class="day-card" data-select-food="${i}">
-        <div class="day-left"><div>
-          <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : ""}</div>
-          <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
-        </div></div>
-        <span style="color:var(--textDim);">›</span>
-      </button>`;
-    });
-    html += `</div>`;
+  if (state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") {
+    if (state.allFoodLogs === null) {
+      html += `<div class="empty-state">Chargement…</div>`;
+      return html;
+    }
+    let list;
+    if (state.nutritionSubView === "recent") {
+      const seen = new Set();
+      list = [];
+      [...state.allFoodLogs].sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
+        if (seen.has(f.food_name)) return;
+        seen.add(f.food_name);
+        list.push(f);
+      });
+      list = list.slice(0, 20);
+    } else {
+      const counts = {};
+      state.allFoodLogs.forEach(f => {
+        if (!counts[f.food_name]) counts[f.food_name] = { entry: f, count: 0 };
+        counts[f.food_name].count++;
+        if (f.created_at > counts[f.food_name].entry.created_at) counts[f.food_name].entry = f;
+      });
+      list = Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 20).map(c => c.entry);
+    }
+    if (list.length === 0) {
+      html += `<div class="empty-state">🍽️<div>Pas encore d'historique alimentaire.</div></div>`;
+    } else {
+      html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
+      list.forEach(f => {
+        const ratio = 100 / (Number(f.grams) || 100);
+        html += `<button class="day-card" data-reuse-food="${esc(f.food_name)}|${Math.round(f.kcal * ratio)}|${Math.round(f.protein * ratio)}|${Math.round(f.carbs * ratio)}|${Math.round(f.fat * ratio)}|${f.grams}">
+          <div class="day-left"><div>
+            <div class="day-title">${esc(f.food_name)}</div>
+            <div class="day-sub">Dernière fois : ${f.grams}g · ${Math.round(f.kcal)} kcal</div>
+          </div></div>
+          <span style="color:var(--textDim);">›</span>
+        </button>`;
+      });
+      html += `</div>`;
+    }
+  } else {
+    html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
+      <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" style="margin-bottom:10px;" />
+      <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;margin-bottom:8px;">Rechercher</button>
+      <button data-toggle-create-food="1" style="width:100%;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;font-size:13px;">+ Créer mon propre aliment</button>
+    </div></div>`;
+
+    if (state.showCreateFood) {
+      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+        <div style="font-weight:700;margin-bottom:10px;">Nouvel aliment (valeurs pour 100g)</div>
+        <input id="newFoodName" placeholder="Nom de l'aliment" style="margin-bottom:10px;" />
+        <div class="row">
+          <input id="newFoodKcal" placeholder="kcal" inputmode="decimal" />
+          <input id="newFoodProtein" placeholder="protéines g" inputmode="decimal" />
+        </div>
+        <div class="row" style="margin-bottom:10px;">
+          <input id="newFoodCarbs" placeholder="glucides g" inputmode="decimal" />
+          <input id="newFoodFat" placeholder="lipides g" inputmode="decimal" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="validate-btn" id="createFoodBtn" style="margin-top:0;flex:1;">✓ Créer et utiliser</button>
+          <button data-cancel-create-food="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+        </div>
+      </div></div>`;
+    }
+
+    if (state.foodSearchLoading) {
+      html += `<div class="empty-state">Recherche en cours…</div>`;
+    } else if (state.foodSearchResults.length > 0 && !state.selectedFood) {
+      html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
+      state.foodSearchResults.forEach((food, i) => {
+        html += `<button class="day-card" data-select-food="${i}">
+          <div class="day-left"><div>
+            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : ""}</div>
+            <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
+          </div></div>
+          <span style="color:var(--textDim);">›</span>
+        </button>`;
+      });
+      html += `</div>`;
+    }
   }
 
   if (state.selectedFood) {
@@ -1815,7 +1902,7 @@ function renderNutrition() {
       <div style="font-size:13px;color:var(--textDim);margin-bottom:12px;">${f.kcalPer100} kcal · ${f.proteinPer100}g prot · ${f.carbsPer100}g gluc · ${f.fatPer100}g lip — pour 100g</div>
       <div class="row">
         <span style="color:var(--textDim);font-size:13px;">Poids pesé</span>
-        <input id="foodGramsInput" inputmode="decimal" placeholder="grammes" style="width:100px;" />
+        <input id="foodGramsInput" inputmode="decimal" placeholder="grammes" value="${f.defaultGrams || ""}" style="width:100px;" />
         <span style="color:var(--textDim);font-size:13px;">g</span>
       </div>
       <div style="display:flex;gap:8px;">
@@ -2529,6 +2616,52 @@ function attachHandlers() {
     state.nutritionDayType = b.dataset.setDaytype;
     render();
   });
+
+  app.querySelectorAll("[data-nutrition-subview]").forEach(b => b.onclick = () => {
+    state.nutritionSubView = b.dataset.nutritionSubview;
+    state.selectedFood = null;
+    if ((state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") && state.allFoodLogs === null) {
+      loadAllFoodLogs();
+    }
+    render();
+  });
+
+  app.querySelectorAll("[data-reuse-food]").forEach(b => b.onclick = () => {
+    const [name, kcal, protein, carbs, fat, grams] = b.dataset.reuseFood.split("|");
+    state.selectedFood = {
+      name, kcalPer100: parseFloat(kcal), proteinPer100: parseFloat(protein),
+      carbsPer100: parseFloat(carbs), fatPer100: parseFloat(fat), defaultGrams: grams,
+    };
+    render();
+  });
+
+  const toggleCreateFoodBtn = app.querySelector("[data-toggle-create-food]");
+  if (toggleCreateFoodBtn) toggleCreateFoodBtn.onclick = () => { state.showCreateFood = !state.showCreateFood; render(); };
+
+  const cancelCreateFoodBtn = app.querySelector("[data-cancel-create-food]");
+  if (cancelCreateFoodBtn) cancelCreateFoodBtn.onclick = () => { state.showCreateFood = false; render(); };
+
+  const createFoodBtn = app.querySelector("#createFoodBtn");
+  if (createFoodBtn) createFoodBtn.onclick = async () => {
+    const name = document.getElementById("newFoodName").value.trim();
+    const kcal = parseFloat(document.getElementById("newFoodKcal").value);
+    const protein = parseFloat(document.getElementById("newFoodProtein").value) || 0;
+    const carbs = parseFloat(document.getElementById("newFoodCarbs").value) || 0;
+    const fat = parseFloat(document.getElementById("newFoodFat").value) || 0;
+    if (!name || isNaN(kcal)) { alert("Donne au moins un nom et des kcal pour 100g."); return; }
+    createFoodBtn.textContent = "Création…";
+    createFoodBtn.disabled = true;
+    const { data, error } = await sb.from("custom_foods").insert({
+      name, kcal_per_100: kcal, protein_per_100: protein, carbs_per_100: carbs, fat_per_100: fat,
+      created_by: state.client.id,
+    }).select().single();
+    if (error) { showToast("Erreur : " + error.message); createFoodBtn.disabled = false; createFoodBtn.textContent = "✓ Créer et utiliser"; return; }
+    state.customFoods.push(data);
+    state.selectedFood = { name, kcalPer100: kcal, proteinPer100: protein, carbsPer100: carbs, fatPer100: fat };
+    state.showCreateFood = false;
+    showToast("Aliment créé et ajouté à la base !");
+    render();
+  };
 
   const foodSearchBtn = app.querySelector("#foodSearchBtn");
   if (foodSearchBtn) foodSearchBtn.onclick = async () => {
