@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Mathéophysique" />
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
     --bg: #0d1614; --card: #1c2a27; --border: #2c3c38;
@@ -145,6 +146,14 @@
 </div>
 <div id="app"></div>
 <div id="toastHolder"></div>
+<div id="scannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:200;flex-direction:column;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;">
+    <div style="color:#fff;font-weight:700;">Scanner un code-barres</div>
+    <button id="scannerCloseBtn" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:10px;padding:8px 14px;font-size:14px;">✕ Fermer</button>
+  </div>
+  <div id="qr-reader" style="width:100%;max-width:480px;margin:0 auto;"></div>
+  <div id="scannerStatus" style="color:#ccc;text-align:center;padding:16px;font-size:13.5px;">Vise le code-barres du produit avec la caméra.</div>
+</div>
 <div class="bottom-nav" style="display:none;">
   <div class="bottom-nav-inner">
     <button class="nav-btn" data-tab="accueil">🏠<span>Accueil</span></button>
@@ -529,6 +538,89 @@ function searchLocalFoods(query) {
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
   }));
   return [...fromCustom, ...fromLibrary];
+}
+
+/* ---------------- Barcode scanner ---------------- */
+// Deliberately kept outside the normal render() cycle: the scanner overlay lives
+// in the static HTML (not inside #app), so re-rendering the rest of the app never
+// tears down the live camera feed or crashes the scan in progress.
+let scannerInstance = null;
+
+function setScannerStatus(msg) {
+  const el = document.getElementById("scannerStatus");
+  if (el) el.textContent = msg;
+}
+
+async function openScanner() {
+  const overlay = document.getElementById("scannerOverlay");
+  overlay.style.display = "flex";
+  setScannerStatus("Vise le code-barres du produit avec la caméra.");
+
+  if (typeof Html5Qrcode === "undefined") {
+    setScannerStatus("Le scanner n'a pas pu se charger (pas de connexion ?). Ferme et utilise la recherche manuelle.");
+    return;
+  }
+
+  try {
+    scannerInstance = new Html5Qrcode("qr-reader");
+    const formats = [
+      Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_128,
+    ];
+    await scannerInstance.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 260, height: 160 }, formatsToSupport: formats },
+      (decodedText) => { onBarcodeScanned(decodedText); },
+      () => { /* échec de lecture sur une frame donnée : normal, on continue */ }
+    );
+  } catch (e) {
+    setScannerStatus("Impossible d'accéder à la caméra. Vérifie que tu as autorisé l'accès, ou ferme et cherche manuellement.");
+  }
+}
+
+async function closeScanner() {
+  const overlay = document.getElementById("scannerOverlay");
+  if (scannerInstance) {
+    try {
+      await scannerInstance.stop();
+      scannerInstance.clear();
+    } catch (e) { /* déjà arrêté, rien à faire */ }
+    scannerInstance = null;
+  }
+  overlay.style.display = "none";
+}
+
+async function onBarcodeScanned(barcode) {
+  setScannerStatus(`Code détecté (${barcode}) — recherche du produit…`);
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+    const data = await res.json();
+    if (data.status !== 1 || !data.product) {
+      setScannerStatus("Produit introuvable dans la base. Ferme et cherche-le manuellement, ou re-scanne.");
+      return;
+    }
+    const p = data.product;
+    const n = p.nutriments || {};
+    if (n["energy-kcal_100g"] == null) {
+      setScannerStatus("Ce produit n'a pas de valeurs nutritionnelles renseignées. Ferme et cherche-le manuellement.");
+      return;
+    }
+    await closeScanner();
+    state.selectedFood = {
+      name: p.product_name || "Produit scanné",
+      kcalPer100: Math.round(n["energy-kcal_100g"] || 0),
+      proteinPer100: Math.round(n["proteins_100g"] || 0),
+      carbsPer100: Math.round(n["carbohydrates_100g"] || 0),
+      fatPer100: Math.round(n["fat_100g"] || 0),
+    };
+    state.tab = "nutrition";
+    state.nutritionSubView = "recherche";
+    showToast("Produit trouvé !");
+    render();
+  } catch (e) {
+    setScannerStatus("Erreur réseau. Vérifie ta connexion, ou ferme et cherche manuellement.");
+  }
 }
 
 
@@ -1864,6 +1956,7 @@ function renderNutrition() {
       <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
       <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" style="margin-bottom:10px;" />
       <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;margin-bottom:8px;">Rechercher</button>
+      <button data-open-scanner="1" style="width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:8px;">📷 Scanner un code-barres</button>
       <button data-toggle-create-food="1" style="width:100%;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;font-size:13px;">+ Créer mon propre aliment</button>
     </div></div>`;
 
@@ -2644,6 +2737,7 @@ function attachHandlers() {
   });
 
   const toggleCreateFoodBtn = app.querySelector("[data-toggle-create-food]");
+  app.querySelectorAll("[data-open-scanner]").forEach(b => b.onclick = () => openScanner());
   if (toggleCreateFoodBtn) toggleCreateFoodBtn.onclick = () => { state.showCreateFood = !state.showCreateFood; render(); };
 
   const cancelCreateFoodBtn = app.querySelector("[data-cancel-create-food]");
@@ -2864,6 +2958,8 @@ document.getElementById("themeToggle").onclick = () => {
   document.body.className = state.dark ? "dark" : "light";
   document.getElementById("themeToggle").textContent = state.dark ? "🌙" : "☀️";
 };
+
+document.getElementById("scannerCloseBtn").onclick = () => { closeScanner(); };
 
 boot();
 </script>
