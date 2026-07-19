@@ -548,7 +548,11 @@ function searchLocalFoods(query) {
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
   }));
-  return [...fromCustom, ...fromLibrary];
+  const fromScanned = (state.scannedProducts || []).filter(f => f.name.toLowerCase().includes(q)).map(f => ({
+    name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
+    carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
+  }));
+  return [...fromCustom, ...fromScanned, ...fromLibrary];
 }
 
 /* ---------------- Barcode scanner ---------------- */
@@ -642,6 +646,22 @@ async function closeScanner() {
 async function onBarcodeScanned(barcode) {
   setScannerStatus(`Code détecté (${barcode}) — recherche du produit…`);
   try {
+    // 1. Un client (n'importe lequel) a peut-être déjà scanné ce produit : cache instantané
+    const { data: cached } = await sb.from("scanned_products").select("*").eq("barcode", barcode).maybeSingle();
+    if (cached) {
+      await closeScanner();
+      state.selectedFood = {
+        name: cached.name, kcalPer100: cached.kcal_per_100, proteinPer100: cached.protein_per_100,
+        carbsPer100: cached.carbs_per_100, fatPer100: cached.fat_per_100,
+      };
+      state.tab = "nutrition";
+      state.nutritionSubView = "recherche";
+      showToast("Produit trouvé (déjà scanné) !");
+      render();
+      return;
+    }
+
+    // 2. Sinon on interroge Open Food Facts, et on garde le résultat pour la prochaine fois
     const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
     const data = await res.json();
     if (data.status !== 1 || !data.product) {
@@ -654,14 +674,22 @@ async function onBarcodeScanned(barcode) {
       setScannerStatus("Ce produit n'a pas de valeurs nutritionnelles renseignées. Ferme et cherche-le manuellement.");
       return;
     }
-    await closeScanner();
-    state.selectedFood = {
+    const food = {
       name: p.product_name || "Produit scanné",
       kcalPer100: Math.round(n["energy-kcal_100g"] || 0),
       proteinPer100: Math.round(n["proteins_100g"] || 0),
       carbsPer100: Math.round(n["carbohydrates_100g"] || 0),
       fatPer100: Math.round(n["fat_100g"] || 0),
     };
+    const cacheRow = {
+      barcode, name: food.name, kcal_per_100: food.kcalPer100, protein_per_100: food.proteinPer100,
+      carbs_per_100: food.carbsPer100, fat_per_100: food.fatPer100,
+    };
+    await sb.from("scanned_products").upsert(cacheRow);
+    if (state.scannedProducts) state.scannedProducts.unshift({ ...cacheRow, created_at: new Date().toISOString() });
+
+    await closeScanner();
+    state.selectedFood = food;
     state.tab = "nutrition";
     state.nutritionSubView = "recherche";
     showToast("Produit trouvé !");
@@ -725,6 +753,7 @@ let state = {
   showCreateFood: false,
   customFoods: null,
   allFoodLogs: null,
+  scannedProducts: null,
   checkinOpen: false,
   checkinView: "current",
   checkinExisting: null,
@@ -790,6 +819,8 @@ async function loadClientByCode(code) {
 
   const { data: customFoodsData } = await sb.from("custom_foods").select("*").order("name", { ascending: true });
   state.customFoods = customFoodsData || [];
+  const { data: scannedData } = await sb.from("scanned_products").select("*").order("created_at", { ascending: false }).limit(500);
+  state.scannedProducts = scannedData || [];
 
   const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("client_id", clientRow.id).maybeSingle();
   state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
@@ -1912,6 +1943,12 @@ async function loadAllFoodLogs() {
   render();
 }
 
+async function loadScannedProducts() {
+  const { data } = await sb.from("scanned_products").select("*").order("created_at", { ascending: false }).limit(200);
+  state.scannedProducts = data || [];
+  render();
+}
+
 function renderNutrition() {
   const t = state.nutritionTargets;
   const dayType = state.nutritionDayType || "on";
@@ -1957,6 +1994,7 @@ function renderNutrition() {
     <button class="day-tab ${state.nutritionSubView === "recherche" ? "active" : ""}" data-nutrition-subview="recherche">🔍 Rechercher</button>
     <button class="day-tab ${state.nutritionSubView === "recent" ? "active" : ""}" data-nutrition-subview="recent">🕐 Récemment</button>
     <button class="day-tab ${state.nutritionSubView === "frequent" ? "active" : ""}" data-nutrition-subview="frequent">🔥 Plus mangé</button>
+    <button class="day-tab ${state.nutritionSubView === "scanned" ? "active" : ""}" data-nutrition-subview="scanned">📷 Scanné</button>
   </div>`;
 
   if (state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") {
@@ -1999,6 +2037,26 @@ function renderNutrition() {
       });
       html += `</div>`;
     }
+  } else if (state.nutritionSubView === "scanned") {
+    if (state.scannedProducts === null) {
+      html += `<div class="empty-state">Chargement…</div>`;
+      return html;
+    }
+    if (state.scannedProducts.length === 0) {
+      html += `<div class="empty-state">📷<div>Aucun produit scanné pour l'instant.</div><div style="font-size:13px;">Scanne un code-barres pour l'ajouter ici, il sera instantané la prochaine fois — même pour un autre client.</div></div>`;
+    } else {
+      html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
+      state.scannedProducts.forEach(p => {
+        html += `<button class="day-card" data-select-scanned="${esc(p.barcode)}">
+          <div class="day-left"><div>
+            <div class="day-title">${esc(p.name)}</div>
+            <div class="day-sub">${p.kcal_per_100} kcal / 100g</div>
+          </div></div>
+          <span style="color:var(--textDim);">›</span>
+        </button>`;
+      });
+      html += `</div>`;
+    }
   } else {
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
       <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
@@ -2034,7 +2092,7 @@ function renderNutrition() {
       state.foodSearchResults.forEach((food, i) => {
         html += `<button class="day-card" data-select-food="${i}">
           <div class="day-left"><div>
-            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : ""}</div>
+            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">📷 scanné</span>` : ""}</div>
             <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
           </div></div>
           <span style="color:var(--textDim);">›</span>
@@ -2772,6 +2830,19 @@ function attachHandlers() {
     if ((state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") && state.allFoodLogs === null) {
       loadAllFoodLogs();
     }
+    if (state.nutritionSubView === "scanned" && state.scannedProducts === null) {
+      loadScannedProducts();
+    }
+    render();
+  });
+
+  app.querySelectorAll("[data-select-scanned]").forEach(b => b.onclick = () => {
+    const p = state.scannedProducts.find(p => p.barcode === b.dataset.selectScanned);
+    if (!p) return;
+    state.selectedFood = {
+      name: p.name, kcalPer100: p.kcal_per_100, proteinPer100: p.protein_per_100,
+      carbsPer100: p.carbs_per_100, fatPer100: p.fat_per_100,
+    };
     render();
   });
 
