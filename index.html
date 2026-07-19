@@ -585,6 +585,63 @@ const FASTFOOD_LIBRARY = [
   ff("Oasis tropical moyenne (McDonald's)", 400, 180, 0, 44, 0),
 ];
 
+function rc(title, category, kcal, protein, carbs, fat, ingredients, instructions) {
+  return { title, category, kcal, protein, carbs, fat, ingredients, instructions };
+}
+const STARTER_RECIPES = [
+  // Entrées
+  rc("Salade de poulet grillé & avocat", "Entrée", 380, 32, 12, 22,
+    "150g blanc de poulet, 1/2 avocat, salade verte, tomates cerises, 1 c.à.s. huile d'olive, jus de citron, sel, poivre",
+    "Grille le poulet à la poêle sans matière grasse, coupe-le en lamelles. Mélange la salade, les tomates et l'avocat coupé en dés. Ajoute le poulet, arrose d'huile d'olive et de citron."),
+  rc("Soupe de lentilles corail au curcuma", "Entrée", 250, 15, 35, 5,
+    "100g lentilles corail, 1 oignon, 1 gousse d'ail, curcuma, bouillon de légumes, 1 c.à.c. huile d'olive",
+    "Fais revenir l'oignon et l'ail dans l'huile, ajoute les lentilles, le curcuma et le bouillon. Laisse mijoter 20 min puis mixe."),
+  rc("Carpaccio de saumon fumé & citron", "Entrée", 180, 20, 3, 10,
+    "100g saumon fumé, 1/2 citron, aneth, poivre, quelques gouttes d'huile d'olive",
+    "Dispose les tranches de saumon fumé sur une assiette, arrose de jus de citron et d'un filet d'huile d'olive, parsème d'aneth et de poivre."),
+  rc("Salade caprese protéinée", "Entrée", 320, 28, 8, 19,
+    "120g blanc de poulet, 80g mozzarella légère, tomates, basilic frais, huile d'olive, vinaigre balsamique",
+    "Grille le poulet et coupe-le en dés. Alterne tranches de tomate et mozzarella, ajoute le poulet et le basilic, arrose d'huile d'olive et de vinaigre balsamique."),
+  // Plats
+  rc("Poulet grillé, riz complet & brocolis", "Plat", 520, 45, 55, 12,
+    "150g blanc de poulet, 80g riz complet cru, 150g brocolis, 1 c.à.s. huile d'olive, ail, épices",
+    "Fais cuire le riz complet. Grille le poulet mariné aux épices. Fais cuire les brocolis vapeur. Assemble le tout avec un filet d'huile d'olive."),
+  rc("Saumon rôti, quinoa & asperges", "Plat", 560, 38, 40, 26,
+    "150g filet de saumon, 70g quinoa cru, bottillon d'asperges, citron, huile d'olive, aneth",
+    "Fais cuire le quinoa. Rôti le saumon au four 15 min avec citron et aneth. Fais sauter les asperges à la poêle. Assemble."),
+  rc("Steak haché 5%, patate douce rôtie & haricots verts", "Plat", 480, 42, 45, 14,
+    "150g steak haché 5% MG, 200g patate douce, 150g haricots verts, huile d'olive, épices",
+    "Coupe la patate douce en frites, rôtis-la au four 25 min avec un filet d'huile. Cuis le steak à la poêle. Fais cuire les haricots verts vapeur."),
+  rc("Bowl de dinde, riz basmati & légumes sautés", "Plat", 500, 40, 55, 12,
+    "150g filet de dinde, 80g riz basmati cru, poivrons, courgette, oignon, sauce soja allégée",
+    "Fais cuire le riz. Coupe la dinde en lanières et fais-la sauter au wok avec les légumes et un peu de sauce soja."),
+  rc("Pâtes complètes au thon & tomates cerises", "Plat", 550, 35, 65, 15,
+    "100g pâtes complètes crues, 1 boîte de thon au naturel, tomates cerises, ail, basilic, huile d'olive",
+    "Fais cuire les pâtes. Fais revenir l'ail et les tomates cerises dans l'huile, ajoute le thon égoutté, mélange aux pâtes avec du basilic frais."),
+  rc("Curry de poulet léger, lait de coco allégé & riz", "Plat", 580, 40, 55, 20,
+    "150g blanc de poulet, 100ml lait de coco allégé, curry, 80g riz basmati cru, oignon, poivron",
+    "Fais revenir le poulet et les légumes, ajoute le curry et le lait de coco, laisse mijoter 15 min. Sers avec le riz cuit."),
+  rc("Chili con carne protéiné", "Plat", 500, 40, 45, 15,
+    "150g bœuf haché 5% MG, haricots rouges cuits, tomates concassées, oignon, épices chili",
+    "Fais revenir le bœuf et l'oignon, ajoute les tomates, les haricots rouges et les épices. Laisse mijoter 20 min."),
+  rc("Cabillaud vapeur, purée de patate douce & épinards", "Plat", 420, 35, 40, 10,
+    "150g cabillaud, 200g patate douce, 100g épinards frais, citron, un peu de crème légère",
+    "Cuis le cabillaud à la vapeur. Fais bouillir puis écrase la patate douce en purée avec un peu de crème légère. Fais tomber les épinards à la poêle."),
+  // Desserts
+  rc("Skyr protéiné aux fruits rouges & granola", "Dessert", 280, 22, 30, 6,
+    "200g skyr, fruits rouges (frais ou surgelés), 20g granola",
+    "Verse le skyr dans un bol, ajoute les fruits rouges et le granola par-dessus."),
+  rc("Mousse au chocolat protéinée", "Dessert", 220, 18, 20, 8,
+    "1 skyr ou fromage blanc 0%, 1 c.à.s. cacao non sucré, 1 c.à.c. miel, 1 blanc d'œuf monté en neige",
+    "Mélange le skyr, le cacao et le miel. Incorpore délicatement le blanc en neige. Réserve au frais 1h."),
+  rc("Pancakes protéinés à la banane", "Dessert", 350, 22, 45, 9,
+    "50g flocons d'avoine, 1 banane, 2 œufs, 1 c.à.c. levure",
+    "Mixe tous les ingrédients ensemble. Cuis à la poêle par petites louches, 2-3 min de chaque côté."),
+  rc("Cheesecake fitness", "Dessert", 300, 20, 28, 12,
+    "200g fromage blanc, 2 spéculoos allégés émiettés, 1 œuf, édulcorant",
+    "Émiette les spéculoos au fond d'un ramequin. Mélange le fromage blanc, l'œuf et l'édulcorant, verse par-dessus. Cuis au four 20 min à 160°C."),
+];
+
 function searchLocalFoods(query) {
   const q = query.toLowerCase().trim();
   if (!q) return [];
@@ -806,6 +863,9 @@ let state = {
   customFoods: null,
   allFoodLogs: null,
   scannedProducts: null,
+  recipes: null,
+  recipeOpenId: null,
+  coachRecipes: null,
   checkinOpen: false,
   checkinView: "current",
   checkinExisting: null,
@@ -1279,6 +1339,47 @@ function renderCoachScreen() {
     });
   }
 
+  html += `<div class="section-label" style="margin-top:20px;">📖 Recettes</div>`;
+  if (state.coachRecipes && state.coachRecipes.length === 0) {
+    html += `<button class="validate-btn" data-seed-recipes="1" style="margin-bottom:16px;">✓ Ajouter les 16 recettes de démarrage</button>`;
+  }
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:10px;">Nouvelle recette</div>
+    <input id="newRecipeTitle" placeholder="Titre de la recette" style="margin-bottom:10px;" />
+    <select id="newRecipeCategory" style="margin-bottom:10px;">
+      <option value="Entrée">Entrée</option>
+      <option value="Plat" selected>Plat</option>
+      <option value="Dessert">Dessert</option>
+    </select>
+    <div class="row">
+      <input id="newRecipeKcal" placeholder="kcal" inputmode="decimal" />
+      <input id="newRecipeProtein" placeholder="protéines g" inputmode="decimal" />
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <input id="newRecipeCarbs" placeholder="glucides g" inputmode="decimal" />
+      <input id="newRecipeFat" placeholder="lipides g" inputmode="decimal" />
+    </div>
+    <textarea id="newRecipeIngredients" placeholder="Ingrédients" rows="2" style="margin-bottom:10px;"></textarea>
+    <textarea id="newRecipeInstructions" placeholder="Préparation" rows="3" style="margin-bottom:10px;"></textarea>
+    <button class="validate-btn" id="createRecipeBtn" style="margin-top:0;">✓ Créer la recette</button>
+  </div></div>`;
+  if (state.coachRecipes && state.coachRecipes.length > 0) {
+    ["Entrée", "Plat", "Dessert"].forEach(cat => {
+      const items = state.coachRecipes.filter(r => r.category === cat);
+      if (items.length === 0) return;
+      html += `<div class="section-label" style="margin-top:14px;">${cat}s</div>`;
+      items.forEach(r => {
+        html += `<div class="day-card" style="cursor:default;">
+          <div class="day-left"><div>
+            <div class="day-title">${esc(r.title)}</div>
+            <div class="day-sub">${r.kcal} kcal · ${r.protein}g / ${r.carbs}g / ${r.fat}g</div>
+          </div></div>
+          <button data-delete-recipe="${r.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:13px;">🗑</button>
+        </div>`;
+      });
+    });
+  }
+
   html += `<div style="margin-top:24px;text-align:center;">
     <button class="link-btn" data-logout-coach="1">Quitter l'espace coach</button>
   </div>`;
@@ -1428,6 +1529,8 @@ async function attachCoachHandlers() {
       }));
       const { data: docsData } = await sb.from("documents").select("*, clients(name)").order("created_at", { ascending: false });
       state.coachDocuments = docsData || [];
+      const { data: recipesData } = await sb.from("recipes").select("*").order("category", { ascending: true }).order("title", { ascending: true });
+      state.coachRecipes = recipesData || [];
       render();
       await loadCoachOverview();
       render();
@@ -1589,6 +1692,58 @@ async function attachCoachHandlers() {
     if (error) { showToast("Erreur lors de la suppression."); return; }
     state.coachDocuments = state.coachDocuments.filter(d => d.id !== docId);
     showToast("Document supprimé.");
+    render();
+  });
+
+  const seedRecipesBtn = document.querySelector("[data-seed-recipes]");
+  if (seedRecipesBtn) seedRecipesBtn.onclick = async () => {
+    seedRecipesBtn.textContent = "Ajout en cours…";
+    seedRecipesBtn.disabled = true;
+    const { data, error } = await sb.from("recipes").insert(STARTER_RECIPES).select();
+    if (error) { showToast("Erreur : " + error.message); seedRecipesBtn.disabled = false; seedRecipesBtn.textContent = "✓ Ajouter les 16 recettes de démarrage"; return; }
+    state.coachRecipes = [...state.coachRecipes, ...(data || [])];
+    showToast("Recettes ajoutées !");
+    render();
+  };
+
+  const createRecipeBtn = document.getElementById("createRecipeBtn");
+  if (createRecipeBtn) createRecipeBtn.onclick = async () => {
+    const title = document.getElementById("newRecipeTitle").value.trim();
+    const category = document.getElementById("newRecipeCategory").value;
+    const kcal = parseFloat(document.getElementById("newRecipeKcal").value);
+    const protein = parseFloat(document.getElementById("newRecipeProtein").value) || 0;
+    const carbs = parseFloat(document.getElementById("newRecipeCarbs").value) || 0;
+    const fat = parseFloat(document.getElementById("newRecipeFat").value) || 0;
+    const ingredients = document.getElementById("newRecipeIngredients").value.trim();
+    const instructions = document.getElementById("newRecipeInstructions").value.trim();
+    if (!title || isNaN(kcal)) { alert("Donne au moins un titre et des kcal."); return; }
+    createRecipeBtn.textContent = "Création…";
+    createRecipeBtn.disabled = true;
+    const { data, error } = await sb.from("recipes").insert({
+      title, category, kcal, protein, carbs, fat, ingredients, instructions,
+    }).select().single();
+    if (error) { showToast("Erreur : " + error.message); createRecipeBtn.disabled = false; createRecipeBtn.textContent = "✓ Créer la recette"; return; }
+    state.coachRecipes.push(data);
+    showToast("Recette créée !");
+    document.getElementById("newRecipeTitle").value = "";
+    document.getElementById("newRecipeIngredients").value = "";
+    document.getElementById("newRecipeInstructions").value = "";
+    document.getElementById("newRecipeKcal").value = "";
+    document.getElementById("newRecipeProtein").value = "";
+    document.getElementById("newRecipeCarbs").value = "";
+    document.getElementById("newRecipeFat").value = "";
+    render();
+  };
+
+  document.querySelectorAll("[data-delete-recipe]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.deleteRecipe;
+    const r = state.coachRecipes.find(r => r.id === id);
+    if (!r) return;
+    if (!confirm(`Supprimer la recette "${r.title}" ?`)) return;
+    const { error } = await sb.from("recipes").delete().eq("id", id);
+    if (error) { showToast("Erreur lors de la suppression."); return; }
+    state.coachRecipes = state.coachRecipes.filter(r => r.id !== id);
+    showToast("Recette supprimée.");
     render();
   });
 
@@ -2001,6 +2156,12 @@ async function loadScannedProducts() {
   render();
 }
 
+async function loadRecipes() {
+  const { data } = await sb.from("recipes").select("*").order("category", { ascending: true }).order("title", { ascending: true });
+  state.recipes = data || [];
+  render();
+}
+
 function renderNutrition() {
   const t = state.nutritionTargets;
   const dayType = state.nutritionDayType || "on";
@@ -2047,6 +2208,7 @@ function renderNutrition() {
     <button class="day-tab ${state.nutritionSubView === "recent" ? "active" : ""}" data-nutrition-subview="recent">🕐 Récemment</button>
     <button class="day-tab ${state.nutritionSubView === "frequent" ? "active" : ""}" data-nutrition-subview="frequent">🔥 Plus mangé</button>
     <button class="day-tab ${state.nutritionSubView === "scanned" ? "active" : ""}" data-nutrition-subview="scanned">📷 Scanné</button>
+    <button class="day-tab ${state.nutritionSubView === "recipes" ? "active" : ""}" data-nutrition-subview="recipes">📖 Recettes</button>
   </div>`;
 
   if (state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") {
@@ -2108,6 +2270,52 @@ function renderNutrition() {
         </button>`;
       });
       html += `</div>`;
+    }
+  } else if (state.nutritionSubView === "recipes") {
+    if (state.recipes === null) {
+      html += `<div class="empty-state">Chargement…</div>`;
+      return html;
+    }
+    if (state.recipeOpenId) {
+      const r = state.recipes.find(r => r.id === state.recipeOpenId);
+      if (!r) { state.recipeOpenId = null; }
+      else {
+        html += `<button class="back-btn" data-back-recipe="1" style="margin-bottom:12px;">← Retour aux recettes</button>`;
+        html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+          <div class="ex-name">${esc(r.title)}</div>
+          <span class="pill" style="margin-bottom:12px;display:inline-flex;">${esc(r.category)}</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;">
+            <span class="chip-lastweek">${r.kcal} kcal</span>
+            <span class="chip-lastweek">${r.protein}g prot</span>
+            <span class="chip-lastweek">${r.carbs}g gluc</span>
+            <span class="chip-lastweek">${r.fat}g lip</span>
+          </div>
+          <div style="font-weight:700;margin-bottom:6px;font-size:13.5px;">Ingrédients</div>
+          <div style="color:var(--textDim);font-size:13.5px;margin-bottom:14px;line-height:1.6;">${esc(r.ingredients || "")}</div>
+          <div style="font-weight:700;margin-bottom:6px;font-size:13.5px;">Préparation</div>
+          <div style="color:var(--textDim);font-size:13.5px;margin-bottom:16px;line-height:1.6;">${esc(r.instructions || "")}</div>
+          <button class="validate-btn" style="margin-top:0;" data-log-recipe="${r.id}">✓ Ajouter à mon repas</button>
+        </div></div>`;
+      }
+    } else {
+      const cats = ["Entrée", "Plat", "Dessert"];
+      cats.forEach(cat => {
+        const items = state.recipes.filter(r => r.category === cat);
+        if (items.length === 0) return;
+        html += `<div class="section-label">${cat}s</div>`;
+        items.forEach(r => {
+          html += `<button class="day-card" data-open-recipe="${r.id}">
+            <div class="day-left"><div>
+              <div class="day-title">${esc(r.title)}</div>
+              <div class="day-sub">${r.kcal} kcal · ${r.protein}g prot / ${r.carbs}g gluc / ${r.fat}g lip</div>
+            </div></div>
+            <span style="color:var(--textDim);">›</span>
+          </button>`;
+        });
+      });
+      if (state.recipes.length === 0) {
+        html += `<div class="empty-state">📖<div>Ton coach n'a pas encore ajouté de recette.</div></div>`;
+      }
     }
   } else {
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -2885,8 +3093,38 @@ function attachHandlers() {
     if (state.nutritionSubView === "scanned" && state.scannedProducts === null) {
       loadScannedProducts();
     }
+    if (state.nutritionSubView === "recipes" && state.recipes === null) {
+      loadRecipes();
+    }
     render();
   });
+
+  app.querySelectorAll("[data-open-recipe]").forEach(b => b.onclick = () => {
+    state.recipeOpenId = b.dataset.openRecipe;
+    render();
+  });
+
+  const backRecipeBtn = app.querySelector("[data-back-recipe]");
+  if (backRecipeBtn) backRecipeBtn.onclick = () => { state.recipeOpenId = null; render(); };
+
+  const logRecipeBtn = app.querySelector("[data-log-recipe]");
+  if (logRecipeBtn) logRecipeBtn.onclick = async () => {
+    const r = state.recipes.find(r => r.id === logRecipeBtn.dataset.logRecipe);
+    if (!r) return;
+    logRecipeBtn.textContent = "Ajout…";
+    logRecipeBtn.disabled = true;
+    const entry = {
+      client_id: state.client.id, log_date: todayISO(), food_name: r.title,
+      grams: 1, kcal: r.kcal, protein: r.protein, carbs: r.carbs, fat: r.fat,
+    };
+    const { data, error } = await sb.from("food_logs").insert(entry).select().single();
+    if (error) { showToast("Erreur lors de l'ajout."); logRecipeBtn.disabled = false; logRecipeBtn.textContent = "✓ Ajouter à mon repas"; return; }
+    state.foodLogsToday.push(data);
+    state.recipeOpenId = null;
+    state.nutritionSubView = "recherche";
+    showToast("Recette ajoutée à ton repas !");
+    render();
+  };
 
   app.querySelectorAll("[data-select-scanned]").forEach(b => b.onclick = () => {
     const p = state.scannedProducts.find(p => p.barcode === b.dataset.selectScanned);
