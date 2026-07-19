@@ -2226,8 +2226,7 @@ function renderNutrition() {
     return acc;
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
-  let html = `<div class="h1" style="font-size:26px;">NUTRITION</div>
-    <div class="subtitle">${formatDateFR(todayISO())}</div>
+  let html = `<div style="padding-top:20px;"></div>
     <div class="day-tabs">
       <button class="day-tab ${dayType === "on" ? "active" : ""}" data-set-daytype="on">Jour ON (entraînement)</button>
       <button class="day-tab ${dayType === "off" ? "active" : ""}" data-set-daytype="off">Jour OFF (repos)</button>
@@ -2251,12 +2250,12 @@ function renderNutrition() {
     </div>`;
   }
 
-  html += `<div class="day-tabs">
-    <button class="day-tab ${state.nutritionSubView === "recherche" ? "active" : ""}" data-nutrition-subview="recherche">🔍 Rechercher</button>
-    <button class="day-tab ${state.nutritionSubView === "recent" ? "active" : ""}" data-nutrition-subview="recent">🕐 Récemment</button>
-    <button class="day-tab ${state.nutritionSubView === "frequent" ? "active" : ""}" data-nutrition-subview="frequent">🔥 Plus mangé</button>
-    <button class="day-tab ${state.nutritionSubView === "scanned" ? "active" : ""}" data-nutrition-subview="scanned">📷 Scanné</button>
-    <button class="day-tab ${state.nutritionSubView === "recipes" ? "active" : ""}" data-nutrition-subview="recipes">📖 Recettes</button>
+  html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recherche" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recherche">🔍<br/>Chercher</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent">🕐<br/>Récent</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="frequent">🔥<br/>Top</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "scanned" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="scanned">📷<br/>Scan</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recipes" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recipes">📖<br/>Recettes</button>
   </div>`;
 
   if (state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") {
