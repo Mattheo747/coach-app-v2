@@ -627,6 +627,19 @@ const STARTER_RECIPES = [
   rc("Cabillaud vapeur, purée de patate douce & épinards", "Plat", 420, 35, 40, 10,
     "150g cabillaud, 200g patate douce, 100g épinards frais, 15g jus de citron, 15g crème légère",
     "Cuis le cabillaud à la vapeur. Fais bouillir puis écrase la patate douce en purée avec un peu de crème légère. Fais tomber les épinards à la poêle."),
+  // Encas (4h / goûter)
+  rc("Yaourt grec, miel & noix", "Encas", 220, 12, 16, 12,
+    "150g yaourt grec, 10g miel, 15g noix concassées",
+    "Verse le yaourt dans un bol, arrose de miel et parsème de noix concassées."),
+  rc("Barre protéinée maison avoine & beurre de cacahuète", "Encas", 250, 12, 24, 12,
+    "40g flocons d'avoine, 20g beurre de cacahuète, 10g miel, 20g whey ou lait en poudre, 15g pépites de chocolat noir",
+    "Mélange tous les ingrédients dans un bol jusqu'à obtenir une pâte homogène. Étale dans un moule, tasse bien, réserve au frigo 1h puis découpe en barres."),
+  rc("Smoothie protéiné banane & lait", "Encas", 280, 20, 35, 6,
+    "150g banane (1 banane), 200ml lait demi-écrémé, 25g whey ou skyr, glaçons",
+    "Mixe tous les ingrédients ensemble jusqu'à obtenir une texture lisse. Sers bien frais."),
+  rc("Toast avocat & œuf dur", "Encas", 260, 13, 18, 15,
+    "1 tranche de pain complet (40g), 60g avocat, 1 œuf dur (50g), sel, poivre, jus de citron",
+    "Écrase l'avocat sur le pain grillé avec un peu de citron, sel et poivre. Ajoute l'œuf dur coupé en tranches par-dessus."),
   // Desserts
   rc("Skyr protéiné aux fruits rouges & granola", "Dessert", 280, 22, 30, 6,
     "200g skyr, 80g fruits rouges (frais ou surgelés), 20g granola",
@@ -1360,7 +1373,7 @@ function renderCoachScreen() {
 
   html += `<div class="section-label" style="margin-top:20px;">📖 Recettes</div>`;
   if (state.coachRecipes && state.coachRecipes.length === 0) {
-    html += `<button class="validate-btn" data-seed-recipes="1" style="margin-bottom:16px;">✓ Ajouter les 16 recettes de démarrage</button>`;
+    html += `<button class="validate-btn" data-seed-recipes="1" style="margin-bottom:16px;">✓ Ajouter les 20 recettes de démarrage</button>`;
   }
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
     <div style="font-weight:700;margin-bottom:10px;">Nouvelle recette</div>
@@ -1368,6 +1381,7 @@ function renderCoachScreen() {
     <select id="newRecipeCategory" style="margin-bottom:10px;">
       <option value="Entrée">Entrée</option>
       <option value="Plat" selected>Plat</option>
+      <option value="Encas">Encas (4h/goûter)</option>
       <option value="Dessert">Dessert</option>
     </select>
     <div class="row">
@@ -1383,7 +1397,7 @@ function renderCoachScreen() {
     <button class="validate-btn" id="createRecipeBtn" style="margin-top:0;">✓ Créer la recette</button>
   </div></div>`;
   if (state.coachRecipes && state.coachRecipes.length > 0) {
-    ["Entrée", "Plat", "Dessert"].forEach(cat => {
+    ["Entrée", "Plat", "Encas", "Dessert"].forEach(cat => {
       const items = state.coachRecipes.filter(r => r.category === cat);
       if (items.length === 0) return;
       html += `<div class="section-label" style="margin-top:14px;">${cat}s</div>`;
@@ -1749,7 +1763,7 @@ async function attachCoachHandlers() {
     seedRecipesBtn.textContent = "Ajout en cours…";
     seedRecipesBtn.disabled = true;
     const { data, error } = await sb.from("recipes").insert(STARTER_RECIPES).select();
-    if (error) { showToast("Erreur : " + error.message); seedRecipesBtn.disabled = false; seedRecipesBtn.textContent = "✓ Ajouter les 16 recettes de démarrage"; return; }
+    if (error) { showToast("Erreur : " + error.message); seedRecipesBtn.disabled = false; seedRecipesBtn.textContent = "✓ Ajouter les 20 recettes de démarrage"; return; }
     state.coachRecipes = [...state.coachRecipes, ...(data || [])];
     showToast("Recettes ajoutées !");
     render();
@@ -2294,7 +2308,7 @@ function renderNutrition() {
   }
 
   if (state.nutritionActiveMeal) {
-    const mealLabels = { petit_dejeuner: "Petit déjeuner", midi: "Midi", soir: "Soir", autres: "Autres" };
+    const mealLabels = { petit_dejeuner: "Petit déjeuner", midi: "Midi", encas: "Encas (4h)", soir: "Soir", autres: "Autres" };
     html += `<button class="back-btn" data-back-meal="1" style="margin-bottom:12px;">← Retour aux repas</button>`;
     html += `<div class="section-label" style="margin-top:0;">Ajouter à : ${mealLabels[state.nutritionActiveMeal] || "Autres"}</div>`;
     html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
@@ -2392,7 +2406,7 @@ function renderNutrition() {
         </div></div>`;
       }
     } else {
-      const cats = ["Entrée", "Plat", "Dessert"];
+      const cats = ["Entrée", "Plat", "Encas", "Dessert"];
       cats.forEach(cat => {
         const items = state.recipes.filter(r => r.category === cat);
         if (items.length === 0) return;
@@ -2483,6 +2497,7 @@ function renderMealSections() {
   const meals = [
     { key: "petit_dejeuner", label: "🌅 Petit déjeuner" },
     { key: "midi", label: "🍽️ Midi" },
+    { key: "encas", label: "🍌 Encas (4h)" },
     { key: "soir", label: "🌙 Soir" },
     { key: "autres", label: "🍪 Autres" },
   ];
