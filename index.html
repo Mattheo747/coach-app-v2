@@ -863,6 +863,7 @@ let state = {
   nutritionSelectedDate: null, // set to today at login
   nutritionLogs: null,
   nutritionWeekOffset: 0,
+  nutritionActiveMeal: null,
   showCreateFood: false,
   customFoods: null,
   allFoodLogs: null,
@@ -2292,7 +2293,11 @@ function renderNutrition() {
     </div>`;
   }
 
-  html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
+  if (state.nutritionActiveMeal) {
+    const mealLabels = { petit_dejeuner: "Petit déjeuner", midi: "Midi", soir: "Soir", autres: "Autres" };
+    html += `<button class="back-btn" data-back-meal="1" style="margin-bottom:12px;">← Retour aux repas</button>`;
+    html += `<div class="section-label" style="margin-top:0;">Ajouter à : ${mealLabels[state.nutritionActiveMeal] || "Autres"}</div>`;
+    html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
     <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recherche" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recherche">🔍<br/>Chercher</button>
     <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent">🕐<br/>Récent</button>
     <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="frequent">🔥<br/>Top</button>
@@ -2467,11 +2472,29 @@ function renderNutrition() {
       </div>
     </div></div>`;
   }
+  } else {
+    html += renderMealSections();
+  }
 
-  if ((state.nutritionLogs || []).length > 0) {
-    const isToday = state.nutritionSelectedDate === todayISO();
-    html += `<div class="section-label" style="margin-top:20px;">${isToday ? "Aujourd'hui" : formatDateFR(state.nutritionSelectedDate)}</div>`;
-    state.nutritionLogs.forEach(f => {
+  return html;
+}
+
+function renderMealSections() {
+  const meals = [
+    { key: "petit_dejeuner", label: "🌅 Petit déjeuner" },
+    { key: "midi", label: "🍽️ Midi" },
+    { key: "soir", label: "🌙 Soir" },
+    { key: "autres", label: "🍪 Autres" },
+  ];
+  let html = "";
+  meals.forEach(m => {
+    const items = (state.nutritionLogs || []).filter(f => (f.meal || "autres") === m.key);
+    const mealKcal = items.reduce((s, f) => s + (Number(f.kcal) || 0), 0);
+    html += `<div class="section-label" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>${m.label}</span>
+      <span style="text-transform:none;font-weight:700;color:var(--textDim);">${items.length ? Math.round(mealKcal) + " kcal" : ""}</span>
+    </div>`;
+    items.forEach(f => {
       html += `<div class="day-card" style="cursor:default;">
         <div class="day-left"><div>
           <div class="day-title">${esc(f.food_name)}</div>
@@ -2480,10 +2503,11 @@ function renderNutrition() {
         <button data-delete-food="${f.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:6px 10px;">🗑</button>
       </div>`;
     });
-  }
-
+    html += `<button data-open-meal="${m.key}" style="display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--border);border-radius:14px;padding:12px;background:none;color:var(--textDim);width:100%;margin-bottom:16px;">+ Ajouter</button>`;
+  });
   return html;
 }
+
 
 
 async function loadDocuments() {
@@ -3272,6 +3296,22 @@ function attachHandlers() {
     render();
   });
 
+  app.querySelectorAll("[data-open-meal]").forEach(b => b.onclick = () => {
+    state.nutritionActiveMeal = b.dataset.openMeal;
+    state.nutritionSubView = "recherche";
+    state.selectedFood = null;
+    state.foodSearchResults = [];
+    state.foodSearchQuery = "";
+    render();
+  });
+
+  const backMealBtn = app.querySelector("[data-back-meal]");
+  if (backMealBtn) backMealBtn.onclick = () => {
+    state.nutritionActiveMeal = null;
+    state.selectedFood = null;
+    render();
+  };
+
   app.querySelectorAll("[data-nutrition-week-nav]").forEach(b => b.onclick = () => {
     state.nutritionWeekOffset = (state.nutritionWeekOffset || 0) + parseInt(b.dataset.nutritionWeekNav, 10);
     render();
@@ -3320,13 +3360,14 @@ function attachHandlers() {
     const entry = {
       client_id: state.client.id, log_date: state.nutritionSelectedDate, food_name: r.title,
       grams: 1, kcal: r.kcal, protein: r.protein, carbs: r.carbs, fat: r.fat,
+      meal: state.nutritionActiveMeal || "autres",
     };
     const { data, error } = await sb.from("food_logs").insert(entry).select().single();
     if (error) { showToast("Erreur lors de l'ajout."); logRecipeBtn.disabled = false; logRecipeBtn.textContent = "✓ Ajouter à mon repas"; return; }
     state.nutritionLogs.push(data);
     if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
     state.recipeOpenId = null;
-    state.nutritionSubView = "recherche";
+    state.nutritionActiveMeal = null;
     showToast("Recette ajoutée à ton repas !");
     render();
   };
@@ -3441,6 +3482,7 @@ function attachHandlers() {
       protein: Math.round(f.proteinPer100 * ratio),
       carbs: Math.round(f.carbsPer100 * ratio),
       fat: Math.round(f.fatPer100 * ratio),
+      meal: state.nutritionActiveMeal || "autres",
     };
     addFoodBtn.textContent = "Ajout…";
     addFoodBtn.disabled = true;
@@ -3451,6 +3493,7 @@ function attachHandlers() {
     state.selectedFood = null;
     state.foodSearchResults = [];
     state.foodSearchQuery = "";
+    state.nutritionActiveMeal = null;
     showToast("Aliment ajouté.");
     render();
   };
@@ -3582,6 +3625,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
   state.selectedFood = null;
   state.checkinOpen = false;
   state.documentsOpenCategory = null;
+  state.nutritionActiveMeal = null;
   render();
 });
 
