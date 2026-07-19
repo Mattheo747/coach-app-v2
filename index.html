@@ -891,6 +891,7 @@ let state = {
   checkinSubmittedThisWeek: null,
   coachViewingCheckinsId: null,
   coachViewingScheduleId: null,
+  coachTab: "clients",
   suiviView: "exercices", // "exercices" | "corps" | "tonnage" | "calendrier"
   calendarMonthOffset: 0,
   checkinsHistory: null,
@@ -1179,10 +1180,19 @@ function renderCoachScreen() {
   }
 
   let html = `
-    <div class="h1" style="font-size:26px;margin-top:20px;">ESPACE COACH</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;">
+      <div class="h1" style="font-size:26px;margin:0;">ESPACE COACH</div>
+      <button data-logout-coach="1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">🚪 Quitter</button>
+    </div>
     <div class="subtitle">Gère tes clients et leurs programmes</div>
+    <div class="day-tabs">
+      <button class="day-tab ${state.coachTab !== "documents" && state.coachTab !== "recipes" ? "active" : ""}" data-coach-tab="clients">👥 Clients</button>
+      <button class="day-tab ${state.coachTab === "documents" ? "active" : ""}" data-coach-tab="documents">📄 Documents</button>
+      <button class="day-tab ${state.coachTab === "recipes" ? "active" : ""}" data-coach-tab="recipes">📖 Recettes</button>
+    </div>
   `;
 
+  if (state.coachTab !== "documents" && state.coachTab !== "recipes") {
   html += `<button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
   `;
 
@@ -1339,7 +1349,9 @@ function renderCoachScreen() {
       </div></div>`;
     }
   });
+  }
 
+  if (state.coachTab === "documents") {
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
     <div style="font-weight:700;margin-bottom:10px;">📄 Envoyer un document PDF</div>
     <input id="docTitleInput" placeholder="Titre du document" style="margin-bottom:10px;" />
@@ -1356,7 +1368,7 @@ function renderCoachScreen() {
   </div></div>`;
 
   if ((state.coachDocuments || []).length > 0) {
-    html += `<div class="section-label" style="margin-top:20px;">Documents envoyés</div>`;
+    html += `<div class="section-label" style="margin-top:20px;">Documents déjà sur l'appli</div>`;
     state.coachDocuments.forEach(doc => {
       html += `<div class="day-card" style="cursor:default;">
         <div class="day-left">
@@ -1370,8 +1382,9 @@ function renderCoachScreen() {
       </div>`;
     });
   }
+  }
 
-  html += `<div class="section-label" style="margin-top:20px;">📖 Recettes</div>`;
+  if (state.coachTab === "recipes") {
   if (state.coachRecipes && state.coachRecipes.length === 0) {
     html += `<button class="validate-btn" data-seed-recipes="1" style="margin-bottom:16px;">✓ Ajouter les 20 recettes de démarrage</button>`;
   }
@@ -1412,14 +1425,17 @@ function renderCoachScreen() {
       });
     });
   }
+  }
 
-  html += `<div style="margin-top:24px;text-align:center;">
-    <button class="link-btn" data-logout-coach="1">Quitter l'espace coach</button>
-  </div>`;
   return html;
 }
 
 async function attachCoachHandlers() {
+  document.querySelectorAll("[data-coach-tab]").forEach(b => b.onclick = () => {
+    state.coachTab = b.dataset.coachTab;
+    render();
+  });
+
   document.querySelectorAll("[data-open-builder]").forEach(b => b.onclick = () => openProgramBuilder(b.dataset.openBuilder));
 
   const closeBuilderBtn = document.querySelector("[data-close-builder]");
