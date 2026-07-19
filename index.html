@@ -2320,7 +2320,7 @@ function renderNutrition() {
   } else {
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
       <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
-      <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" style="margin-bottom:10px;" />
+      <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" autocomplete="off" autocorrect="off" style="margin-bottom:10px;" />
       <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;margin-bottom:8px;">Rechercher</button>
       <button data-open-scanner="1" style="width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:8px;">📷 Scanner un code-barres</button>
       <button data-toggle-create-food="1" style="width:100%;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;font-size:13px;">+ Créer mon propre aliment</button>
