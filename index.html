@@ -860,6 +860,8 @@ let state = {
   selectedFood: null,
   nutritionDayType: null,
   nutritionSubView: "recherche", // "recherche" | "recent" | "frequent"
+  nutritionSelectedDate: null, // set to today at login
+  nutritionLogs: null,
   showCreateFood: false,
   customFoods: null,
   allFoodLogs: null,
@@ -930,6 +932,8 @@ async function loadClientByCode(code) {
 
   const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
   state.foodLogsToday = foodRows || [];
+  state.nutritionSelectedDate = todayISO();
+  state.nutritionLogs = state.foodLogsToday;
 
   const { data: customFoodsData } = await sb.from("custom_foods").select("*").order("name", { ascending: true });
   state.customFoods = customFoodsData || [];
@@ -2203,7 +2207,39 @@ async function loadRecipes() {
   render();
 }
 
+function renderWeekBubbles() {
+  const now = new Date();
+  const jsDay = (now.getDay() + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - jsDay);
+  const letters = ["L", "M", "M", "J", "V", "S", "D"];
+  const todayStr = todayISO();
+  let html = `<div style="display:flex;gap:5px;margin-bottom:14px;">`;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const isSelected = dateStr === state.nutritionSelectedDate;
+    const isToday = dateStr === todayStr;
+    html += `<button data-select-nutrition-date="${dateStr}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;border-radius:12px;border:${isToday && !isSelected ? "1.5px solid var(--accent)" : "1px solid var(--border)"};background:${isSelected ? "var(--accent)" : "transparent"};">
+      <span style="font-weight:800;font-size:14px;color:${isSelected ? "var(--accentText)" : "var(--text)"};">${d.getDate()}</span>
+      <span style="font-size:10px;font-weight:700;color:${isSelected ? "var(--accentText)" : "var(--textDim)"};">${letters[i]}</span>
+    </button>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+async function loadNutritionLogsForDate(dateStr) {
+  const { data } = await sb.from("food_logs").select("*").eq("client_id", state.client.id).eq("log_date", dateStr).order("created_at", { ascending: true });
+  state.nutritionLogs = data || [];
+  render();
+}
+
 function renderNutrition() {
+  if (state.nutritionSelectedDate === null) state.nutritionSelectedDate = todayISO();
+  if (state.nutritionLogs === null) { loadNutritionLogsForDate(state.nutritionSelectedDate); }
+
   const t = state.nutritionTargets;
   const dayType = state.nutritionDayType || "on";
   const kcalTarget = t ? (dayType === "on" ? t.kcal_on : t.kcal_off) : null;
@@ -2211,7 +2247,7 @@ function renderNutrition() {
   const carbsTarget = t ? (dayType === "on" ? t.carbs_on : t.carbs_off) : null;
   const fatTarget = t ? (dayType === "on" ? t.fat_on : t.fat_off) : null;
 
-  const totals = (state.foodLogsToday || []).reduce((acc, f) => {
+  const totals = (state.nutritionLogs || []).reduce((acc, f) => {
     acc.kcal += Number(f.kcal) || 0;
     acc.protein += Number(f.protein) || 0;
     acc.carbs += Number(f.carbs) || 0;
@@ -2219,7 +2255,7 @@ function renderNutrition() {
     return acc;
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
-  let html = `<div style="padding-top:20px;"></div>
+  let html = `<div style="padding-top:20px;"></div>` + renderWeekBubbles() + `
     <div class="day-tabs">
       <button class="day-tab ${dayType === "on" ? "active" : ""}" data-set-daytype="on">Jour ON (entraînement)</button>
       <button class="day-tab ${dayType === "off" ? "active" : ""}" data-set-daytype="off">Jour OFF (repos)</button>
@@ -2419,9 +2455,10 @@ function renderNutrition() {
     </div></div>`;
   }
 
-  if ((state.foodLogsToday || []).length > 0) {
-    html += `<div class="section-label" style="margin-top:20px;">Aujourd'hui</div>`;
-    state.foodLogsToday.forEach(f => {
+  if ((state.nutritionLogs || []).length > 0) {
+    const isToday = state.nutritionSelectedDate === todayISO();
+    html += `<div class="section-label" style="margin-top:20px;">${isToday ? "Aujourd'hui" : formatDateFR(state.nutritionSelectedDate)}</div>`;
+    state.nutritionLogs.forEach(f => {
       html += `<div class="day-card" style="cursor:default;">
         <div class="day-left"><div>
           <div class="day-title">${esc(f.food_name)}</div>
@@ -3222,6 +3259,17 @@ function attachHandlers() {
     render();
   });
 
+  app.querySelectorAll("[data-select-nutrition-date]").forEach(b => b.onclick = () => {
+    const dateStr = b.dataset.selectNutritionDate;
+    state.nutritionSelectedDate = dateStr;
+    state.nutritionLogs = null; // trigger reload for this date
+    const order = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const dayName = order[new Date(dateStr + "T00:00:00").getDay()];
+    const programDay = state.program.find(d => d.day === dayName);
+    state.nutritionDayType = (programDay && !programDay.isRest) ? "on" : "off";
+    render();
+  });
+
   app.querySelectorAll("[data-nutrition-subview]").forEach(b => b.onclick = () => {
     state.nutritionSubView = b.dataset.nutritionSubview;
     state.selectedFood = null;
@@ -3252,12 +3300,13 @@ function attachHandlers() {
     logRecipeBtn.textContent = "Ajout…";
     logRecipeBtn.disabled = true;
     const entry = {
-      client_id: state.client.id, log_date: todayISO(), food_name: r.title,
+      client_id: state.client.id, log_date: state.nutritionSelectedDate, food_name: r.title,
       grams: 1, kcal: r.kcal, protein: r.protein, carbs: r.carbs, fat: r.fat,
     };
     const { data, error } = await sb.from("food_logs").insert(entry).select().single();
     if (error) { showToast("Erreur lors de l'ajout."); logRecipeBtn.disabled = false; logRecipeBtn.textContent = "✓ Ajouter à mon repas"; return; }
-    state.foodLogsToday.push(data);
+    state.nutritionLogs.push(data);
+    if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
     state.recipeOpenId = null;
     state.nutritionSubView = "recherche";
     showToast("Recette ajoutée à ton repas !");
@@ -3367,7 +3416,7 @@ function attachHandlers() {
     const ratio = grams / 100;
     const entry = {
       client_id: state.client.id,
-      log_date: todayISO(),
+      log_date: state.nutritionSelectedDate,
       food_name: f.name,
       grams,
       kcal: Math.round(f.kcalPer100 * ratio),
@@ -3379,7 +3428,8 @@ function attachHandlers() {
     addFoodBtn.disabled = true;
     const { data, error } = await sb.from("food_logs").insert(entry).select().single();
     if (error) { showToast("Erreur lors de l'ajout."); addFoodBtn.disabled = false; addFoodBtn.textContent = "✓ Ajouter"; return; }
-    state.foodLogsToday.push(data);
+    state.nutritionLogs.push(data);
+    if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
     state.selectedFood = null;
     state.foodSearchResults = [];
     state.foodSearchQuery = "";
@@ -3392,6 +3442,7 @@ function attachHandlers() {
     b.disabled = true;
     const { error } = await sb.from("food_logs").delete().eq("id", id);
     if (error) { showToast("Erreur lors de la suppression."); b.disabled = false; return; }
+    state.nutritionLogs = state.nutritionLogs.filter(f => f.id !== id);
     state.foodLogsToday = state.foodLogsToday.filter(f => f.id !== id);
     if (state.allFoodLogs) state.allFoodLogs = state.allFoodLogs.filter(f => f.id !== id);
     showToast("Aliment supprimé.");
