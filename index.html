@@ -2855,6 +2855,17 @@ function attachHandlers() {
     render();
   };
 
+  app.querySelectorAll("[data-delete-food]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.deleteFood;
+    b.disabled = true;
+    const { error } = await sb.from("food_logs").delete().eq("id", id);
+    if (error) { showToast("Erreur lors de la suppression."); b.disabled = false; return; }
+    state.foodLogsToday = state.foodLogsToday.filter(f => f.id !== id);
+    if (state.allFoodLogs) state.allFoodLogs = state.allFoodLogs.filter(f => f.id !== id);
+    showToast("Aliment supprimé.");
+    render();
+  });
+
   app.querySelectorAll("[data-open-checkin]").forEach(b => b.onclick = () => { openCheckin(); });
 
   app.querySelectorAll("[data-checkin-view]").forEach(b => b.onclick = () => {
