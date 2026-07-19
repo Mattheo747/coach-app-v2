@@ -828,6 +828,7 @@ let state = {
   recapLogId: null,
   recapRpe: null,
   recapComment: "",
+  recapPRs: [],
   historyOpenLogId: null,
   historyDraft: null,
   sessionInputs: {},
@@ -873,7 +874,8 @@ let state = {
   checkinSubmittedThisWeek: null,
   coachViewingCheckinsId: null,
   coachViewingScheduleId: null,
-  suiviView: "exercices", // "exercices" | "corps"
+  suiviView: "exercices", // "exercices" | "corps" | "tonnage" | "calendrier"
+  calendarMonthOffset: 0,
   checkinsHistory: null,
   program: DEFAULT_PROGRAM, // alias set to state.client.program once logged in
 };
@@ -996,7 +998,10 @@ function render() {
     app.innerHTML = renderDocuments();
     if (state.documents === null) loadDocuments();
   } else if (state.tab === "suivi") {
-    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress() : state.suiviView === "tonnage" ? renderTonnageProgress() : renderProgress();
+    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress()
+      : state.suiviView === "tonnage" ? renderTonnageProgress()
+      : state.suiviView === "calendrier" ? renderCalendarView()
+      : renderProgress();
     if (state.suiviView === "corps" && state.checkinsHistory === null) loadCheckinsHistory();
   } else {
     app.innerHTML = state.checkinOpen ? renderCheckin() : renderProfil();
@@ -1085,6 +1090,13 @@ function renderProgramBuilder() {
   if (!day.isRest) {
     html += `<input id="dayName" placeholder="Nom de la séance (ex: Push)" value="${esc(day.name || "")}" style="margin-bottom:16px;font-weight:700;" />`;
 
+    html += `<div class="row" style="margin-bottom:16px;">
+      <select id="copyDayTarget">
+        ${draft.filter(d => d.id !== day.id).map(d => `<option value="${d.id}">Copier vers ${esc(d.day)}</option>`).join("")}
+      </select>
+      <button data-copy-day="${day.id}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:10px;padding:0 14px;font-size:13px;">📋 Copier</button>
+    </div>`;
+
     (day.exercises || []).forEach((e, i) => {
       const next = day.exercises[i + 1];
       const isLinkedWithNext = e.superset && next && next.superset === e.superset;
@@ -1168,7 +1180,8 @@ function renderCoachScreen() {
             🏋️ ${ov.sessionsThisWeek}/${ov.trainingDaysTotal} séances cette semaine
             ${ov.checkinSubmittedThisWeek ? ' · 📋 bilan envoyé ✓' : ' · 📋 bilan pas encore reçu'}
             ${ov.weightDelta !== null ? ` · ⚖️ ${ov.weightDelta > 0 ? "+" : ""}${ov.weightDelta}kg` : ""}
-          </div>` : `<div style="font-size:12.5px;color:var(--textDim);margin-top:8px;">Chargement du suivi…</div>`}
+          </div>
+          ${ov.warning ? `<div style="font-size:12.5px;color:var(--danger);font-weight:700;margin-top:4px;">${esc(ov.warning)}</div>` : ""}` : `<div style="font-size:12.5px;color:var(--textDim);margin-top:8px;">Chargement du suivi…</div>`}
         </div>
       </div>
       <button data-open-builder="${c.id}" style="background:var(--accent);border:none;color:var(--accentText);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;">🏗️ Construire</button>
@@ -1404,6 +1417,20 @@ async function attachCoachHandlers() {
     render();
   });
 
+  const copyDayBtn = document.querySelector("[data-copy-day]");
+  if (copyDayBtn) copyDayBtn.onclick = () => {
+    const sourceId = copyDayBtn.dataset.copyDay;
+    const targetId = document.getElementById("copyDayTarget").value;
+    const source = state.programBuilderDraft.find(d => d.id === sourceId);
+    const target = state.programBuilderDraft.find(d => d.id === targetId);
+    if (!confirm(`Remplacer le contenu de ${target.day} par celui de ${source.day} ?`)) return;
+    target.isRest = false;
+    target.name = source.name;
+    target.exercises = JSON.parse(JSON.stringify(source.exercises)).map(e => ({ ...e, id: uid("ex") }));
+    showToast(`${source.day} copié vers ${target.day}.`);
+    render();
+  };
+
   const dayIsRestInput = document.getElementById("dayIsRest");
   if (dayIsRestInput) dayIsRestInput.onchange = () => {
     const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
@@ -1542,6 +1569,8 @@ async function attachCoachHandlers() {
 
   async function loadCoachOverview() {
     const week = isoWeekKey(todayISO());
+    const order = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const todayName = order[new Date().getDay()];
     await Promise.all(state.coachClients.map(async (c) => {
       const program = c.program_json || DEFAULT_PROGRAM;
       const trainingDaysTotal = program.filter(d => !d.isRest).length;
@@ -1549,11 +1578,25 @@ async function attachCoachHandlers() {
       const { data: logs } = await sb.from("session_logs").select("log_date").eq("client_id", c.id);
       const sessionsThisWeek = (logs || []).filter(l => isoWeekKey(l.log_date) === week).length;
 
-      const { data: checkins } = await sb.from("weekly_checkins").select("week_key,bodyweight,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
+      const { data: checkins } = await sb.from("weekly_checkins").select("week_key,bodyweight,feeling,motivation,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
       const latest = (checkins || [])[0];
       const previous = (checkins || [])[1];
+
+      // Combien de séances auraient déjà dû être faites cette semaine, à date
+      const idxOrder = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+      const todayIdx = idxOrder.indexOf(todayName);
+      const expectedByNow = program.filter((d, i) => !d.isRest && i <= todayIdx).length;
+      let warning = null;
+      if (expectedByNow - sessionsThisWeek >= 2) {
+        warning = `⚠️ ${expectedByNow - sessionsThisWeek} séances manquées cette semaine`;
+      } else if (latest && previous && latest.motivation != null && previous.motivation != null && latest.motivation < previous.motivation && latest.motivation <= 2) {
+        warning = `⚠️ Motivation en baisse (${latest.motivation}/5)`;
+      } else if (latest && latest.feeling != null && latest.feeling <= 2) {
+        warning = `⚠️ Ressenti faible au dernier bilan (${latest.feeling}/5)`;
+      }
+
       c.overview = {
-        sessionsThisWeek, trainingDaysTotal,
+        sessionsThisWeek, trainingDaysTotal, warning,
         checkinSubmittedThisWeek: latest ? latest.week_key === week : false,
         weightDelta: (latest && previous && latest.bodyweight != null && previous.bodyweight != null)
           ? Math.round((latest.bodyweight - previous.bodyweight) * 10) / 10 : null,
@@ -2117,6 +2160,11 @@ function renderRecap(logId) {
       <div class="h1" style="font-size:26px;">SÉANCE VALIDÉE</div>
       <div class="subtitle">${esc(day.day)} : ${esc(day.name)} · ${formatDateFR(log.date)}</div>
     </div>
+    ${state.recapPRs && state.recapPRs.length > 0 ? `
+    <div class="info-box" style="text-align:center;">
+      🏆 <strong>Nouveau${state.recapPRs.length > 1 ? "x" : ""} record${state.recapPRs.length > 1 ? "s" : ""} !</strong><br/>
+      ${state.recapPRs.map(pr => `${esc(pr.name)} : ${pr.weight}kg`).join(" · ")}
+    </div>` : ""}
     <div class="stat-row">
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${Math.round(totalTonnage).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage total</div></div>
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">✓</div><div class="stat-value">${totalSets}</div><div class="stat-label">Séries effectuées</div></div>
@@ -2530,10 +2578,70 @@ function renderHistoriqueDetail(logId) {
 /* ---------------- Progress ---------------- */
 function suiviToggle() {
   return `<div class="day-tabs" style="margin-bottom:16px;">
-    <button class="day-tab ${state.suiviView !== "corps" && state.suiviView !== "tonnage" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
+    <button class="day-tab ${state.suiviView !== "corps" && state.suiviView !== "tonnage" && state.suiviView !== "calendrier" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
     <button class="day-tab ${state.suiviView === "tonnage" ? "active" : ""}" data-suivi-view="tonnage">Tonnage</button>
     <button class="day-tab ${state.suiviView === "corps" ? "active" : ""}" data-suivi-view="corps">Poids & Photos</button>
+    <button class="day-tab ${state.suiviView === "calendrier" ? "active" : ""}" data-suivi-view="calendrier">Calendrier</button>
   </div>`;
+}
+
+function renderCalendarView() {
+  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
+
+  const now = new Date();
+  const viewDate = new Date(now.getFullYear(), now.getMonth() + state.calendarMonthOffset, 1);
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const monthLabel = viewDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+
+  const order = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const doneDates = new Set(state.sessionLogs.map(l => l.date));
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = todayISO();
+
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <button data-calendar-nav="-1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 14px;">‹</button>
+    <div style="font-weight:800;text-transform:capitalize;">${monthLabel}</div>
+    <button data-calendar-nav="1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 14px;">›</button>
+  </div>`;
+
+  html += `<div class="chart-card">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:11px;color:var(--textDim);margin-bottom:6px;">
+      <div>L</div><div>M</div><div>M</div><div>J</div><div>V</div><div>S</div><div>D</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">`;
+
+  for (let i = 0; i < startOffset; i++) html += `<div></div>`;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateObj = new Date(year, month, day);
+    const dateStr = dateObj.toISOString().slice(0, 10);
+    const dayName = order[dateObj.getDay()];
+    const programDay = state.program.find(d => d.day === dayName);
+    const isRest = programDay ? programDay.isRest : true;
+    const isDone = doneDates.has(dateStr);
+    const isFuture = dateStr > todayStr;
+    const isToday = dateStr === todayStr;
+
+    let bg = "transparent", color = "var(--textDim)", border = "1px solid var(--border)";
+    if (isDone) { bg = "var(--accent)"; color = "var(--accentText)"; border = "none"; }
+    else if (isRest) { bg = "transparent"; color = "var(--textDim)"; }
+    else if (!isFuture) { border = "1.5px solid var(--danger)"; color = "var(--danger)"; }
+    if (isToday) border = "2px solid var(--accent)";
+
+    html += `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;background:${bg};color:${color};border:${border};font-size:12.5px;font-weight:${isDone ? "800" : "500"};">${day}</div>`;
+  }
+
+  html += `</div></div>`;
+  html += `<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--textDim);">
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);margin-right:4px;"></span>Séance faite</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:1.5px solid var(--danger);margin-right:4px;"></span>Séance manquée</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid var(--border);margin-right:4px;"></span>Repos</span>
+  </div>`;
+
+  return html;
 }
 
 function logTonnage(log) {
@@ -2705,10 +2813,34 @@ function renderProgress() {
 }
 
 /* ---------------- Profil ---------------- */
+function computeStreak() {
+  const trainingDayIds = state.program.filter(d => !d.isRest).map(d => d.id);
+  if (trainingDayIds.length === 0) return 0;
+  const weekMap = {};
+  state.sessionLogs.forEach(l => {
+    const wk = isoWeekKey(l.date);
+    if (!weekMap[wk]) weekMap[wk] = new Set();
+    weekMap[wk].add(l.dayId);
+  });
+  const isComplete = (wk) => weekMap[wk] && trainingDayIds.every(id => weekMap[wk].has(id));
+  let streak = 0;
+  const curWeek = isoWeekKey(todayISO());
+  if (isComplete(curWeek)) streak++;
+  let d = new Date();
+  d.setDate(d.getDate() - 7);
+  for (let i = 0; i < 104; i++) {
+    const wk = isoWeekKey(d.toISOString().slice(0, 10));
+    if (isComplete(wk)) { streak++; d.setDate(d.getDate() - 7); }
+    else break;
+  }
+  return streak;
+}
+
 function renderProfil() {
   const totalSessions = state.sessionLogs.length;
   const totalExercisesTracked = new Set();
   state.sessionLogs.forEach(l => Object.keys(l.entries).forEach(exId => totalExercisesTracked.add(exId)));
+  const streak = computeStreak();
   return `
     <div class="h1" style="font-size:26px;margin-top:20px;">PROFIL</div>
     <div class="subtitle">${esc(state.client.name)}</div>
@@ -2719,7 +2851,8 @@ function renderProfil() {
       <span style="color:var(--accent);font-weight:700;">›</span>
     </button>
     <div class="stat-row">
-      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Semaine${streak > 1 ? "s" : ""} d'affilée sans manquer</div></div>
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">✓</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
     </div>
     <div class="section-label">Mon suivi</div>
@@ -2931,11 +3064,17 @@ function attachHandlers() {
     const day = state.program.find(d => d.id === dayId);
     const dateStr = todayISO();
     const entries = {};
+    const prList = [];
     day.exercises.forEach(e => {
       const rows = state.sessionInputs[e.id] || [];
       const filled = rows.filter(r => r.kg !== "" && r.kg !== undefined && r.kg !== null)
         .map(r => ({ reps: r.reps, kg: r.kg }));
-      if (filled.length) entries[e.id] = filled;
+      if (filled.length) {
+        entries[e.id] = filled;
+        const newMax = Math.max(...filled.map(r => parseFloat(r.kg) || 0));
+        const prevMax = Math.max(0, ...getExerciseHistory(e.id).flatMap(h => h.sets.map(s => parseFloat(s.kg) || 0)));
+        if (newMax > 0 && newMax > prevMax) prList.push({ name: e.name, weight: newMax });
+      }
     });
     validateBtn.textContent = "Enregistrement…";
     validateBtn.disabled = true;
@@ -2949,6 +3088,7 @@ function attachHandlers() {
     state.recapLogId = data.id;
     state.recapRpe = null;
     state.recapComment = "";
+    state.recapPRs = prList;
     render();
   };
 
@@ -3039,6 +3179,12 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-suivi-view]").forEach(b => b.onclick = () => {
     state.suiviView = b.dataset.suiviView;
+    state.calendarMonthOffset = 0;
+    render();
+  });
+
+  app.querySelectorAll("[data-calendar-nav]").forEach(b => b.onclick = () => {
+    state.calendarMonthOffset += parseInt(b.dataset.calendarNav, 10);
     render();
   });
 
