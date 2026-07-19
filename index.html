@@ -3214,7 +3214,12 @@ function attachHandlers() {
   });
 
   const cancelFoodBtn = app.querySelector("[data-cancel-food]");
-  if (cancelFoodBtn) cancelFoodBtn.onclick = () => { state.selectedFood = null; render(); };
+  if (cancelFoodBtn) cancelFoodBtn.onclick = () => {
+    state.selectedFood = null;
+    state.foodSearchResults = [];
+    state.foodSearchQuery = "";
+    render();
+  };
 
   const addFoodBtn = app.querySelector("#addFoodBtn");
   if (addFoodBtn) addFoodBtn.onclick = async () => {
