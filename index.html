@@ -540,10 +540,56 @@ const RAW_FOOD_LIBRARY = [
   rf("Chocolat noir 70%", 598, 7.8, 46, 43),
 ];
 
+// Fast food — valeurs approximatives par produit (poids officiel/typique x kcal/macros
+// publiés). Recettes susceptibles d'évoluer légèrement selon les pays et les années.
+function ff(name, weightG, kcalTotal, proteinTotal, carbsTotal, fatTotal) {
+  const r = 100 / weightG;
+  return {
+    name, defaultGrams: weightG,
+    kcalPer100: Math.round(kcalTotal * r),
+    proteinPer100: Math.round(proteinTotal * r * 10) / 10,
+    carbsPer100: Math.round(carbsTotal * r * 10) / 10,
+    fatPer100: Math.round(fatTotal * r * 10) / 10,
+  };
+}
+const FASTFOOD_LIBRARY = [
+  // McDonald's — burgers
+  ff("Hamburger (McDonald's)", 100, 261, 12, 33, 9),
+  ff("Cheeseburger (McDonald's)", 114, 308, 15, 33, 13),
+  ff("Double Cheeseburger (McDonald's)", 160, 440, 25, 34, 22),
+  ff("McChicken (McDonald's)", 150, 439, 20, 40, 21),
+  ff("Big Mac (McDonald's)", 232, 508, 26, 42, 26),
+  ff("Royal Cheese (McDonald's)", 226, 518, 27, 40, 28),
+  ff("Royal Bacon (McDonald's)", 250, 570, 32, 40, 32),
+  ff("McFish / Filet-O-Fish (McDonald's)", 141, 329, 15, 36, 14),
+  ff("Croque McDo (McDonald's)", 120, 261, 15, 25, 12),
+  ff("Triple Cheeseburger (McDonald's)", 176, 490, 30, 33, 27),
+  ff("Big Tasty (McDonald's)", 280, 785, 42, 42, 50),
+  ff("CBO Chicken Bacon Onion (McDonald's)", 220, 480, 24, 40, 24),
+  // McDonald's — nuggets, frites, sides
+  ff("Chicken McNuggets 6 pièces (McDonald's)", 96, 265, 15, 16, 16),
+  ff("Chicken McNuggets 9 pièces (McDonald's)", 144, 400, 22, 24, 24),
+  ff("Chicken McNuggets 20 pièces (McDonald's)", 320, 890, 49, 54, 53),
+  ff("Petite frite (McDonald's)", 80, 231, 2.7, 29, 11),
+  ff("Moyenne frite (McDonald's)", 114, 330, 3.9, 41, 16),
+  ff("Grande frite (McDonald's)", 150, 434, 5.1, 54, 21),
+  ff("Grande Deluxe Potatoes (McDonald's)", 150, 400, 6, 50, 18),
+  // McDonald's — desserts & boissons
+  ff("McFlurry M&M's (McDonald's)", 216, 327, 6, 45, 13),
+  ff("McFlurry Kit Kat (McDonald's)", 174, 283, 6, 40, 11),
+  ff("Sundae caramel (McDonald's)", 154, 280, 5, 45, 8),
+  ff("Coca-Cola moyenne (McDonald's)", 400, 168, 0, 42, 0),
+  ff("Coca-Cola Zero moyenne (McDonald's)", 400, 1, 0, 0.2, 0),
+  ff("Fanta moyenne (McDonald's)", 400, 180, 0, 44, 0),
+  ff("Sprite moyenne (McDonald's)", 400, 168, 0, 41, 0),
+  ff("Oasis tropical moyenne (McDonald's)", 400, 180, 0, 44, 0),
+];
+
 function searchLocalFoods(query) {
   const q = query.toLowerCase().trim();
   if (!q) return [];
   const fromLibrary = RAW_FOOD_LIBRARY.filter(f => f.name.toLowerCase().includes(q)).map(f => ({ ...f, brand: "", source: "local" }));
+  const fromFastFood = FASTFOOD_LIBRARY.filter(f => f.name.toLowerCase().includes(q)).map(f => ({ ...f, brand: "", source: "fastfood" }));
   const fromCustom = (state.customFoods || []).filter(f => f.name.toLowerCase().includes(q)).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
@@ -552,7 +598,7 @@ function searchLocalFoods(query) {
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
   }));
-  return [...fromCustom, ...fromScanned, ...fromLibrary];
+  return [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary];
 }
 
 /* ---------------- Barcode scanner ---------------- */
@@ -2098,7 +2144,7 @@ function renderNutrition() {
       state.foodSearchResults.forEach((food, i) => {
         html += `<button class="day-card" data-select-food="${i}">
           <div class="day-left"><div>
-            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">📷 scanné</span>` : ""}</div>
+            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">📷 scanné</span>` : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🍔 fast food</span>` : ""}</div>
             <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
           </div></div>
           <span style="color:var(--textDim);">›</span>
