@@ -862,6 +862,7 @@ let state = {
   nutritionSubView: "recherche", // "recherche" | "recent" | "frequent"
   nutritionSelectedDate: null, // set to today at login
   nutritionLogs: null,
+  nutritionWeekOffset: 0,
   showCreateFood: false,
   customFoods: null,
   allFoodLogs: null,
@@ -2211,10 +2212,22 @@ function renderWeekBubbles() {
   const now = new Date();
   const jsDay = (now.getDay() + 6) % 7;
   const monday = new Date(now);
-  monday.setDate(now.getDate() - jsDay);
+  monday.setDate(now.getDate() - jsDay + (state.nutritionWeekOffset || 0) * 7);
   const letters = ["L", "M", "M", "J", "V", "S", "D"];
   const todayStr = todayISO();
-  let html = `<div style="display:flex;gap:5px;margin-bottom:14px;">`;
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const weekLabel = state.nutritionWeekOffset === 0 ? "Cette semaine"
+    : state.nutritionWeekOffset === 1 ? "Semaine prochaine"
+    : state.nutritionWeekOffset === -1 ? "Semaine dernière"
+    : `${monday.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} – ${sunday.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}`;
+
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <button data-nutrition-week-nav="-1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:8px;padding:4px 10px;">‹</button>
+    <div style="font-size:12.5px;color:var(--textDim);font-weight:700;">${weekLabel}</div>
+    <button data-nutrition-week-nav="1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:8px;padding:4px 10px;">›</button>
+  </div>`;
+  html += `<div style="display:flex;gap:5px;margin-bottom:14px;">`;
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
@@ -3256,6 +3269,11 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
     state.nutritionDayType = b.dataset.setDaytype;
+    render();
+  });
+
+  app.querySelectorAll("[data-nutrition-week-nav]").forEach(b => b.onclick = () => {
+    state.nutritionWeekOffset = (state.nutritionWeekOffset || 0) + parseInt(b.dataset.nutritionWeekNav, 10);
     render();
   });
 
