@@ -591,6 +591,12 @@ async function openScanner() {
   const overlay = document.getElementById("scannerOverlay");
   overlay.style.display = "flex";
   setScannerStatus("Vise le code-barres du produit avec la caméra.");
+  const manualInput = document.getElementById("manualBarcodeInput");
+  manualInput.value = "";
+  manualInput.disabled = false;
+  const manualBtn = document.getElementById("manualBarcodeBtn");
+  manualBtn.disabled = false;
+  manualBtn.textContent = "OK";
 
   if (typeof Html5Qrcode === "undefined") {
     setScannerStatus("Le scanner n'a pas pu se charger (pas de connexion ?). Ferme et utilise la recherche manuelle.");
@@ -3091,13 +3097,26 @@ document.getElementById("themeToggle").onclick = () => {
 
 document.getElementById("scannerCloseBtn").onclick = () => { closeScanner(); };
 
-document.getElementById("manualBarcodeBtn").onclick = () => {
-  const val = document.getElementById("manualBarcodeInput").value.trim();
+document.getElementById("manualBarcodeBtn").onclick = async () => {
+  const input = document.getElementById("manualBarcodeInput");
+  const btn = document.getElementById("manualBarcodeBtn");
+  const val = input.value.trim();
   if (!val) return;
-  onBarcodeScanned(val);
+  btn.disabled = true;
+  input.disabled = true;
+  btn.textContent = "…";
+  try {
+    await onBarcodeScanned(val);
+  } catch (e) {
+    setScannerStatus("Erreur inattendue, réessaie.");
+  }
+  input.value = "";
+  btn.disabled = false;
+  input.disabled = false;
+  btn.textContent = "OK";
 };
 document.getElementById("manualBarcodeInput").onkeydown = (e) => {
-  if (e.key === "Enter") document.getElementById("manualBarcodeBtn").click();
+  if (e.key === "Enter") { e.preventDefault(); document.getElementById("manualBarcodeBtn").click(); }
 };
 
 boot();
