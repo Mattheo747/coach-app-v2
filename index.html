@@ -603,13 +603,12 @@ async function openScanner() {
     await scannerInstance.start(
       { facingMode: { ideal: "environment" }, advanced: [{ focusMode: "continuous" }] },
       {
-        fps: 12,
+        fps: 8,
         qrbox: (viewfinderWidth, viewfinderHeight) => {
           const w = Math.min(viewfinderWidth * 0.9, 380);
           return { width: w, height: Math.round(w * 0.42) };
         },
         formatsToSupport: formats,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         videoConstraints: {
           facingMode: { ideal: "environment" },
           advanced: [{ focusMode: "continuous" }],
