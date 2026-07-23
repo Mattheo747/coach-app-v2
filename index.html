@@ -192,6 +192,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ACCESS_KEY = "mattheophysic_access_code";
 const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
+const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -1071,7 +1072,17 @@ function attachAccessHandlers() {
   if (submitBtn) submitBtn.onclick = submit;
   if (input) input.onkeydown = (e) => { if (e.key === "Enter") submit(); };
   const goCoach = document.querySelector("[data-go-coach]");
-  if (goCoach) goCoach.onclick = () => { state.screen = "coach"; state.coachAuthed = false; render(); };
+  if (goCoach) goCoach.onclick = async () => {
+    state.screen = "coach";
+    if (localStorage.getItem(COACH_AUTH_KEY) === "1") {
+      state.coachAuthed = true;
+      render();
+      await loadCoachData();
+    } else {
+      state.coachAuthed = false;
+      render();
+    }
+  };
 }
 
 /* ---------------- Coach screen ---------------- */
@@ -1291,18 +1302,28 @@ function renderCoachScreen() {
     }
     if (isExpanded && state.coachViewingCheckinsId === c.id) {
       const checkins = c.checkins || [];
+      const ckRow = (label, value) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border);font-size:13.5px;">
+        <span style="color:var(--textDim);">${label}</span><span style="font-weight:700;text-align:right;max-width:60%;">${value}</span>
+      </div>`;
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
         <div style="font-weight:700;margin-bottom:10px;">📋 Bilans de ${esc(c.name)}</div>
         ${checkins.length === 0 ? `<div style="color:var(--textDim);font-size:13.5px;">Aucun bilan envoyé pour l'instant.</div>` : checkins.map(ck => `
-          <div style="border-top:1px solid var(--border);padding:12px 0;">
-            <div style="font-weight:700;margin-bottom:6px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0,10))}</div>
-            <div style="font-size:13px;color:var(--textDim);line-height:1.6;">
-              Ressenti : ${ck.feeling ?? "—"}/5 · Sommeil : ${ck.sleep_quality ?? "—"}/5 · Stress : ${ck.stress_level ?? "—"}/5 · Motivation : ${ck.motivation ?? "—"}/5<br/>
-              Eau 3L : ${ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—"} · Douleurs : ${ck.pain_other === true ? "Oui — " + esc(ck.pain_detail || "") : ck.pain_other === false ? "Non" : "—"}<br/>
-              Nutrition respectée : ${esc(ck.nutrition_respect || "—")} · Séances manquées : ${ck.missed_sessions === true ? "Oui — " + esc(ck.missed_reason || "") : ck.missed_sessions === false ? "Non" : "—"}<br/>
-              Poids : ${ck.bodyweight ?? "—"}kg · Bras G/D : ${ck.arm_left ?? "—"}/${ck.arm_right ?? "—"}cm · Jambe G/D : ${ck.leg_left ?? "—"}/${ck.leg_right ?? "—"}cm · Épaules : ${ck.shoulders ?? "—"}cm · Taille : ${ck.waist ?? "—"}cm
-            </div>
-            <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
+          <div style="border-top:1px solid var(--border);padding:14px 0;">
+            <div style="font-weight:800;margin-bottom:10px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0, 10))}</div>
+            ${ckRow("Ressenti global", `${ck.feeling ?? "—"}/5`)}
+            ${ckRow("Qualité du sommeil", `${ck.sleep_quality ?? "—"}/5`)}
+            ${ckRow("Niveau de stress", `${ck.stress_level ?? "—"}/5`)}
+            ${ckRow("Motivation", `${ck.motivation ?? "—"}/5`)}
+            ${ckRow("Eau (3L/jour)", ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—")}
+            ${ckRow("Douleurs (hors courbatures)", ck.pain_other === true ? `Oui — ${esc(ck.pain_detail || "")}` : ck.pain_other === false ? "Non" : "—")}
+            ${ckRow("Nutrition respectée", esc(ck.nutrition_respect || "—"))}
+            ${ckRow("Séances manquées", ck.missed_sessions === true ? `Oui — ${esc(ck.missed_reason || "")}` : ck.missed_sessions === false ? "Non" : "—")}
+            ${ckRow("Poids actuel (à jeun)", ck.bodyweight != null ? `${ck.bodyweight}kg` : "—")}
+            ${ckRow("Bras gauche / droit", `${ck.arm_left ?? "—"} / ${ck.arm_right ?? "—"} cm`)}
+            ${ckRow("Jambe gauche / droite", `${ck.leg_left ?? "—"} / ${ck.leg_right ?? "—"} cm`)}
+            ${ckRow("Tour d'épaules", ck.shoulders != null ? `${ck.shoulders}cm` : "—")}
+            ${ckRow("Tour de taille", ck.waist != null ? `${ck.waist}cm` : "—")}
+            <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
               ${ck.photo_front_url ? `<a href="${esc(ck.photo_front_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo face</a>` : ""}
               ${ck.photo_back_url ? `<a href="${esc(ck.photo_back_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo dos</a>` : ""}
               ${ck.photo_side_url ? `<a href="${esc(ck.photo_side_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo profil</a>` : ""}
@@ -1446,6 +1467,57 @@ function renderCoachScreen() {
   }
 
   return html;
+}
+
+async function loadCoachOverview() {
+  const week = isoWeekKey(todayISO());
+  const order = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const todayName = order[new Date().getDay()];
+  await Promise.all(state.coachClients.map(async (c) => {
+    const program = c.program_json || DEFAULT_PROGRAM;
+    const trainingDaysTotal = program.filter(d => !d.isRest).length;
+
+    const { data: logs } = await sb.from("session_logs").select("log_date").eq("client_id", c.id);
+    const sessionsThisWeek = (logs || []).filter(l => isoWeekKey(l.log_date) === week).length;
+
+    const { data: checkins } = await sb.from("weekly_checkins").select("week_key,bodyweight,feeling,motivation,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
+    const latest = (checkins || [])[0];
+    const previous = (checkins || [])[1];
+
+    const idxOrder = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+    const todayIdx = idxOrder.indexOf(todayName);
+    const expectedByNow = program.filter((d, i) => !d.isRest && i <= todayIdx).length;
+    let warning = null;
+    if (expectedByNow - sessionsThisWeek >= 2) {
+      warning = `⚠️ ${expectedByNow - sessionsThisWeek} séances manquées cette semaine`;
+    } else if (latest && previous && latest.motivation != null && previous.motivation != null && latest.motivation < previous.motivation && latest.motivation <= 2) {
+      warning = `⚠️ Motivation en baisse (${latest.motivation}/5)`;
+    } else if (latest && latest.feeling != null && latest.feeling <= 2) {
+      warning = `⚠️ Ressenti faible au dernier bilan (${latest.feeling}/5)`;
+    }
+
+    c.overview = {
+      sessionsThisWeek, trainingDaysTotal, warning,
+      checkinSubmittedThisWeek: latest ? latest.week_key === week : false,
+      weightDelta: (latest && previous && latest.bodyweight != null && previous.bodyweight != null)
+        ? Math.round((latest.bodyweight - previous.bodyweight) * 10) / 10 : null,
+    };
+  }));
+}
+
+async function loadCoachData() {
+  const { data } = await sb.from("clients").select("*, programs(program_json)").order("created_at", { ascending: false });
+  state.coachClients = (data || []).map(c => ({
+    id: c.id, name: c.name, access_code: c.access_code,
+    program_json: c.programs ? c.programs.program_json : null,
+  }));
+  const { data: docsData } = await sb.from("documents").select("*, clients(name)").order("created_at", { ascending: false });
+  state.coachDocuments = docsData || [];
+  const { data: recipesData } = await sb.from("recipes").select("*").order("category", { ascending: true }).order("title", { ascending: true });
+  state.coachRecipes = recipesData || [];
+  render();
+  await loadCoachOverview();
+  render();
 }
 
 async function attachCoachHandlers() {
@@ -1608,60 +1680,15 @@ async function attachCoachHandlers() {
     if (val === COACH_PASSWORD) {
       state.coachAuthed = true;
       state.coachError = "";
-      const { data } = await sb.from("clients").select("*, programs(program_json)").order("created_at", { ascending: false });
-      state.coachClients = (data || []).map(c => ({
-        id: c.id, name: c.name, access_code: c.access_code,
-        program_json: c.programs ? c.programs.program_json : null,
-      }));
-      const { data: docsData } = await sb.from("documents").select("*, clients(name)").order("created_at", { ascending: false });
-      state.coachDocuments = docsData || [];
-      const { data: recipesData } = await sb.from("recipes").select("*").order("category", { ascending: true }).order("title", { ascending: true });
-      state.coachRecipes = recipesData || [];
-      render();
-      await loadCoachOverview();
-      render();
+      localStorage.setItem(COACH_AUTH_KEY, "1");
+      await loadCoachData();
     } else {
       state.coachError = "Mot de passe incorrect.";
       render();
     }
   };
 
-  async function loadCoachOverview() {
-    const week = isoWeekKey(todayISO());
-    const order = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-    const todayName = order[new Date().getDay()];
-    await Promise.all(state.coachClients.map(async (c) => {
-      const program = c.program_json || DEFAULT_PROGRAM;
-      const trainingDaysTotal = program.filter(d => !d.isRest).length;
 
-      const { data: logs } = await sb.from("session_logs").select("log_date").eq("client_id", c.id);
-      const sessionsThisWeek = (logs || []).filter(l => isoWeekKey(l.log_date) === week).length;
-
-      const { data: checkins } = await sb.from("weekly_checkins").select("week_key,bodyweight,feeling,motivation,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
-      const latest = (checkins || [])[0];
-      const previous = (checkins || [])[1];
-
-      // Combien de séances auraient déjà dû être faites cette semaine, à date
-      const idxOrder = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-      const todayIdx = idxOrder.indexOf(todayName);
-      const expectedByNow = program.filter((d, i) => !d.isRest && i <= todayIdx).length;
-      let warning = null;
-      if (expectedByNow - sessionsThisWeek >= 2) {
-        warning = `⚠️ ${expectedByNow - sessionsThisWeek} séances manquées cette semaine`;
-      } else if (latest && previous && latest.motivation != null && previous.motivation != null && latest.motivation < previous.motivation && latest.motivation <= 2) {
-        warning = `⚠️ Motivation en baisse (${latest.motivation}/5)`;
-      } else if (latest && latest.feeling != null && latest.feeling <= 2) {
-        warning = `⚠️ Ressenti faible au dernier bilan (${latest.feeling}/5)`;
-      }
-
-      c.overview = {
-        sessionsThisWeek, trainingDaysTotal, warning,
-        checkinSubmittedThisWeek: latest ? latest.week_key === week : false,
-        weightDelta: (latest && previous && latest.bodyweight != null && previous.bodyweight != null)
-          ? Math.round((latest.bodyweight - previous.bodyweight) * 10) / 10 : null,
-      };
-    }));
-  }
 
   const newClientBtn = document.querySelector("[data-new-client]");
   if (newClientBtn) newClientBtn.onclick = async () => {
