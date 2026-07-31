@@ -1298,9 +1298,10 @@ function renderCoachScreen() {
         <button data-edit-videos="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);text-align:left;font-size:14px;">
           <span>🎥 Vidéos des exercices</span><span style="color:var(--textDim);">›</span>
         </button>
-        <button data-edit-program="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;color:var(--textDim);text-align:left;font-size:13px;">
+        <button data-edit-program="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--textDim);text-align:left;font-size:13px;">
           <span>{ } JSON avancé</span><span style="color:var(--textDim);">›</span>
         </button>
+        <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;margin-top:12px;">🗑 Supprimer ce client et toutes ses données</button>
       </div>`;
     }
     if (isExpanded && state.coachViewingScheduleId === c.id) {
@@ -1581,6 +1582,21 @@ async function attachCoachHandlers() {
 
   document.querySelectorAll("[data-toggle-client]").forEach(b => b.onclick = () => {
     state.coachExpandedClientId = state.coachExpandedClientId === b.dataset.toggleClient ? null : b.dataset.toggleClient;
+    render();
+  });
+
+  document.querySelectorAll("[data-delete-client]").forEach(b => b.onclick = async () => {
+    const clientId = b.dataset.deleteClient;
+    const c = state.coachClients.find(c => c.id === clientId);
+    if (!c) return;
+    if (!confirm(`Supprimer définitivement "${c.name}" et TOUTES ses données (programme, séances, bilans, nutrition) ? Cette action est irréversible.`)) return;
+    const typed = prompt(`Pour confirmer, tape exactement le prénom du client : ${c.name}`);
+    if (typed !== c.name) { showToast("Nom incorrect, suppression annulée."); return; }
+    const { error } = await sb.from("clients").delete().eq("id", clientId);
+    if (error) { showToast("Erreur lors de la suppression : " + error.message); return; }
+    state.coachClients = state.coachClients.filter(c => c.id !== clientId);
+    state.coachExpandedClientId = null;
+    showToast(`${c.name} et toutes ses données ont été supprimés.`);
     render();
   });
 
@@ -3013,6 +3029,34 @@ function renderProgress() {
 }
 
 /* ---------------- Profil ---------------- */
+async function exportMyData() {
+  showToast("Préparation de l'export…");
+  const { data: allFood } = await sb.from("food_logs").select("*").eq("client_id", state.client.id).order("log_date", { ascending: true });
+  const { data: allCheckins } = await sb.from("weekly_checkins").select("*").eq("client_id", state.client.id).order("created_at", { ascending: true });
+  const exportObj = {
+    client: state.client.name,
+    exported_at: new Date().toISOString(),
+    program: state.program,
+    session_logs: state.sessionLogs,
+    exercise_notes: state.notes,
+    nutrition_targets: state.nutritionTargets,
+    steps_target: state.stepsTarget,
+    water_target: state.waterTarget,
+    food_logs: allFood || [],
+    weekly_checkins: allCheckins || [],
+  };
+  const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `mes-donnees-${state.client.name}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast("Export téléchargé !");
+}
+
 function generateAndDownloadICS(reminderTime) {
   const dayMap = { "Lundi": "MO", "Mardi": "TU", "Mercredi": "WE", "Jeudi": "TH", "Vendredi": "FR", "Samedi": "SA", "Dimanche": "SU" };
   const jsDayIndex = { "Lundi": 1, "Mardi": 2, "Mercredi": 3, "Jeudi": 4, "Vendredi": 5, "Samedi": 6, "Dimanche": 0 };
@@ -3117,7 +3161,9 @@ function renderProfil() {
     <div class="section-label" style="margin-top:20px;">Compte</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
       <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">Tes données sont sauvegardées en ligne, liées à ton code d'accès personnel.</div>
+      <button style="background:none;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 16px;font-weight:700;margin-bottom:10px;width:100%;" data-export-data="1">📤 Exporter mes données</button>
       <button class="danger-btn" data-logout="1">Changer de compte / me déconnecter</button>
+      <div style="font-size:12px;color:var(--textDim);margin-top:12px;line-height:1.5;">Pour supprimer ton compte et tes données, contacte directement ton coach.</div>
     </div>
   `;
 }
@@ -3709,6 +3755,9 @@ function attachHandlers() {
     generateAndDownloadICS(time);
     showToast("Rappel téléchargé — ouvre le fichier pour l'ajouter à ton calendrier !");
   };
+
+  const exportDataBtn = app.querySelector("[data-export-data]");
+  if (exportDataBtn) exportDataBtn.onclick = () => { exportMyData(); };
 
   app.querySelectorAll("[data-checkin-view]").forEach(b => b.onclick = () => {
     state.checkinView = b.dataset.checkinView;
