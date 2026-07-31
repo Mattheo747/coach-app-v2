@@ -146,6 +146,9 @@
 </div>
 <div id="app"></div>
 <div id="toastHolder"></div>
+<div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;text-align:center;font-size:12.5px;font-weight:700;padding:8px 16px;padding-top:calc(env(safe-area-inset-top, 0px) + 8px);z-index:150;">
+  📡 Hors ligne — tu vois tes dernières données enregistrées. Reconnecte-toi pour valider une séance ou voir les mises à jour.
+</div>
 <div id="scannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:200;flex-direction:column;overflow-y:auto;">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top, 0px) + 28px) 16px 16px;">
     <div style="color:#fff;font-weight:700;">Scanner un code-barres</div>
@@ -890,6 +893,8 @@ let state = {
   checkinExisting: null,
   checkinDraft: null,
   checkinSubmittedThisWeek: null,
+  showIcsForm: false,
+  isOffline: false,
   coachViewingCheckinsId: null,
   coachViewingScheduleId: null,
   coachTab: "clients",
@@ -923,49 +928,95 @@ function getExerciseHistory(exId) {
 }
 
 /* ---------------- Data loading (Supabase) ---------------- */
+function saveOfflineCache(code) {
+  try {
+    const snapshot = {
+      client: state.client, program: state.program, sessionLogs: state.sessionLogs, notes: state.notes,
+      nutritionTargets: state.nutritionTargets, stepsTarget: state.stepsTarget, waterTarget: state.waterTarget,
+      coachMessage: state.coachMessage, checkinSettings: state.checkinSettings,
+      checkinSubmittedThisWeek: state.checkinSubmittedThisWeek, nutritionDayType: state.nutritionDayType,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(`mattheophysic_cache_${code}`, JSON.stringify(snapshot));
+  } catch (e) { /* stockage plein ou indisponible : tant pis, pas bloquant */ }
+}
+
 async function loadClientByCode(code) {
-  const { data: clientRow, error } = await sb.from("clients").select("*").eq("access_code", code).maybeSingle();
-  if (error || !clientRow) return false;
-  const { data: progRow } = await sb.from("programs").select("program_json").eq("client_id", clientRow.id).maybeSingle();
-  const program = (progRow && progRow.program_json) ? progRow.program_json : DEFAULT_PROGRAM;
-  const { data: logs } = await sb.from("session_logs").select("*").eq("client_id", clientRow.id).order("log_date", { ascending: true });
-  const { data: notesRows } = await sb.from("exercise_notes").select("*").eq("client_id", clientRow.id);
-  state.client = { id: clientRow.id, name: clientRow.name, access_code: clientRow.access_code };
-  state.program = program;
-  state.sessionLogs = (logs || []).map(l => ({ id: l.id, dayId: l.day_id, date: l.log_date, entries: l.entries, rpe: l.rpe, session_comment: l.session_comment }));
-  state.notes = {};
-  (notesRows || []).forEach(n => { state.notes[n.exercise_id] = n.note; });
-  state.documents = null;
+  try {
+    const { data: clientRow, error } = await sb.from("clients").select("*").eq("access_code", code).maybeSingle();
+    if (error || !clientRow) return false;
+    const { data: progRow } = await sb.from("programs").select("program_json").eq("client_id", clientRow.id).maybeSingle();
+    const program = (progRow && progRow.program_json) ? progRow.program_json : DEFAULT_PROGRAM;
+    const { data: logs } = await sb.from("session_logs").select("*").eq("client_id", clientRow.id).order("log_date", { ascending: true });
+    const { data: notesRows } = await sb.from("exercise_notes").select("*").eq("client_id", clientRow.id);
+    state.client = { id: clientRow.id, name: clientRow.name, access_code: clientRow.access_code };
+    state.program = program;
+    state.sessionLogs = (logs || []).map(l => ({ id: l.id, dayId: l.day_id, date: l.log_date, entries: l.entries, rpe: l.rpe, session_comment: l.session_comment }));
+    state.notes = {};
+    (notesRows || []).forEach(n => { state.notes[n.exercise_id] = n.note; });
+    state.documents = null;
 
-  const { data: nutriRow } = await sb.from("nutrition_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
-  state.nutritionTargets = nutriRow || null;
-  const { data: stepsRow } = await sb.from("steps_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
-  state.stepsTarget = stepsRow ? stepsRow.daily_steps : null;
-  state.waterTarget = stepsRow ? stepsRow.water_liters : null;
-  const { data: msgRow } = await sb.from("coach_messages").select("*").eq("client_id", clientRow.id).maybeSingle();
-  state.coachMessage = msgRow ? msgRow.message : null;
+    const { data: nutriRow } = await sb.from("nutrition_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
+    state.nutritionTargets = nutriRow || null;
+    const { data: stepsRow } = await sb.from("steps_targets").select("*").eq("client_id", clientRow.id).maybeSingle();
+    state.stepsTarget = stepsRow ? stepsRow.daily_steps : null;
+    state.waterTarget = stepsRow ? stepsRow.water_liters : null;
+    const { data: msgRow } = await sb.from("coach_messages").select("*").eq("client_id", clientRow.id).maybeSingle();
+    state.coachMessage = msgRow ? msgRow.message : null;
 
-  const todayDay = state.program.find(d => d.day === ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][new Date().getDay()]);
-  state.nutritionDayType = (todayDay && !todayDay.isRest) ? "on" : "off";
+    const todayDay = state.program.find(d => d.day === ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][new Date().getDay()]);
+    state.nutritionDayType = (todayDay && !todayDay.isRest) ? "on" : "off";
 
-  const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
-  state.foodLogsToday = foodRows || [];
-  state.nutritionSelectedDate = todayISO();
-  state.nutritionLogs = state.foodLogsToday;
+    const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
+    state.foodLogsToday = foodRows || [];
+    state.nutritionSelectedDate = todayISO();
+    state.nutritionLogs = state.foodLogsToday;
 
-  const { data: customFoodsData } = await sb.from("custom_foods").select("*").order("name", { ascending: true });
-  state.customFoods = customFoodsData || [];
-  const { data: scannedData } = await sb.from("scanned_products").select("*").order("created_at", { ascending: false }).limit(500);
-  state.scannedProducts = scannedData || [];
+    const { data: customFoodsData } = await sb.from("custom_foods").select("*").order("name", { ascending: true });
+    state.customFoods = customFoodsData || [];
+    const { data: scannedData } = await sb.from("scanned_products").select("*").order("created_at", { ascending: false }).limit(500);
+    state.scannedProducts = scannedData || [];
 
-  const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("client_id", clientRow.id).maybeSingle();
-  state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
+    const { data: settingsRow } = await sb.from("checkin_settings").select("*").eq("client_id", clientRow.id).maybeSingle();
+    state.checkinSettings = settingsRow || { deadline_day: "Dimanche", deadline_time: "20:00" };
 
-  const { data: thisWeekCheckin } = await sb.from("weekly_checkins").select("id").eq("client_id", clientRow.id).eq("week_key", isoWeekKey(todayISO())).maybeSingle();
-  state.checkinSubmittedThisWeek = !!thisWeekCheckin;
+    const { data: thisWeekCheckin } = await sb.from("weekly_checkins").select("id").eq("client_id", clientRow.id).eq("week_key", isoWeekKey(todayISO())).maybeSingle();
+    state.checkinSubmittedThisWeek = !!thisWeekCheckin;
 
-  localStorage.setItem(ACCESS_KEY, code);
-  return true;
+    localStorage.setItem(ACCESS_KEY, code);
+    state.isOffline = false;
+    saveOfflineCache(code);
+    return true;
+  } catch (e) {
+    // Pas de réseau (ou Supabase injoignable) : on retombe sur la dernière copie connue
+    const cached = localStorage.getItem(`mattheophysic_cache_${code}`);
+    if (!cached) return false;
+    try {
+      const snap = JSON.parse(cached);
+      state.client = snap.client;
+      state.program = snap.program;
+      state.sessionLogs = snap.sessionLogs || [];
+      state.notes = snap.notes || {};
+      state.nutritionTargets = snap.nutritionTargets || null;
+      state.stepsTarget = snap.stepsTarget ?? null;
+      state.waterTarget = snap.waterTarget ?? null;
+      state.coachMessage = snap.coachMessage || null;
+      state.checkinSettings = snap.checkinSettings || { deadline_day: "Dimanche", deadline_time: "20:00" };
+      state.checkinSubmittedThisWeek = !!snap.checkinSubmittedThisWeek;
+      state.nutritionDayType = snap.nutritionDayType || "on";
+      state.documents = [];
+      state.foodLogsToday = [];
+      state.nutritionSelectedDate = todayISO();
+      state.nutritionLogs = [];
+      state.customFoods = [];
+      state.scannedProducts = [];
+      localStorage.setItem(ACCESS_KEY, code);
+      state.isOffline = true;
+      return true;
+    } catch (e2) {
+      return false;
+    }
+  }
 }
 
 async function boot() {
@@ -982,6 +1033,8 @@ async function boot() {
 function render() {
   const app = document.getElementById("app");
   const nav = document.querySelector(".bottom-nav");
+  const offlineBanner = document.getElementById("offlineBanner");
+  if (offlineBanner) offlineBanner.style.display = (state.isOffline || !navigator.onLine) ? "block" : "none";
 
   if (state.screen === "loading") {
     nav.style.display = "none";
@@ -2960,6 +3013,45 @@ function renderProgress() {
 }
 
 /* ---------------- Profil ---------------- */
+function generateAndDownloadICS(reminderTime) {
+  const dayMap = { "Lundi": "MO", "Mardi": "TU", "Mercredi": "WE", "Jeudi": "TH", "Vendredi": "FR", "Samedi": "SA", "Dimanche": "SU" };
+  const jsDayIndex = { "Lundi": 1, "Mardi": 2, "Mercredi": 3, "Jeudi": 4, "Vendredi": 5, "Samedi": 6, "Dimanche": 0 };
+  const [hh, mm] = reminderTime.split(":").map(Number);
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+
+  let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Mattheophysic//Coaching//FR\r\nCALSCALE:GREGORIAN\r\n";
+  state.program.filter(d => !d.isRest).forEach((d, idx) => {
+    const targetDow = jsDayIndex[d.day];
+    const diff = (targetDow - now.getDay() + 7) % 7;
+    const start = new Date(now);
+    start.setDate(now.getDate() + diff);
+    start.setHours(hh, mm, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60000);
+    ics += "BEGIN:VEVENT\r\n";
+    ics += `UID:${d.id}-${idx}-mattheophysic@reminder\r\n`;
+    ics += `DTSTAMP:${fmt(now)}Z\r\n`;
+    ics += `DTSTART;TZID=Europe/Paris:${fmt(start)}\r\n`;
+    ics += `DTEND;TZID=Europe/Paris:${fmt(end)}\r\n`;
+    ics += `RRULE:FREQ=WEEKLY;BYDAY=${dayMap[d.day]}\r\n`;
+    ics += `SUMMARY:Séance : ${d.name}\r\n`;
+    ics += `DESCRIPTION:Toujours pas validé ta séance du jour ? Go !\r\n`;
+    ics += "END:VEVENT\r\n";
+  });
+  ics += "END:VCALENDAR\r\n";
+
+  const blob = new Blob([ics], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "mes-seances-mattheophysic.ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function computeStreak() {
   const trainingDayIds = state.program.filter(d => !d.isRest).map(d => d.id);
   if (trainingDayIds.length === 0) return 0;
@@ -3009,6 +3101,19 @@ function renderProfil() {
       </div>
       <span style="color:var(--textDim);">›</span>
     </button>
+    <button class="day-card" data-toggle-ics-form="1">
+      <div class="day-left"><div class="day-num">🔔</div>
+        <div><div class="day-title">Rappel dans mon calendrier</div><div class="day-sub">Un rappel chaque semaine, sur tes jours d'entraînement</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
+    ${state.showIcsForm ? `
+    <div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+      <div style="font-weight:700;margin-bottom:10px;">À quelle heure veux-tu être prévenu ?</div>
+      <input id="icsTimeInput" type="time" value="18:00" style="margin-bottom:12px;" />
+      <button class="validate-btn" id="downloadIcsBtn" style="margin-top:0;">📅 Télécharger le rappel</button>
+      <div style="font-size:12px;color:var(--textDim);margin-top:10px;line-height:1.5;">Un fichier se télécharge — ouvre-le, ton téléphone te proposera de l'ajouter à ton appli Calendrier. Ça se répète chaque semaine, sur chacun de tes jours d'entraînement, sans rien à refaire.</div>
+    </div></div>` : ""}
     <div class="section-label" style="margin-top:20px;">Compte</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
       <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">Tes données sont sauvegardées en ligne, liées à ton code d'accès personnel.</div>
@@ -3207,6 +3312,7 @@ function attachHandlers() {
 
   const validateBtn = app.querySelector("[data-validate]");
   if (validateBtn) validateBtn.onclick = async () => {
+    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour valider ta séance."); return; }
     const dayId = validateBtn.dataset.validate;
     const day = state.program.find(d => d.id === dayId);
     const dateStr = todayISO();
@@ -3550,6 +3656,7 @@ function attachHandlers() {
 
   const addFoodBtn = app.querySelector("#addFoodBtn");
   if (addFoodBtn) addFoodBtn.onclick = async () => {
+    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour ajouter un aliment."); return; }
     const grams = parseFloat(document.getElementById("foodGramsInput").value);
     if (!grams || grams <= 0) { alert("Entre un poids valide."); return; }
     const f = state.selectedFood;
@@ -3593,6 +3700,16 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-open-checkin]").forEach(b => b.onclick = () => { openCheckin(); });
 
+  const toggleIcsBtn = app.querySelector("[data-toggle-ics-form]");
+  if (toggleIcsBtn) toggleIcsBtn.onclick = () => { state.showIcsForm = !state.showIcsForm; render(); };
+
+  const downloadIcsBtn = app.querySelector("#downloadIcsBtn");
+  if (downloadIcsBtn) downloadIcsBtn.onclick = () => {
+    const time = document.getElementById("icsTimeInput").value || "18:00";
+    generateAndDownloadICS(time);
+    showToast("Rappel téléchargé — ouvre le fichier pour l'ajouter à ton calendrier !");
+  };
+
   app.querySelectorAll("[data-checkin-view]").forEach(b => b.onclick = () => {
     state.checkinView = b.dataset.checkinView;
     render();
@@ -3615,6 +3732,7 @@ function attachHandlers() {
 
   const submitCheckinBtn = app.querySelector("#submitCheckinBtn");
   if (submitCheckinBtn) submitCheckinBtn.onclick = async () => {
+    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour envoyer ton bilan."); return; }
     submitCheckinBtn.textContent = "Envoi…";
     submitCheckinBtn.disabled = true;
     const d = state.checkinDraft || {};
@@ -3739,6 +3857,20 @@ document.getElementById("manualBarcodeBtn").onclick = async () => {
 document.getElementById("manualBarcodeInput").onkeydown = (e) => {
   if (e.key === "Enter") { e.preventDefault(); document.getElementById("manualBarcodeBtn").click(); }
 };
+
+window.addEventListener("offline", () => {
+  state.isOffline = true;
+  render();
+});
+window.addEventListener("online", async () => {
+  state.isOffline = false;
+  render();
+  if (state.client && state.client.access_code) {
+    await loadClientByCode(state.client.access_code);
+    render();
+    showToast("Connexion rétablie, données à jour.");
+  }
+});
 
 boot();
 </script>
