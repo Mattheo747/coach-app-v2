@@ -872,7 +872,7 @@ async function openScanner() {
     );
     setupTorchToggle();
   } catch (e) {
-    setScannerStatus("Impossible d'accéder à la caméra. Vérifie que tu as autorisé l'accès, ou ferme et cherche manuellement.");
+    setScannerStatus("Caméra indisponible (" + (e && (e.message || e.name) || "erreur inconnue") + "). Vérifie que tu as autorisé l'accès à la caméra dans les réglages, ou utilise la recherche manuelle ci-dessus.");
   }
 }
 
@@ -943,7 +943,7 @@ async function onBarcodeScanned(barcode) {
     showToast("Produit trouvé !");
     render();
   } catch (e) {
-    setScannerStatus("Erreur réseau. Vérifie ta connexion, ou ferme et cherche manuellement.");
+    setScannerStatus("Erreur (" + (e && (e.message || e.name) || "inconnue") + "). Vérifie ta connexion, ou cherche manuellement.");
   }
 }
 
