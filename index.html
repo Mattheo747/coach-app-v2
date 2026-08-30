@@ -143,14 +143,14 @@
   <div class="header-inner">
     <div class="brand">MATTHEO<span>PHYSIC</span></div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <button id="themeToggle" class="icon-btn">🌙</button>
+      <button id="themeToggle" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg></button>
     </div>
   </div>
 </div>
 <div id="app"></div>
 <div id="toastHolder"></div>
 <div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;text-align:center;font-size:12.5px;font-weight:700;padding:8px 16px;padding-top:calc(env(safe-area-inset-top, 0px) + 8px);z-index:150;">
-  📡 Hors ligne — tu vois tes dernières données enregistrées. Reconnecte-toi pour valider une séance ou voir les mises à jour.
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M2 12a10 10 0 0 1 20 0"/><path d="M5 12a7 7 0 0 1 14 0"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg> Hors ligne — tu vois tes dernières données enregistrées. Reconnecte-toi pour valider une séance ou voir les mises à jour.
 </div>
 <div id="scannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:200;flex-direction:column;overflow-y:auto;">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top, 0px) + 28px) 16px 16px;">
@@ -167,7 +167,7 @@
   <div style="color:#666;font-size:12px;text-align:center;padding:4px 16px 12px;">— ou vise-le avec la caméra ci-dessous —</div>
   <div id="qr-reader" style="width:100%;max-width:480px;margin:0 auto;"></div>
   <div style="text-align:center;">
-    <button id="torchToggleBtn" style="display:none;background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:999px;padding:8px 16px;font-size:13px;margin-top:10px;">💡 Lampe torche</button>
+    <button id="torchToggleBtn" style="display:none;background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:999px;padding:8px 16px;font-size:13px;margin-top:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2Z"/></svg> Lampe torche</button>
   </div>
   <div id="scannerStatus" style="color:#ccc;text-align:center;padding:16px;font-size:13.5px;">Vise le code-barres du produit avec la caméra.</div>
 </div>
@@ -806,7 +806,7 @@ function setupTorchToggle() {
   const btn = document.getElementById("torchToggleBtn");
   torchOn = false;
   btn.style.display = "none";
-  btn.textContent = "💡 Lampe torche";
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2Z"/></svg> Lampe torche`;
   try {
     const caps = scannerInstance.getRunningTrackCapabilities();
     if (caps && caps.torch) {
@@ -815,7 +815,7 @@ function setupTorchToggle() {
         try {
           await scannerInstance.applyVideoConstraints({ advanced: [{ torch: !torchOn }] });
           torchOn = !torchOn;
-          btn.textContent = torchOn ? "💡 Éteindre la lampe" : "💡 Lampe torche";
+          btn.innerHTML = torchOn ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2Z"/></svg> Éteindre la lampe` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a6 6 0 0 0-4 10.5c.7.6 1 1.4 1 2.5h6c0-1.1.3-1.9 1-2.5A6 6 0 0 0 12 2Z"/></svg> Lampe torche`;
         } catch (e) { /* certains appareils refusent le changement à chaud, sans impact */ }
       };
     }
@@ -1291,7 +1291,7 @@ function renderProgramBuilder() {
     </div>
     <div class="h1" style="font-size:26px;margin-top:10px;">CONSTRUCTEUR DE PROGRAMME</div>
     <div class="subtitle">${esc(clientName)}</div>
-    <button data-toggle-templates="1" style="width:100%;border:1px solid var(--accent);background:none;color:var(--accent);border-radius:10px;padding:10px;font-weight:700;font-size:13.5px;margin-bottom:16px;">📂 Modèles de programme</button>
+    <button data-toggle-templates="1" style="width:100%;border:1px solid var(--accent);background:none;color:var(--accent);border-radius:10px;padding:10px;font-weight:700;font-size:13.5px;margin-bottom:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg> Modèles de programme</button>
   `;
 
   if (state.showTemplatesPanel) {
@@ -1310,13 +1310,13 @@ function renderProgramBuilder() {
           </div></div>
           <div style="display:flex;gap:6px;">
             <button data-apply-template="${t.id}" style="background:var(--accent);border:none;color:var(--accentText);border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:700;">Utiliser</button>
-            <button data-delete-template="${t.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 10px;">🗑</button>
+            <button data-delete-template="${t.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
           </div>
         </div>`;
       });
     }
     html += `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:14px;">
-      <div style="font-weight:700;margin-bottom:10px;">💾 Enregistrer ce programme comme modèle</div>
+      <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M8 3v5h8V3"/><rect x="7" y="13" width="10" height="7"/></svg> Enregistrer ce programme comme modèle</div>
       <input id="templateTitleInput" placeholder="Nom du modèle (ex: Débutant Full-Body)" style="margin-bottom:10px;" />
       <input id="templateDescInput" placeholder="Description (optionnelle)" style="margin-bottom:10px;" />
       <button class="validate-btn" id="saveTemplateBtn" style="margin-top:0;">✓ Enregistrer comme modèle</button>
@@ -1341,7 +1341,7 @@ function renderProgramBuilder() {
       <select id="copyDayTarget">
         ${draft.filter(d => d.id !== day.id).map(d => `<option value="${d.id}">Copier vers ${esc(d.day)}</option>`).join("")}
       </select>
-      <button data-copy-day="${day.id}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:10px;padding:0 14px;font-size:13px;">📋 Copier</button>
+      <button data-copy-day="${day.id}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:10px;padding:0 14px;font-size:13px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg> Copier</button>
     </div>`;
 
     (day.exercises || []).forEach((e, i) => {
@@ -1361,8 +1361,8 @@ function renderProgramBuilder() {
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <button data-b-move="up" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">↑</button>
             <button data-b-move="down" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">↓</button>
-            ${next ? `<button data-b-superset="${i}" style="border:1px solid ${isLinkedWithNext ? "var(--orange)" : "var(--border)"};background:none;color:${isLinkedWithNext ? "var(--orange)" : "var(--textDim)"};border-radius:8px;padding:6px 10px;font-size:12.5px;">🔗 ${isLinkedWithNext ? "Superset activé" : "Lier en superset au suivant"}</button>` : ""}
-            <button data-b-delete="${i}" style="border:1px solid var(--danger);background:none;color:var(--danger);border-radius:8px;padding:6px 10px;margin-left:auto;">🗑</button>
+            ${next ? `<button data-b-superset="${i}" style="border:1px solid ${isLinkedWithNext ? "var(--orange)" : "var(--border)"};background:none;color:${isLinkedWithNext ? "var(--orange)" : "var(--textDim)"};border-radius:8px;padding:6px 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.5 4.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L12.5 19.5"/></svg> ${isLinkedWithNext ? "Superset activé" : "Lier en superset au suivant"}</button>` : ""}
+            <button data-b-delete="${i}" style="border:1px solid var(--danger);background:none;color:var(--danger);border-radius:8px;padding:6px 10px;margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
           </div>
         </div>
       </div>`;
@@ -1409,13 +1409,13 @@ function renderCoachScreen() {
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;">
       <div class="h1" style="font-size:26px;margin:0;">ESPACE COACH</div>
-      <button data-logout-coach="1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;">🚪 Quitter</button>
+      <button data-logout-coach="1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 12px;font-size:13px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M6 3h9a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6"/><path d="M6 3v18"/><circle cx="14" cy="12" r="0.6" fill="currentColor" stroke="none"/><path d="M6 21H3"/><path d="M6 3H3"/></svg> Quitter</button>
     </div>
     <div class="subtitle">Gère tes clients et leurs programmes</div>
     <div class="day-tabs">
-      <button class="day-tab ${state.coachTab !== "documents" && state.coachTab !== "recipes" ? "active" : ""}" data-coach-tab="clients">👥 Clients</button>
-      <button class="day-tab ${state.coachTab === "documents" ? "active" : ""}" data-coach-tab="documents">📄 Documents</button>
-      <button class="day-tab ${state.coachTab === "recipes" ? "active" : ""}" data-coach-tab="recipes">📖 Recettes</button>
+      <button class="day-tab ${state.coachTab !== "documents" && state.coachTab !== "recipes" ? "active" : ""}" data-coach-tab="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.2c2.4.4 4.5 2.2 4.5 5.3"/></svg> Clients</button>
+      <button class="day-tab ${state.coachTab === "documents" ? "active" : ""}" data-coach-tab="documents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Documents</button>
+      <button class="day-tab ${state.coachTab === "recipes" ? "active" : ""}" data-coach-tab="recipes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> Recettes</button>
     </div>
   `;
 
@@ -1432,9 +1432,9 @@ function renderCoachScreen() {
           <div class="day-title">${esc(c.name)}</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;">
             <span class="access-code-chip" style="font-size:11px;padding:4px 10px;">${esc(c.access_code)}</span>
-            ${ov ? `<span style="font-size:11.5px;color:var(--textDim);">🏋️ ${ov.sessionsThisWeek}/${ov.trainingDaysTotal}</span>` : ""}
-            ${ov && ov.checkinSubmittedThisWeek ? `<span style="font-size:11.5px;color:var(--accentDim);">📋✓</span>` : ""}
-            ${ov && ov.warning ? `<span style="font-size:11.5px;color:var(--danger);font-weight:700;">⚠️</span>` : ""}
+            ${ov ? `<span style="font-size:11.5px;color:var(--textDim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg> ${ov.sessionsThisWeek}/${ov.trainingDaysTotal}</span>` : ""}
+            ${ov && ov.checkinSubmittedThisWeek ? `<span style="font-size:11.5px;color:var(--accentDim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg>✓</span>` : ""}
+            ${ov && ov.warning ? `<span style="font-size:11.5px;color:var(--danger);font-weight:700;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3 2 20h20L12 3Z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg></span>` : ""}
           </div>
         </div>
       </div>
@@ -1444,26 +1444,26 @@ function renderCoachScreen() {
     if (isExpanded) {
       html += `<div style="border:1px solid var(--border);border-top:none;border-radius:0 0 16px 16px;padding:6px 12px;margin-bottom:12px;">
         ${ov && ov.warning ? `<div style="font-size:12.5px;color:var(--danger);font-weight:700;padding:8px 0;border-bottom:1px solid var(--border);">${esc(ov.warning)}</div>` : ""}
-        ${ov && ov.weightDelta !== null ? `<div style="font-size:12.5px;color:var(--textDim);padding:8px 0;border-bottom:1px solid var(--border);">⚖️ Poids : ${ov.weightDelta > 0 ? "+" : ""}${ov.weightDelta}kg depuis le dernier bilan</div>` : ""}
+        ${ov && ov.weightDelta !== null ? `<div style="font-size:12.5px;color:var(--textDim);padding:8px 0;border-bottom:1px solid var(--border);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3v18"/><path d="M5 7l-3 7a4 4 0 0 0 6 0Z"/><path d="M19 7l-3 7a4 4 0 0 0 6 0Z"/><path d="M5 7h14"/><path d="M8 21h8"/></svg> Poids : ${ov.weightDelta > 0 ? "+" : ""}${ov.weightDelta}kg depuis le dernier bilan</div>` : ""}
         <button data-open-builder="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);text-align:left;font-size:14px;">
-          <span>🏗️ Construire le programme</span><span style="color:var(--textDim);">›</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2Z"/></svg> Construire le programme</span><span style="color:var(--textDim);">›</span>
         </button>
         <button data-edit-followup="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);text-align:left;font-size:14px;">
-          <span>⚙️ Suivi (nutrition, pas, message)</span><span style="color:var(--textDim);">›</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M3 12h2.5M18.5 12H21M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg> Suivi (nutrition, pas, message)</span><span style="color:var(--textDim);">›</span>
         </button>
         <button data-view-checkins="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);text-align:left;font-size:14px;">
-          <span>📋 Bilans envoyés</span><span style="color:var(--textDim);">›</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg> Bilans envoyés</span><span style="color:var(--textDim);">›</span>
         </button>
         <button data-view-schedule="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);text-align:left;font-size:14px;">
-          <span>📅 Séances de la semaine</span><span style="color:var(--textDim);">›</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Séances de la semaine</span><span style="color:var(--textDim);">›</span>
         </button>
         <button data-edit-videos="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);text-align:left;font-size:14px;">
-          <span>🎥 Vidéos des exercices</span><span style="color:var(--textDim);">›</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg> Vidéos des exercices</span><span style="color:var(--textDim);">›</span>
         </button>
         <button data-edit-program="${c.id}" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px 4px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--textDim);text-align:left;font-size:13px;">
           <span>{ } JSON avancé</span><span style="color:var(--textDim);">›</span>
         </button>
-        <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;margin-top:12px;">🗑 Supprimer ce client et toutes ses données</button>
+        <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;margin-top:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer ce client et toutes ses données</button>
       </div>`;
     }
     if (isExpanded && state.coachViewingScheduleId === c.id) {
@@ -1476,16 +1476,16 @@ function renderCoachScreen() {
       const todayStr = todayISO();
       const doneDays = c.scheduleDone || [];
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;">📅 Séances de la semaine — ${esc(c.name)}</div>
+        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Séances de la semaine — ${esc(c.name)}</div>
         ${program.map((d, idx) => {
           const dayDate = new Date(monday);
           dayDate.setDate(monday.getDate() + idx);
           const dayStr = localDateStr(dayDate);
           let status, color;
           if (d.isRest) { status = "Repos"; color = "var(--textDim)"; }
-          else if (doneDays.includes(d.id)) { status = "✅ Fait"; color = "var(--accent)"; }
-          else if (dayStr === todayStr) { status = "🔵 Aujourd'hui"; color = "var(--accentDim)"; }
-          else if (dayStr < todayStr) { status = "❌ Manqué"; color = "var(--danger)"; }
+          else if (doneDays.includes(d.id)) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/></svg> Fait`; color = "var(--accent)"; }
+          else if (dayStr === todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="8" fill="currentColor" stroke="none"/></svg> Aujourd'hui`; color = "var(--accentDim)"; }
+          else if (dayStr < todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg> Manqué`; color = "var(--danger)"; }
           else { status = "⏳ À venir"; color = "var(--textDim)"; }
           return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);">
             <div><div style="font-weight:700;">${esc(d.day)}${d.isRest ? "" : " : " + esc(d.name)}</div><div style="font-size:12px;color:var(--textDim);">${formatDateFR(dayStr)}</div></div>
@@ -1497,7 +1497,7 @@ function renderCoachScreen() {
     if (isExpanded && state.coachEditingVideosId === c.id) {
       const program = c.program_json || DEFAULT_PROGRAM;
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;">🎥 Vidéos des exercices — ${esc(c.name)}</div>
+        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg> Vidéos des exercices — ${esc(c.name)}</div>
         ${program.filter(d => !d.isRest).map(d => `
           <div class="section-label" style="margin-top:14px;">${esc(d.day)} : ${esc(d.name)}</div>
           ${d.exercises.map(e => `
@@ -1522,7 +1522,7 @@ function renderCoachScreen() {
         <span style="color:var(--textDim);">${label}</span><span style="font-weight:700;text-align:right;max-width:60%;">${value}</span>
       </div>`;
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;">📋 Bilans de ${esc(c.name)}</div>
+        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg> Bilans de ${esc(c.name)}</div>
         ${checkins.length === 0 ? `<div style="color:var(--textDim);font-size:13.5px;">Aucun bilan envoyé pour l'instant.</div>` : checkins.map(ck => `
           <div style="border-top:1px solid var(--border);padding:14px 0;">
             <div style="font-weight:800;margin-bottom:10px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0, 10))}</div>
@@ -1552,7 +1552,7 @@ function renderCoachScreen() {
     if (isExpanded && state.coachEditingNutritionId === c.id) {
       const n = c.nutrition || {};
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;">🍎 Objectifs nutritionnels — ${esc(c.name)}</div>
+        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg> Objectifs nutritionnels — ${esc(c.name)}</div>
         <div class="section-label">Jour ON (entraînement)</div>
         <div class="row">
           <input id="fKcalOn" placeholder="kcal" value="${n.kcal_on ?? ""}" inputmode="numeric" />
@@ -1608,7 +1608,7 @@ function renderCoachScreen() {
 
   if (state.coachTab === "documents") {
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:10px;">📄 Envoyer un document PDF</div>
+    <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Envoyer un document PDF</div>
     <input id="docTitleInput" placeholder="Titre du document" style="margin-bottom:10px;" />
     <input id="docCategoryInput" placeholder="Catégorie (ex: Nutrition, Entraînement, Général)" list="docCategoryList" style="margin-bottom:10px;" />
     <datalist id="docCategoryList">
@@ -1627,13 +1627,13 @@ function renderCoachScreen() {
     state.coachDocuments.forEach(doc => {
       html += `<div class="day-card" style="cursor:default;">
         <div class="day-left">
-          <div class="day-num">📄</div>
+          <div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
           <div>
             <div class="day-title">${esc(doc.title)}</div>
             <div class="day-sub">${esc(doc.category || "Général")} · ${doc.clients ? esc(doc.clients.name) : "Tous les clients"} · ${formatDateFR(doc.created_at.slice(0, 10))}</div>
           </div>
         </div>
-        <button data-delete-doc="${doc.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:13px;">🗑</button>
+        <button data-delete-doc="${doc.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:13px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
       </div>`;
     });
   }
@@ -1675,7 +1675,7 @@ function renderCoachScreen() {
             <div class="day-title">${esc(r.title)}</div>
             <div class="day-sub">${r.kcal} kcal · ${r.protein}g / ${r.carbs}g / ${r.fat}g</div>
           </div></div>
-          <button data-delete-recipe="${r.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:13px;">🗑</button>
+          <button data-delete-recipe="${r.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:8px 12px;font-size:13px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
         </div>`;
       });
     });
@@ -1705,11 +1705,11 @@ async function loadCoachOverview() {
     const expectedByNow = program.filter((d, i) => !d.isRest && i <= todayIdx).length;
     let warning = null;
     if (expectedByNow - sessionsThisWeek >= 2) {
-      warning = `⚠️ ${expectedByNow - sessionsThisWeek} séances manquées cette semaine`;
+      warning = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3 2 20h20L12 3Z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg> ${expectedByNow - sessionsThisWeek} séances manquées cette semaine`;
     } else if (latest && previous && latest.motivation != null && previous.motivation != null && latest.motivation < previous.motivation && latest.motivation <= 2) {
-      warning = `⚠️ Motivation en baisse (${latest.motivation}/5)`;
+      warning = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3 2 20h20L12 3Z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg> Motivation en baisse (${latest.motivation}/5)`;
     } else if (latest && latest.feeling != null && latest.feeling <= 2) {
-      warning = `⚠️ Ressenti faible au dernier bilan (${latest.feeling}/5)`;
+      warning = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3 2 20h20L12 3Z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg> Ressenti faible au dernier bilan (${latest.feeling}/5)`;
     }
 
     c.overview = {
@@ -2278,7 +2278,7 @@ function renderAccueil() {
 
   // --- Message du coach, tout en haut ---
   if (state.coachMessage) {
-    html += `<div class="info-box">💬 <strong>Message de ton coach :</strong><br/>${esc(state.coachMessage)}</div>`;
+    html += `<div class="info-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H5l-2 2V11.5A8.5 8.5 0 0 1 12 3h1a8.5 8.5 0 0 1 8 8.5Z"/></svg> <strong>Message de ton coach :</strong><br/>${esc(state.coachMessage)}</div>`;
   }
 
   // --- Rappel de bilan, si applicable ---
@@ -2305,7 +2305,7 @@ function renderAccueil() {
   html += `<div class="section-label">Dernier document</div>`;
   if (latestDoc) {
     html += `<a href="${esc(latestDoc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
-      <div class="day-left"><div class="day-num">📄</div>
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
         <div><div class="day-title">${esc(latestDoc.title)}</div><div class="day-sub">Ajouté le ${formatDateFR(latestDoc.created_at.slice(0, 10))}</div></div>
       </div>
       <span style="color:var(--textDim);">›</span>
@@ -2318,12 +2318,12 @@ function renderAccueil() {
   html += `<div class="section-label" style="margin-top:20px;">Objectifs du jour</div>`;
   html += `<div class="stat-row">
     <div class="stat-card">
-      <div style="color:var(--accentDim);margin-bottom:8px;">👣</div>
+      <div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><ellipse cx="9" cy="7" rx="2.5" ry="3.2"/><ellipse cx="16" cy="16" rx="2.5" ry="3.2"/></svg></div>
       <div class="stat-value">${state.stepsTarget || "—"}</div>
       <div class="stat-label">Pas à faire</div>
     </div>
     <div class="stat-card">
-      <div style="color:var(--accentDim);margin-bottom:8px;">💧</div>
+      <div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3s7 8 7 12.5a7 7 0 0 1-14 0C5 11 12 3 12 3Z"/></svg></div>
       <div class="stat-value">${state.waterTarget || "2-3"}L</div>
       <div class="stat-label">Eau minimum</div>
     </div>
@@ -2331,7 +2331,7 @@ function renderAccueil() {
 
   html += `<div class="stat-row">
     <div class="stat-card" style="flex:1;">
-      <div style="color:var(--accentDim);margin-bottom:8px;">🍎</div>
+      <div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg></div>
       <div class="stat-value">${kcalTarget ? Math.round(nutriTotals.kcal) + "/" + kcalTarget : Math.round(nutriTotals.kcal)}</div>
       <div class="stat-label">kcal (jour ${state.nutritionDayType === "on" ? "ON" : "OFF"})</div>
     </div>
@@ -2408,11 +2408,11 @@ function renderExerciseCard(exo, day, opts) {
 
     if (last) {
       inner += `<div style="margin-bottom:12px;">
-        <div class="last-perf">📈 Semaine dernière · ${formatDateFR(last.date)}</div>
+        <div class="last-perf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg> Semaine dernière · ${formatDateFR(last.date)}</div>
         <div class="row" style="margin-bottom:${suggestion ? "10px" : "0"};">
           ${last.sets.map(s => `<span class="chip-lastweek">${esc(s.reps)} × ${esc(s.kg)}kg</span>`).join("")}
         </div>
-        ${suggestion ? `<div class="objective">🎯 ${esc(suggestion)}</div>` : ""}
+        ${suggestion ? `<div class="objective"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg> ${esc(suggestion)}</div>` : ""}
       </div>`;
     } else {
       inner += `<div style="font-size:13px;color:var(--textDim);margin-bottom:12px;font-style:italic;">Première fois sur cet exercice — enregistre tes charges pour suivre ta progression.</div>`;
@@ -2438,7 +2438,7 @@ function renderExerciseCard(exo, day, opts) {
   return `<div class="${cardClass}">
     <button class="ex-head" data-toggle-ex="${exo.id}">
       <div style="flex:1;padding-right:10px;">
-        <div class="ex-name">${esc(exo.name)} ${exo.video ? `<a href="${esc(exo.video)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;">🎥</a>` : ""}</div>
+        <div class="ex-name">${esc(exo.name)} ${exo.video ? `<a href="${esc(exo.video)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg></a>` : ""}</div>
         <span class="pill">${esc(exo.muscle)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
@@ -2473,7 +2473,7 @@ function renderSession(day) {
     if (group.type === "single") {
       html += renderExerciseCard(group.items[0], day);
     } else {
-      html += `<div class="superset-wrap"><div class="superset-label">🔥 Superset — enchaîne sans repos entre les deux</div>`;
+      html += `<div class="superset-wrap"><div class="superset-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg> Superset — enchaîne sans repos entre les deux</div>`;
       group.items.forEach((exo, idx) => {
         html += renderExerciseCard(exo, day, { superset: true });
         if (idx < group.items.length - 1) {
@@ -2513,17 +2513,17 @@ function renderRecap(logId) {
   });
   return `
     <div style="padding-top:24px;text-align:center;">
-      <div style="font-size:40px;margin-bottom:8px;">🎉</div>
+      <div style="font-size:40px;margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 2l2.7 6.6L21 10l-5 4.5L17.5 21 12 17.5 6.5 21 8 14.5 3 10l6.3-1.4Z"/></svg></div>
       <div class="h1" style="font-size:26px;">SÉANCE VALIDÉE</div>
       <div class="subtitle">${esc(day.day)} : ${esc(day.name)} · ${formatDateFR(log.date)}</div>
     </div>
     ${state.recapPRs && state.recapPRs.length > 0 ? `
     <div class="info-box" style="text-align:center;">
-      🏆 <strong>Nouveau${state.recapPRs.length > 1 ? "x" : ""} record${state.recapPRs.length > 1 ? "s" : ""} !</strong><br/>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M7 4h10v4a5 5 0 0 1-10 0Z"/><path d="M5 6H3v1a4 4 0 0 0 4 4"/><path d="M19 6h2v1a4 4 0 0 1-4 4"/><line x1="12" y1="14" x2="12" y2="18"/><path d="M8 21h8"/><path d="M10 18h4v3h-4Z"/></svg> <strong>Nouveau${state.recapPRs.length > 1 ? "x" : ""} record${state.recapPRs.length > 1 ? "s" : ""} !</strong><br/>
       ${state.recapPRs.map(pr => `${esc(pr.name)} : ${pr.weight}kg`).join(" · ")}
     </div>` : ""}
     <div class="stat-row">
-      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${Math.round(totalTonnage).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage total</div></div>
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg></div><div class="stat-value">${Math.round(totalTonnage).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage total</div></div>
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">✓</div><div class="stat-value">${totalSets}</div><div class="stat-label">Séries effectuées</div></div>
     </div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:20px;">
@@ -2634,7 +2634,7 @@ function renderNutrition() {
     </div>`;
 
   if (!t) {
-    html += `<div class="empty-state">🍎<div>Ton coach n'a pas encore défini tes objectifs nutritionnels.</div></div>`;
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg><div>Ton coach n'a pas encore défini tes objectifs nutritionnels.</div></div>`;
   } else {
     html += `<div class="chart-card" style="margin-bottom:20px;">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--textDim);margin-bottom:8px;">
@@ -2656,11 +2656,11 @@ function renderNutrition() {
     html += `<button class="back-btn" data-back-meal="1" style="margin-bottom:12px;">← Retour aux repas</button>`;
     html += `<div class="section-label" style="margin-top:0;">Ajouter à : ${mealLabels[state.nutritionActiveMeal] || "Autres"}</div>`;
     html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recherche" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recherche">🔍<br/>Chercher</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent">🕐<br/>Récent</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="frequent">🔥<br/>Top</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "scanned" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="scanned">📷<br/>Scan</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recipes" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recipes">📖<br/>Recettes</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recherche" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recherche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><br/>Chercher</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><br/>Récent</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="frequent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg><br/>Top</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "scanned" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="scanned"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg><br/>Scan</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recipes" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recipes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><br/>Recettes</button>
   </div>`;
 
   if (state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") {
@@ -2688,7 +2688,7 @@ function renderNutrition() {
       list = Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 20).map(c => c.entry);
     }
     if (list.length === 0) {
-      html += `<div class="empty-state">🍽️<div>Pas encore d'historique alimentaire.</div></div>`;
+      html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg><div>Pas encore d'historique alimentaire.</div></div>`;
     } else {
       html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
       list.forEach(f => {
@@ -2709,7 +2709,7 @@ function renderNutrition() {
       return html;
     }
     if (state.scannedProducts.length === 0) {
-      html += `<div class="empty-state">📷<div>Aucun produit scanné pour l'instant.</div><div style="font-size:13px;">Scanne un code-barres pour l'ajouter ici, il sera instantané la prochaine fois — même pour un autre client.</div></div>`;
+      html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg><div>Aucun produit scanné pour l'instant.</div><div style="font-size:13px;">Scanne un code-barres pour l'ajouter ici, il sera instantané la prochaine fois — même pour un autre client.</div></div>`;
     } else {
       html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
       state.scannedProducts.forEach(p => {
@@ -2766,15 +2766,15 @@ function renderNutrition() {
         });
       });
       if (state.recipes.length === 0) {
-        html += `<div class="empty-state">📖<div>Ton coach n'a pas encore ajouté de recette.</div></div>`;
+        html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><div>Ton coach n'a pas encore ajouté de recette.</div></div>`;
       }
     }
   } else {
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-      <div style="font-weight:700;margin-bottom:10px;">🔍 Ajouter un aliment</div>
+      <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg> Ajouter un aliment</div>
       <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" autocomplete="off" autocorrect="off" style="margin-bottom:10px;" />
       <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;margin-bottom:8px;">Rechercher</button>
-      <button data-open-scanner="1" style="width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:8px;">📷 Scanner un code-barres</button>
+      <button data-open-scanner="1" style="width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> Scanner un code-barres</button>
       <button data-toggle-create-food="1" style="width:100%;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;font-size:13px;">+ Créer mon propre aliment</button>
     </div></div>`;
 
@@ -2804,7 +2804,7 @@ function renderNutrition() {
       state.foodSearchResults.forEach((food, i) => {
         html += `<button class="day-card" data-select-food="${i}">
           <div class="day-left"><div>
-            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🌱 brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">📷 scanné</span>` : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">🍔 fast food</span>` : ""}</div>
+            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 21c0-8 4-14 14-16-1 9-6 14-14 16Z"/><path d="M5 21c2-3 4-5 8-7"/></svg> brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>` : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>` : ""}</div>
             <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
           </div></div>
           <span style="color:var(--textDim);">›</span>
@@ -2839,11 +2839,11 @@ function renderNutrition() {
 
 function renderMealSections() {
   const meals = [
-    { key: "petit_dejeuner", label: "🌅 Petit déjeuner" },
-    { key: "midi", label: "🍽️ Midi" },
-    { key: "encas", label: "🍌 Encas (4h)" },
-    { key: "soir", label: "🌙 Soir" },
-    { key: "autres", label: "🍪 Autres" },
+    { key: "petit_dejeuner", label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="14" r="4"/><line x1="12" y1="4" x2="12" y2="7"/><line x1="4.5" y1="14" x2="19.5" y2="14"/><line x1="3" y1="19" x2="21" y2="19"/><line x1="5.5" y1="8.5" x2="7.3" y2="10.3"/><line x1="18.5" y1="8.5" x2="16.7" y2="10.3"/></svg> Petit déjeuner` },
+    { key: "midi", label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg> Midi` },
+    { key: "encas", label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M6 4c0 8 1 14 8 15 4 .5 7-2 7-5-3 2-6 1-8-1C10 10 9 6 6 4Z"/></svg> Encas (4h)` },
+    { key: "soir", label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg> Soir` },
+    { key: "autres", label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="10" cy="15" r="1" fill="currentColor" stroke="none"/></svg> Autres` },
   ];
   let html = "";
   meals.forEach(m => {
@@ -2859,7 +2859,7 @@ function renderMealSections() {
           <div class="day-title">${esc(f.food_name)}</div>
           <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal · ${Math.round(f.protein)}p / ${Math.round(f.carbs)}g / ${Math.round(f.fat)}l</div>
         </div></div>
-        <button data-delete-food="${f.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:6px 10px;">🗑</button>
+        <button data-delete-food="${f.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:6px 10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
       </div>`;
     });
     html += `<button data-open-meal="${m.key}" style="display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--border);border-radius:14px;padding:12px;background:none;color:var(--textDim);width:100%;margin-bottom:16px;">+ Ajouter</button>`;
@@ -2883,7 +2883,7 @@ function renderDocuments() {
     return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state">Chargement…</div>`;
   }
   if (state.documents.length === 0) {
-    return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state">📄<div>Aucun document pour l'instant.</div></div>`;
+    return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div>Aucun document pour l'instant.</div></div>`;
   }
 
   const groups = {};
@@ -2904,7 +2904,7 @@ function renderDocuments() {
     groups[cat].forEach(doc => {
       html += `<a href="${esc(doc.file_url)}" target="_blank" rel="noopener" class="day-card" style="text-decoration:none;">
         <div class="day-left">
-          <div class="day-num">📄</div>
+          <div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
           <div><div class="day-title">${esc(doc.title)}</div><div class="day-sub">${formatDateFR(doc.created_at.slice(0, 10))} · ouvrir le PDF</div></div>
         </div>
         <span style="color:var(--textDim);">›</span>
@@ -2919,7 +2919,7 @@ function renderDocuments() {
   Object.keys(groups).sort().forEach(cat => {
     html += `<button class="day-card" data-open-doc-category="${esc(cat)}">
       <div class="day-left">
-        <div class="day-num">📁</div>
+        <div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div>
         <div><div class="day-title">${esc(cat)}</div><div class="day-sub">${groups[cat].length} document${groups[cat].length > 1 ? "s" : ""}</div></div>
       </div>
       <span style="color:var(--textDim);">›</span>
@@ -2938,7 +2938,7 @@ function renderHistorique() {
     <div class="h1" style="font-size:26px;margin-top:10px;">HISTORIQUE</div>
     <div class="subtitle">Toutes tes séances validées — appuie pour consulter ou corriger</div>`;
   if (logs.length === 0) {
-    html += `<div class="empty-state">📜<div>Aucune séance validée pour l'instant.</div></div>`;
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/><polyline points="12 7 12 12 16 14"/></svg><div>Aucune séance validée pour l'instant.</div></div>`;
     return html;
   }
   logs.forEach(log => {
@@ -2996,7 +2996,7 @@ function renderHistoriqueDetail(logId) {
   });
   html += `<button class="validate-btn" data-save-history="${log.id}">✓ Enregistrer les modifications</button>`;
   html += `<button data-cancel-history="1" style="margin-top:10px;width:100%;padding:14px;border-radius:14px;border:1px solid var(--border);background:none;color:var(--textDim);font-weight:700;font-size:14.5px;">Annuler les modifications</button>`;
-  html += `<button data-delete-log="${log.id}" class="danger-btn" style="margin-top:22px;width:100%;">🗑 Supprimer cette séance de l'historique</button>`;
+  html += `<button data-delete-log="${log.id}" class="danger-btn" style="margin-top:22px;width:100%;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer cette séance de l'historique</button>`;
   return html;
 }
 
@@ -3081,7 +3081,7 @@ function renderTonnageProgress() {
   let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
 
   if (state.sessionLogs.length === 0) {
-    html += `<div class="empty-state">🏋️<div>Valide des séances pour voir ton tonnage total évoluer ici.</div></div>`;
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg><div>Valide des séances pour voir ton tonnage total évoluer ici.</div></div>`;
     return html;
   }
 
@@ -3104,8 +3104,8 @@ function renderTonnageProgress() {
   const totalAllTime = weeks.reduce((s, wk) => s + weekly[wk], 0);
 
   html += `<div class="stat-row">
-    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${Math.round(totalAllTime).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage cumulé total</div></div>
-    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">📅</div><div class="stat-value">${Math.round(weekly[weeks[weeks.length - 1]]).toLocaleString("fr-FR")} kg</div><div class="stat-label">Cette semaine</div></div>
+    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg></div><div class="stat-value">${Math.round(totalAllTime).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage cumulé total</div></div>
+    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="stat-value">${Math.round(weekly[weeks[weeks.length - 1]]).toLocaleString("fr-FR")} kg</div><div class="stat-label">Cette semaine</div></div>
   </div>`;
 
   html += `<div class="chart-card">
@@ -3139,7 +3139,7 @@ function renderBodyProgress() {
   }
   const withWeight = checkins.filter(c => c.bodyweight != null);
   if (withWeight.length === 0) {
-    html += `<div class="empty-state">⚖️<div>Pas encore de bilan avec un poids renseigné.</div></div>`;
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3v18"/><path d="M5 7l-3 7a4 4 0 0 0 6 0Z"/><path d="M19 7l-3 7a4 4 0 0 0 6 0Z"/><path d="M5 7h14"/><path d="M8 21h8"/></svg><div>Pas encore de bilan avec un poids renseigné.</div></div>`;
   } else {
     const w = 300, h = 160, padX = 24, padY = 16;
     const maxKg = Math.max(...withWeight.map(c => c.bodyweight));
@@ -3167,7 +3167,7 @@ function renderBodyProgress() {
 
   const withPhotos = [...checkins].reverse().filter(c => c.photo_front_url || c.photo_back_url || c.photo_side_url);
   if (withPhotos.length === 0) {
-    html += `<div class="empty-state">📸<div>Pas encore de photo de bilan.</div></div>`;
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg><div>Pas encore de photo de bilan.</div></div>`;
   } else {
     html += `<div class="section-label">Photos, du plus récent au plus ancien</div>`;
     withPhotos.forEach(c => {
@@ -3203,7 +3203,7 @@ function renderProgress() {
     </select>`;
 
   if (hist.length === 0) {
-    html += `<div class="empty-state">🏋️<div>Pas encore de données pour cet exercice.</div>
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg><div>Pas encore de données pour cet exercice.</div>
       <div style="font-size:13px;">Valide une séance pour voir ta progression ici.</div></div>`;
   } else {
     const points = hist.map(entry => {
@@ -3337,25 +3337,25 @@ function renderProfil() {
     <div class="h1" style="font-size:26px;margin-top:20px;">PROFIL</div>
     <div class="subtitle">${esc(state.client.name)}</div>
     <button class="day-card" data-open-checkin="1" style="border:1.5px solid var(--accent);background:rgba(0,0,0,0.02);">
-      <div class="day-left"><div class="day-num" style="background:var(--accent);color:var(--accentText);">📋</div>
+      <div class="day-left"><div class="day-num" style="background:var(--accent);color:var(--accentText);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg></div>
         <div><div class="day-title">Bilan hebdomadaire</div><div class="day-sub">${state.checkinSubmittedThisWeek ? "✓ Envoyé cette semaine" : "⏰ À remplir cette semaine"}</div></div>
       </div>
       <span style="color:var(--accent);font-weight:700;">›</span>
     </button>
     <div class="stat-row">
-      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Semaine${streak > 1 ? "s" : ""} d'affilée sans manquer</div></div>
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg></div><div class="stat-value">${streak}</div><div class="stat-label">Semaine${streak > 1 ? "s" : ""} d'affilée sans manquer</div></div>
       <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">✓</div><div class="stat-value">${totalSessions}</div><div class="stat-label">Séances validées</div></div>
-      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;">🏋️</div><div class="stat-value">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
+      <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg></div><div class="stat-value">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
     </div>
     <div class="section-label">Mon suivi</div>
     <button class="day-card" data-goto-tab="historique">
-      <div class="day-left"><div class="day-num">📜</div>
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/><polyline points="12 7 12 12 16 14"/></svg></div>
         <div><div class="day-title">Historique complet</div><div class="day-sub">Consulter ou corriger une séance passée</div></div>
       </div>
       <span style="color:var(--textDim);">›</span>
     </button>
     <button class="day-card" data-toggle-ics-form="1">
-      <div class="day-left"><div class="day-num">🔔</div>
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></div>
         <div><div class="day-title">Rappel dans mon calendrier</div><div class="day-sub">Un rappel chaque semaine, sur tes jours d'entraînement</div></div>
       </div>
       <span style="color:var(--textDim);">›</span>
@@ -3364,13 +3364,13 @@ function renderProfil() {
     <div class="ex-card"><div class="ex-body" style="padding-top:16px;">
       <div style="font-weight:700;margin-bottom:10px;">À quelle heure veux-tu être prévenu ?</div>
       <input id="icsTimeInput" type="time" value="18:00" style="margin-bottom:12px;" />
-      <button class="validate-btn" id="downloadIcsBtn" style="margin-top:0;">📅 Télécharger le rappel</button>
+      <button class="validate-btn" id="downloadIcsBtn" style="margin-top:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Télécharger le rappel</button>
       <div style="font-size:12px;color:var(--textDim);margin-top:10px;line-height:1.5;">Un fichier se télécharge — ouvre-le, ton téléphone te proposera de l'ajouter à ton appli Calendrier. Ça se répète chaque semaine, sur chacun de tes jours d'entraînement, sans rien à refaire.</div>
     </div></div>` : ""}
     <div class="section-label" style="margin-top:20px;">Compte</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
       <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">Tes données sont sauvegardées en ligne, liées à ton code d'accès personnel.</div>
-      <button style="background:none;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 16px;font-weight:700;margin-bottom:10px;width:100%;" data-export-data="1">📤 Exporter mes données</button>
+      <button style="background:none;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 16px;font-weight:700;margin-bottom:10px;width:100%;" data-export-data="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3v12"/><polyline points="7 8 12 3 17 8"/><path d="M5 21h14"/></svg> Exporter mes données</button>
       <button class="danger-btn" data-logout="1">Changer de compte / me déconnecter</button>
       <div style="font-size:12px;color:var(--textDim);margin-top:12px;line-height:1.5;">Pour supprimer ton compte et tes données, contacte directement ton coach.</div>
     </div>
@@ -3459,7 +3459,7 @@ function renderCheckinCurrent() {
   html += `</div></div>`;
 
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:12px;">📏 Mensurations</div>
+    <div style="font-weight:700;margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="8" width="18" height="8" rx="1"/><line x1="7" y1="8" x2="7" y2="11"/><line x1="11" y1="8" x2="11" y2="11"/><line x1="15" y1="8" x2="15" y2="11"/></svg> Mensurations</div>
     <div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">Poids actuel (à jeun)</div>
     <input id="bodyweight" placeholder="kg" value="${d.bodyweight ?? ""}" style="margin-bottom:12px;" />
     <div class="row"><input id="armLeft" placeholder="Bras gauche contracté (cm)" value="${d.arm_left ?? ""}" /><input id="armRight" placeholder="Bras droit contracté (cm)" value="${d.arm_right ?? ""}" /></div>
@@ -3468,7 +3468,7 @@ function renderCheckinCurrent() {
   </div></div>`;
 
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:12px;">📸 Photos & pas</div>
+    <div style="font-weight:700;margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> Photos & pas</div>
     ${photoField("photoFront", "Photo de face", state.checkinExisting?.photo_front_url)}
     ${photoField("photoBack", "Photo de dos", state.checkinExisting?.photo_back_url)}
     ${photoField("photoSide", "Photo de profil", state.checkinExisting?.photo_side_url)}
@@ -3485,7 +3485,7 @@ function renderCheckinHistorique() {
   }
   const past = [...state.checkinsHistory].sort((a, b) => b.created_at.localeCompare(a.created_at));
   if (past.length === 0) {
-    return `<div class="empty-state">📋<div>Aucun bilan envoyé pour l'instant.</div></div>`;
+    return `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg><div>Aucun bilan envoyé pour l'instant.</div></div>`;
   }
   return past.map(ck => `
     <div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -4089,7 +4089,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
 document.getElementById("themeToggle").onclick = () => {
   state.dark = !state.dark;
   document.body.className = state.dark ? "dark" : "light";
-  document.getElementById("themeToggle").textContent = state.dark ? "🌙" : "☀️";
+  document.getElementById("themeToggle").innerHTML = state.dark ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4" y1="12" x2="2" y2="12"/><line x1="22" y1="12" x2="20" y2="12"/><line x1="5" y1="5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19" y2="19"/><line x1="5" y1="19" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19" y2="5"/></svg>`;
 };
 
 document.getElementById("scannerCloseBtn").onclick = () => { closeScanner(); };
