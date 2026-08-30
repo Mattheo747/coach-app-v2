@@ -1356,9 +1356,16 @@ function renderProgramBuilder() {
             <input data-b-field="muscle" data-idx="${i}" value="${esc(e.muscle)}" style="flex:1;" placeholder="muscle" />
           </div>
           <div class="row">
-            <input data-b-field="sets" data-idx="${i}" value="${esc(e.sets)}" placeholder="ex: 3x8-10" />
-            <input data-b-field="rest" data-idx="${i}" value="${esc(e.rest)}" placeholder="repos" style="width:90px;" />
+            <input data-b-field="rest" data-idx="${i}" value="${esc(e.rest)}" placeholder="repos (ex: 90s)" />
           </div>
+          <div style="font-size:12px;color:var(--textDim);margin:6px 0 4px;">Séries (reps par série)</div>
+          ${parseTargetSets(e.sets).map((reps, si) => `
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+              <div style="width:22px;text-align:center;font-size:12.5px;color:var(--textDim);">${si + 1}</div>
+              <input data-b-set-reps="${si}" data-idx="${i}" value="${esc(reps === "-" ? "" : reps)}" placeholder="ex: 8-10" style="flex:1;" />
+              <button data-b-remove-set="${si}" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">✕</button>
+            </div>`).join("")}
+          <button data-b-add-set="${i}" style="width:100%;border:1px dashed var(--border);background:none;color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:10px;">+ Ajouter une série</button>
           <input data-b-field="video" data-idx="${i}" value="${esc(e.video || "")}" placeholder="lien vidéo (optionnel)" style="margin-bottom:10px;" />
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             <button data-b-move="up" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">↑</button>
@@ -1866,6 +1873,38 @@ async function attachCoachHandlers() {
       const field = inp.dataset.bField;
       day.exercises[idx][field] = field === "video" ? (inp.value.trim() || null) : inp.value;
     };
+  });
+
+  document.querySelectorAll("[data-b-set-reps]").forEach(inp => {
+    inp.onblur = () => {
+      const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+      const idx = parseInt(inp.dataset.idx, 10);
+      const si = parseInt(inp.dataset.bSetReps, 10);
+      const setsList = parseTargetSets(day.exercises[idx].sets);
+      setsList[si] = inp.value.trim() || "-";
+      day.exercises[idx].sets = setsList.join(", ");
+    };
+  });
+
+  document.querySelectorAll("[data-b-add-set]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const idx = parseInt(b.dataset.bAddSet, 10);
+    const setsList = parseTargetSets(day.exercises[idx].sets);
+    const lastReps = setsList.length ? setsList[setsList.length - 1] : "8-10";
+    setsList.push(lastReps === "-" ? "8-10" : lastReps);
+    day.exercises[idx].sets = setsList.join(", ");
+    render();
+  });
+
+  document.querySelectorAll("[data-b-remove-set]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const idx = parseInt(b.dataset.idx, 10);
+    const si = parseInt(b.dataset.bRemoveSet, 10);
+    const setsList = parseTargetSets(day.exercises[idx].sets);
+    if (setsList.length <= 1) { showToast("Il faut garder au moins une série."); return; }
+    setsList.splice(si, 1);
+    day.exercises[idx].sets = setsList.join(", ");
+    render();
   });
 
   document.querySelectorAll("[data-b-move]").forEach(b => b.onclick = () => {
