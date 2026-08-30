@@ -197,7 +197,13 @@ const ACCESS_KEY = "mattheophysic_access_code";
 const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
+// en UTC et afficherait donc parfois la mauvaise date, juste après minuit en France).
+function localDateStr(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+const todayISO = () => localDateStr(new Date());
 
 function getDeadlineDate() {
   const cs = state.checkinSettings;
@@ -224,6 +230,18 @@ function isoWeekKey(dateStr) {
   const firstThursday = new Date(d.getFullYear(), 0, 4);
   const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
   return `${d.getFullYear()}-W${week}`;
+}
+
+// Accepte les nombres saisis avec une virgule (ex: "82,5") comme avec un point.
+function toNum(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = parseFloat(String(v).trim().replace(",", "."));
+  return isNaN(n) ? null : n;
+}
+// Réaffiche un nombre stocké (point) avec une virgule, comme un Français l'écrit.
+function formatNum(v) {
+  if (v === null || v === undefined || v === "") return null;
+  return String(v).replace(".", ",");
 }
 
 function parseTargetSets(str) {
@@ -258,7 +276,7 @@ function buildSuggestion(lastEntry, targetRows) {
   if (!lastEntry || !lastEntry.sets || !lastEntry.sets[0]) return null;
   const first = lastEntry.sets[0];
   const repsNum = parseInt(first.reps, 10);
-  const kg = parseFloat(first.kg);
+  const kg = toNum(first.kg);
   if (isNaN(repsNum) || isNaN(kg)) return null;
   const top = rangeTop(targetRows[0]) || firstRepNumber(targetRows[0]);
   if (top && repsNum >= top) {
@@ -1459,7 +1477,7 @@ function renderCoachScreen() {
         ${program.map((d, idx) => {
           const dayDate = new Date(monday);
           dayDate.setDate(monday.getDate() + idx);
-          const dayStr = dayDate.toISOString().slice(0, 10);
+          const dayStr = localDateStr(dayDate);
           let status, color;
           if (d.isRest) { status = "Repos"; color = "var(--textDim)"; }
           else if (doneDays.includes(d.id)) { status = "✅ Fait"; color = "var(--accent)"; }
@@ -1513,11 +1531,11 @@ function renderCoachScreen() {
             ${ckRow("Douleurs (hors courbatures)", ck.pain_other === true ? `Oui — ${esc(ck.pain_detail || "")}` : ck.pain_other === false ? "Non" : "—")}
             ${ckRow("Nutrition respectée", esc(ck.nutrition_respect || "—"))}
             ${ckRow("Séances manquées", ck.missed_sessions === true ? `Oui — ${esc(ck.missed_reason || "")}` : ck.missed_sessions === false ? "Non" : "—")}
-            ${ckRow("Poids actuel (à jeun)", ck.bodyweight != null ? `${ck.bodyweight}kg` : "—")}
-            ${ckRow("Bras gauche / droit", `${ck.arm_left ?? "—"} / ${ck.arm_right ?? "—"} cm`)}
-            ${ckRow("Jambe gauche / droite", `${ck.leg_left ?? "—"} / ${ck.leg_right ?? "—"} cm`)}
-            ${ckRow("Tour d'épaules", ck.shoulders != null ? `${ck.shoulders}cm` : "—")}
-            ${ckRow("Tour de taille", ck.waist != null ? `${ck.waist}cm` : "—")}
+            ${ckRow("Poids actuel (à jeun)", ck.bodyweight != null ? `${formatNum(ck.bodyweight)}kg` : "—")}
+            ${ckRow("Bras gauche / droit", `${formatNum(ck.arm_left) ?? "—"} / ${formatNum(ck.arm_right) ?? "—"} cm`)}
+            ${ckRow("Jambe gauche / droite", `${formatNum(ck.leg_left) ?? "—"} / ${formatNum(ck.leg_right) ?? "—"} cm`)}
+            ${ckRow("Tour d'épaules", ck.shoulders != null ? `${formatNum(ck.shoulders)}cm` : "—")}
+            ${ckRow("Tour de taille", ck.waist != null ? `${formatNum(ck.waist)}cm` : "—")}
             <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
               ${ck.photo_front_url ? `<a href="${esc(ck.photo_front_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo face</a>` : ""}
               ${ck.photo_back_url ? `<a href="${esc(ck.photo_back_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo dos</a>` : ""}
@@ -1553,7 +1571,7 @@ function renderCoachScreen() {
         <div class="section-label">Pas, eau et message</div>
         <div class="row" style="margin-bottom:10px;">
           <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" />
-          <input id="fWater" placeholder="objectif d'eau (L/jour)" value="${c.water ?? ""}" inputmode="decimal" />
+          <input id="fWater" placeholder="objectif d'eau (L/jour)" value="${c.water ?? ""}" />
         </div>
         <textarea id="fMessage" placeholder="Message affiché sur son accueil…" rows="3" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
         <div class="section-label">⏰ Échéance de son bilan hebdomadaire</div>
@@ -1632,12 +1650,12 @@ function renderCoachScreen() {
       <option value="Dessert">Dessert</option>
     </select>
     <div class="row">
-      <input id="newRecipeKcal" placeholder="kcal" inputmode="decimal" />
-      <input id="newRecipeProtein" placeholder="protéines g" inputmode="decimal" />
+      <input id="newRecipeKcal" placeholder="kcal" />
+      <input id="newRecipeProtein" placeholder="protéines g" />
     </div>
     <div class="row" style="margin-bottom:10px;">
-      <input id="newRecipeCarbs" placeholder="glucides g" inputmode="decimal" />
-      <input id="newRecipeFat" placeholder="lipides g" inputmode="decimal" />
+      <input id="newRecipeCarbs" placeholder="glucides g" />
+      <input id="newRecipeFat" placeholder="lipides g" />
     </div>
     <textarea id="newRecipeIngredients" placeholder="Ingrédients" rows="2" style="margin-bottom:10px;"></textarea>
     <textarea id="newRecipeInstructions" placeholder="Préparation" rows="3" style="margin-bottom:10px;"></textarea>
@@ -2096,10 +2114,10 @@ async function attachCoachHandlers() {
   if (createRecipeBtn) createRecipeBtn.onclick = async () => {
     const title = document.getElementById("newRecipeTitle").value.trim();
     const category = document.getElementById("newRecipeCategory").value;
-    const kcal = parseFloat(document.getElementById("newRecipeKcal").value);
-    const protein = parseFloat(document.getElementById("newRecipeProtein").value) || 0;
-    const carbs = parseFloat(document.getElementById("newRecipeCarbs").value) || 0;
-    const fat = parseFloat(document.getElementById("newRecipeFat").value) || 0;
+    const kcal = toNum(document.getElementById("newRecipeKcal").value);
+    const protein = toNum(document.getElementById("newRecipeProtein").value) || 0;
+    const carbs = toNum(document.getElementById("newRecipeCarbs").value) || 0;
+    const fat = toNum(document.getElementById("newRecipeFat").value) || 0;
     const ingredients = document.getElementById("newRecipeIngredients").value.trim();
     const instructions = document.getElementById("newRecipeInstructions").value.trim();
     if (!title || isNaN(kcal)) { alert("Donne au moins un titre et des kcal."); return; }
@@ -2163,7 +2181,7 @@ async function attachCoachHandlers() {
     const jsDay = (now.getDay() + 6) % 7;
     const monday = new Date(now);
     monday.setDate(now.getDate() - jsDay);
-    const mondayStr = monday.toISOString().slice(0, 10);
+    const mondayStr = localDateStr(monday);
     const { data } = await sb.from("session_logs").select("day_id, log_date").eq("client_id", clientId).gte("log_date", mondayStr);
     c.scheduleDone = [...new Set((data || []).map(l => l.day_id))];
     state.coachViewingScheduleId = clientId;
@@ -2217,7 +2235,7 @@ async function attachCoachHandlers() {
     };
     const stepsVal = val("fSteps");
     const waterValRaw = document.getElementById("fWater").value;
-    const waterVal = waterValRaw === "" ? null : parseFloat(waterValRaw);
+    const waterVal = toNum(waterValRaw);
     const messageVal = document.getElementById("fMessage").value;
     const deadlineDay = document.getElementById("fDeadlineDay").value;
     const deadlineTime = document.getElementById("fDeadlineTime").value;
@@ -2406,7 +2424,7 @@ function renderExerciseCard(exo, day, opts) {
       inner += `<div class="set-row">
         <div class="set-num">${i + 1}</div>
         <input data-set-field="reps" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.reps)}" />
-        <input data-set-field="kg" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.kg)}" placeholder="kg" inputmode="decimal" />
+        <input data-set-field="kg" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.kg)}" placeholder="kg" />
       </div>`;
     });
 
@@ -2483,7 +2501,7 @@ function renderRecap(logId) {
     let exTonnage = 0;
     sets.forEach(s => {
       const reps = parseInt(s.reps, 10) || 0;
-      const kg = parseFloat(s.kg) || 0;
+      const kg = toNum(s.kg) || 0;
       exTonnage += reps * kg;
       totalSets++;
     });
@@ -2569,7 +2587,7 @@ function renderWeekBubbles() {
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = localDateStr(d);
     const isSelected = dateStr === state.nutritionSelectedDate;
     const isToday = dateStr === todayStr;
     html += `<button data-select-nutrition-date="${dateStr}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;border-radius:12px;border:${isToday && !isSelected ? "1.5px solid var(--accent)" : "1px solid var(--border)"};background:${isSelected ? "var(--accent)" : "transparent"};">
@@ -2762,12 +2780,12 @@ function renderNutrition() {
         <div style="font-weight:700;margin-bottom:10px;">Nouvel aliment (valeurs pour 100g)</div>
         <input id="newFoodName" placeholder="Nom de l'aliment" style="margin-bottom:10px;" />
         <div class="row">
-          <input id="newFoodKcal" placeholder="kcal" inputmode="decimal" />
-          <input id="newFoodProtein" placeholder="protéines g" inputmode="decimal" />
+          <input id="newFoodKcal" placeholder="kcal" />
+          <input id="newFoodProtein" placeholder="protéines g" />
         </div>
         <div class="row" style="margin-bottom:10px;">
-          <input id="newFoodCarbs" placeholder="glucides g" inputmode="decimal" />
-          <input id="newFoodFat" placeholder="lipides g" inputmode="decimal" />
+          <input id="newFoodCarbs" placeholder="glucides g" />
+          <input id="newFoodFat" placeholder="lipides g" />
         </div>
         <div style="display:flex;gap:8px;">
           <button class="validate-btn" id="createFoodBtn" style="margin-top:0;flex:1;">✓ Créer et utiliser</button>
@@ -2800,7 +2818,7 @@ function renderNutrition() {
       <div style="font-size:13px;color:var(--textDim);margin-bottom:12px;">${f.kcalPer100} kcal · ${f.proteinPer100}g prot · ${f.carbsPer100}g gluc · ${f.fatPer100}g lip — pour 100g</div>
       <div class="row">
         <span style="color:var(--textDim);font-size:13px;">Poids pesé</span>
-        <input id="foodGramsInput" inputmode="decimal" placeholder="grammes" value="${f.defaultGrams || ""}" style="width:100px;" />
+        <input id="foodGramsInput" placeholder="grammes" value="${f.defaultGrams || ""}" style="width:100px;" />
         <span style="color:var(--textDim);font-size:13px;">g</span>
       </div>
       <div style="display:flex;gap:8px;">
@@ -2925,7 +2943,7 @@ function renderHistorique() {
     if (!day) return;
     let tonnage = 0, sets = 0;
     Object.values(log.entries).forEach(arr => arr.forEach(s => {
-      tonnage += (parseInt(s.reps, 10) || 0) * (parseFloat(s.kg) || 0);
+      tonnage += (parseInt(s.reps, 10) || 0) * (toNum(s.kg) || 0);
       sets++;
     }));
     html += `<button class="day-card" data-open-log="${log.id}">
@@ -2968,7 +2986,7 @@ function renderHistoriqueDetail(logId) {
           <div class="set-row">
             <div class="set-num">${i + 1}</div>
             <input data-hist-field="reps" data-log-id="${log.id}" data-ex-id="${e.id}" data-idx="${i}" value="${esc(s.reps)}" />
-            <input data-hist-field="kg" data-log-id="${log.id}" data-ex-id="${e.id}" data-idx="${i}" value="${esc(s.kg)}" inputmode="decimal" />
+            <input data-hist-field="kg" data-log-id="${log.id}" data-ex-id="${e.id}" data-idx="${i}" value="${esc(s.kg)}" />
           </div>`).join("")}
       </div>
     </div>`;
@@ -3021,7 +3039,7 @@ function renderCalendarView() {
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateObj = new Date(year, month, day);
-    const dateStr = dateObj.toISOString().slice(0, 10);
+    const dateStr = localDateStr(dateObj);
     const dayName = order[dateObj.getDay()];
     const programDay = state.program.find(d => d.day === dayName);
     const isRest = programDay ? programDay.isRest : true;
@@ -3051,7 +3069,7 @@ function renderCalendarView() {
 function logTonnage(log) {
   let t = 0;
   Object.values(log.entries).forEach(sets => sets.forEach(s => {
-    t += (parseInt(s.reps, 10) || 0) * (parseFloat(s.kg) || 0);
+    t += (parseInt(s.reps, 10) || 0) * (toNum(s.kg) || 0);
   }));
   return t;
 }
@@ -3187,7 +3205,7 @@ function renderProgress() {
   } else {
     const points = hist.map(entry => {
       const best = entry.sets.reduce((max, s) => {
-        const kg = parseFloat(s.kg) || 0;
+        const kg = toNum(s.kg) || 0;
         return kg > max.kg ? { kg, reps: s.reps } : max;
       }, { kg: 0, reps: "" });
       return { date: entry.date, kg: best.kg, reps: best.reps };
@@ -3300,7 +3318,7 @@ function computeStreak() {
   let d = new Date();
   d.setDate(d.getDate() - 7);
   for (let i = 0; i < 104; i++) {
-    const wk = isoWeekKey(d.toISOString().slice(0, 10));
+    const wk = isoWeekKey(localDateStr(d));
     if (isComplete(wk)) { streak++; d.setDate(d.getDate() - 7); }
     else break;
   }
@@ -3387,8 +3405,8 @@ function renderCheckinCurrent() {
         Ressenti : <strong style="color:var(--text);">${ck.feeling ?? "—"}/5</strong> · Sommeil : <strong style="color:var(--text);">${ck.sleep_quality ?? "—"}/5</strong> · Stress : <strong style="color:var(--text);">${ck.stress_level ?? "—"}/5</strong> · Motivation : <strong style="color:var(--text);">${ck.motivation ?? "—"}/5</strong><br/>
         Eau 3L/jour : <strong style="color:var(--text);">${ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—"}</strong> · Douleurs : <strong style="color:var(--text);">${ck.pain_other === true ? "Oui" : ck.pain_other === false ? "Non" : "—"}</strong><br/>
         Nutrition respectée : <strong style="color:var(--text);">${esc(ck.nutrition_respect || "—")}</strong> · Séances manquées : <strong style="color:var(--text);">${ck.missed_sessions === true ? "Oui" : ck.missed_sessions === false ? "Non" : "—"}</strong><br/>
-        Poids : <strong style="color:var(--text);">${ck.bodyweight ?? "—"}kg</strong> · Bras G/D : <strong style="color:var(--text);">${ck.arm_left ?? "—"}/${ck.arm_right ?? "—"}cm</strong> · Jambe G/D : <strong style="color:var(--text);">${ck.leg_left ?? "—"}/${ck.leg_right ?? "—"}cm</strong><br/>
-        Épaules : <strong style="color:var(--text);">${ck.shoulders ?? "—"}cm</strong> · Taille : <strong style="color:var(--text);">${ck.waist ?? "—"}cm</strong>
+        Poids : <strong style="color:var(--text);">${formatNum(ck.bodyweight) ?? "—"}kg</strong> · Bras G/D : <strong style="color:var(--text);">${formatNum(ck.arm_left) ?? "—"}/${formatNum(ck.arm_right) ?? "—"}cm</strong> · Jambe G/D : <strong style="color:var(--text);">${formatNum(ck.leg_left) ?? "—"}/${formatNum(ck.leg_right) ?? "—"}cm</strong><br/>
+        Épaules : <strong style="color:var(--text);">${formatNum(ck.shoulders) ?? "—"}cm</strong> · Taille : <strong style="color:var(--text);">${formatNum(ck.waist) ?? "—"}cm</strong>
       </div></div>
     `;
   }
@@ -3440,10 +3458,10 @@ function renderCheckinCurrent() {
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
     <div style="font-weight:700;margin-bottom:12px;">📏 Mensurations</div>
     <div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">Poids actuel (à jeun)</div>
-    <input id="bodyweight" inputmode="decimal" placeholder="kg" value="${d.bodyweight ?? ""}" style="margin-bottom:12px;" />
-    <div class="row"><input id="armLeft" inputmode="decimal" placeholder="Bras gauche contracté (cm)" value="${d.arm_left ?? ""}" /><input id="armRight" inputmode="decimal" placeholder="Bras droit contracté (cm)" value="${d.arm_right ?? ""}" /></div>
-    <div class="row"><input id="legLeft" inputmode="decimal" placeholder="Jambe gauche contractée (cm)" value="${d.leg_left ?? ""}" /><input id="legRight" inputmode="decimal" placeholder="Jambe droite contractée (cm)" value="${d.leg_right ?? ""}" /></div>
-    <div class="row"><input id="shoulders" inputmode="decimal" placeholder="Tour d'épaules (cm)" value="${d.shoulders ?? ""}" /><input id="waist" inputmode="decimal" placeholder="Tour de taille (cm)" value="${d.waist ?? ""}" /></div>
+    <input id="bodyweight" placeholder="kg" value="${d.bodyweight ?? ""}" style="margin-bottom:12px;" />
+    <div class="row"><input id="armLeft" placeholder="Bras gauche contracté (cm)" value="${d.arm_left ?? ""}" /><input id="armRight" placeholder="Bras droit contracté (cm)" value="${d.arm_right ?? ""}" /></div>
+    <div class="row"><input id="legLeft" placeholder="Jambe gauche contractée (cm)" value="${d.leg_left ?? ""}" /><input id="legRight" placeholder="Jambe droite contractée (cm)" value="${d.leg_right ?? ""}" /></div>
+    <div class="row"><input id="shoulders" placeholder="Tour d'épaules (cm)" value="${d.shoulders ?? ""}" /><input id="waist" placeholder="Tour de taille (cm)" value="${d.waist ?? ""}" /></div>
   </div></div>`;
 
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -3472,8 +3490,8 @@ function renderCheckinHistorique() {
       <div style="font-size:13.5px;color:var(--textDim);line-height:1.8;">
         Ressenti : <strong style="color:var(--text);">${ck.feeling ?? "—"}/5</strong> · Sommeil : <strong style="color:var(--text);">${ck.sleep_quality ?? "—"}/5</strong> · Stress : <strong style="color:var(--text);">${ck.stress_level ?? "—"}/5</strong> · Motivation : <strong style="color:var(--text);">${ck.motivation ?? "—"}/5</strong><br/>
         Eau 3L/jour : <strong style="color:var(--text);">${ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—"}</strong> · Douleurs : <strong style="color:var(--text);">${ck.pain_other === true ? "Oui" : ck.pain_other === false ? "Non" : "—"}</strong><br/>
-        Poids : <strong style="color:var(--text);">${ck.bodyweight ?? "—"}kg</strong> · Bras G/D : <strong style="color:var(--text);">${ck.arm_left ?? "—"}/${ck.arm_right ?? "—"}cm</strong> · Jambe G/D : <strong style="color:var(--text);">${ck.leg_left ?? "—"}/${ck.leg_right ?? "—"}cm</strong><br/>
-        Épaules : <strong style="color:var(--text);">${ck.shoulders ?? "—"}cm</strong> · Taille : <strong style="color:var(--text);">${ck.waist ?? "—"}cm</strong>
+        Poids : <strong style="color:var(--text);">${formatNum(ck.bodyweight) ?? "—"}kg</strong> · Bras G/D : <strong style="color:var(--text);">${formatNum(ck.arm_left) ?? "—"}/${formatNum(ck.arm_right) ?? "—"}cm</strong> · Jambe G/D : <strong style="color:var(--text);">${formatNum(ck.leg_left) ?? "—"}/${formatNum(ck.leg_right) ?? "—"}cm</strong><br/>
+        Épaules : <strong style="color:var(--text);">${formatNum(ck.shoulders) ?? "—"}cm</strong> · Taille : <strong style="color:var(--text);">${formatNum(ck.waist) ?? "—"}cm</strong>
       </div>
       <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
         ${ck.photo_front_url ? `<a href="${esc(ck.photo_front_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo face</a>` : ""}
@@ -3558,8 +3576,8 @@ function attachHandlers() {
         .map(r => ({ reps: r.reps, kg: r.kg }));
       if (filled.length) {
         entries[e.id] = filled;
-        const newMax = Math.max(...filled.map(r => parseFloat(r.kg) || 0));
-        const prevMax = Math.max(0, ...getExerciseHistory(e.id).flatMap(h => h.sets.map(s => parseFloat(s.kg) || 0)));
+        const newMax = Math.max(...filled.map(r => toNum(r.kg) || 0));
+        const prevMax = Math.max(0, ...getExerciseHistory(e.id).flatMap(h => h.sets.map(s => toNum(s.kg) || 0)));
         if (newMax > 0 && newMax > prevMax) prList.push({ name: e.name, weight: newMax });
       }
     });
@@ -3806,8 +3824,8 @@ function attachHandlers() {
   app.querySelectorAll("[data-reuse-food]").forEach(b => b.onclick = () => {
     const [name, kcal, protein, carbs, fat, grams] = b.dataset.reuseFood.split("|");
     state.selectedFood = {
-      name, kcalPer100: parseFloat(kcal), proteinPer100: parseFloat(protein),
-      carbsPer100: parseFloat(carbs), fatPer100: parseFloat(fat), defaultGrams: grams,
+      name, kcalPer100: toNum(kcal), proteinPer100: toNum(protein),
+      carbsPer100: toNum(carbs), fatPer100: toNum(fat), defaultGrams: grams,
     };
     render();
   });
@@ -3822,10 +3840,10 @@ function attachHandlers() {
   const createFoodBtn = app.querySelector("#createFoodBtn");
   if (createFoodBtn) createFoodBtn.onclick = async () => {
     const name = document.getElementById("newFoodName").value.trim();
-    const kcal = parseFloat(document.getElementById("newFoodKcal").value);
-    const protein = parseFloat(document.getElementById("newFoodProtein").value) || 0;
-    const carbs = parseFloat(document.getElementById("newFoodCarbs").value) || 0;
-    const fat = parseFloat(document.getElementById("newFoodFat").value) || 0;
+    const kcal = toNum(document.getElementById("newFoodKcal").value);
+    const protein = toNum(document.getElementById("newFoodProtein").value) || 0;
+    const carbs = toNum(document.getElementById("newFoodCarbs").value) || 0;
+    const fat = toNum(document.getElementById("newFoodFat").value) || 0;
     if (!name || isNaN(kcal)) { alert("Donne au moins un nom et des kcal pour 100g."); return; }
     createFoodBtn.textContent = "Création…";
     createFoodBtn.disabled = true;
@@ -3891,7 +3909,7 @@ function attachHandlers() {
   const addFoodBtn = app.querySelector("#addFoodBtn");
   if (addFoodBtn) addFoodBtn.onclick = async () => {
     if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour ajouter un aliment."); return; }
-    const grams = parseFloat(document.getElementById("foodGramsInput").value);
+    const grams = toNum(document.getElementById("foodGramsInput").value);
     if (!grams || grams <= 0) { alert("Entre un poids valide."); return; }
     const f = state.selectedFood;
     const ratio = grams / 100;
@@ -3975,7 +3993,7 @@ function attachHandlers() {
     const d = state.checkinDraft || {};
     const num = (id) => {
       const v = document.getElementById(id)?.value;
-      return v === "" || v === undefined ? null : parseFloat(v);
+      return toNum(v);
     };
 
     const uploadIfPresent = async (inputId, existingUrl) => {
