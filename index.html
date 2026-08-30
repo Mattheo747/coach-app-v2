@@ -9,6 +9,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Mathéophysique" />
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
@@ -17,9 +20,9 @@
     --text: #f2ece2; --textDim: #a89a86;
     --accent: #a9744a; --accentDim: #8a5c38;
     --danger: #ff6b6b; --orange: #6b3f2a; --accentText: #f9f4ea;
-    --mono: 'Arial', sans-serif;
-    --body: 'Arial', sans-serif;
-    --display: 'Arial', sans-serif;
+    --mono: 'Inter', -apple-system, sans-serif;
+    --body: 'Inter', -apple-system, sans-serif;
+    --display: 'Playfair Display', Georgia, serif;
   }
   body.light {
     --bg: #f6f0e5; --card: #fffcf6; --border: #e6dbc8;
@@ -39,19 +42,19 @@
   .header { border-bottom: 1px solid var(--border); }
   .header-inner { max-width: 480px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 34px) 16px 18px;
     display: flex; align-items: center; justify-content: space-between; }
-  .brand { font-family: var(--display); font-weight: 800; font-size: 20px; letter-spacing: 0.5px; }
+  .brand { font-family: var(--display); font-weight: 800; font-size: 21px; letter-spacing: 0.3px; }
   .brand span { color: var(--accent); }
   .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: none;
     display: flex; align-items: center; justify-content: center; background: var(--border);
     color: var(--textDim); }
-  .h1 { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1.1; margin: 20px 0 4px; }
+  .h1 { font-family: var(--display); font-weight: 800; font-size: 32px; line-height: 1.08; letter-spacing: -0.3px; margin: 20px 0 4px; }
   .subtitle { color: var(--textDim); margin-bottom: 16px; }
   .info-box { background: rgba(169,116,74,0.12); border: 1px solid rgba(169,116,74,0.3);
     border-radius: 14px; padding: 16px; margin-bottom: 22px; font-size: 14.5px; line-height: 1.5;
     color: #e8d3ba; }
   body.light .info-box { color: #5c3a1f; background: rgba(169,116,74,0.12); }
-  .section-label { color: var(--textDim); font-size: 13px; margin-bottom: 10px;
-    text-transform: uppercase; letter-spacing: 0.5px; }
+  .section-label { color: var(--textDim); font-size: 12px; font-weight: 700; margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: 1.1px; }
   .day-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px;
     padding: 16px 18px; display: flex; align-items: center; justify-content: space-between;
     width: 100%; text-align: left; margin-bottom: 12px; }
