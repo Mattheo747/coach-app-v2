@@ -1366,12 +1366,20 @@ function renderProgramBuilder() {
           <div class="row">
             <input data-b-field="rest" data-idx="${i}" value="${esc(e.rest)}" placeholder="repos (ex: 90s)" />
           </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin:6px 0 10px;">
+            ${["30s", "1min", "1min30", "2min", "3min"].map(v => `<button data-b-rest-suggest="${v}" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:999px;padding:5px 12px;font-size:12px;">${v}</button>`).join("")}
+          </div>
           <div style="font-size:12px;color:var(--textDim);margin:6px 0 4px;">Séries (reps par série)</div>
           ${parseTargetSets(e.sets).map((reps, si) => `
-            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-              <div style="width:22px;text-align:center;font-size:12.5px;color:var(--textDim);">${si + 1}</div>
-              <input data-b-set-reps="${si}" data-idx="${i}" value="${esc(reps === "-" ? "" : reps)}" placeholder="ex: 8-10" style="flex:1;" />
-              <button data-b-remove-set="${si}" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">✕</button>
+            <div style="margin-bottom:8px;">
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                <div style="width:22px;text-align:center;font-size:12.5px;color:var(--textDim);">${si + 1}</div>
+                <input data-b-set-reps="${si}" data-idx="${i}" value="${esc(reps === "-" ? "" : reps)}" placeholder="ex: 8-10" style="flex:1;" />
+                <button data-b-remove-set="${si}" data-idx="${i}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:8px;padding:6px 10px;">✕</button>
+              </div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;padding-left:28px;">
+                ${["6-8", "8-10", "10-12", "12-15"].map(v => `<button data-b-reps-suggest="${v}" data-idx="${i}" data-si="${si}" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:999px;padding:4px 10px;font-size:11.5px;">${v}</button>`).join("")}
+              </div>
             </div>`).join("")}
           <button data-b-add-set="${i}" style="width:100%;border:1px dashed var(--border);background:none;color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:10px;">+ Ajouter une série</button>
           <input data-b-field="video" data-idx="${i}" value="${esc(e.video || "")}" placeholder="lien vidéo (optionnel)" style="margin-bottom:10px;" />
@@ -1892,6 +1900,23 @@ async function attachCoachHandlers() {
       setsList[si] = inp.value.trim() || "-";
       day.exercises[idx].sets = setsList.join(", ");
     };
+  });
+
+  document.querySelectorAll("[data-b-rest-suggest]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const idx = parseInt(b.dataset.idx, 10);
+    day.exercises[idx].rest = b.dataset.bRestSuggest;
+    render();
+  });
+
+  document.querySelectorAll("[data-b-reps-suggest]").forEach(b => b.onclick = () => {
+    const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const idx = parseInt(b.dataset.idx, 10);
+    const si = parseInt(b.dataset.si, 10);
+    const setsList = parseTargetSets(day.exercises[idx].sets);
+    setsList[si] = b.dataset.bRepsSuggest;
+    day.exercises[idx].sets = setsList.join(", ");
+    render();
   });
 
   document.querySelectorAll("[data-b-add-set]").forEach(b => b.onclick = () => {
