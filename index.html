@@ -991,6 +991,7 @@ let state = {
   programBuilderDraft: null,
   programBuilderDayId: null,
   libraryOpenForDay: null,
+  libraryReplaceIdx: null,
   libraryQuery: "",
   programTemplates: null,
   showTemplatesPanel: false,
@@ -1364,6 +1365,20 @@ function renderProgramBuilder() {
             <input data-b-field="name" data-idx="${i}" value="${esc(e.name)}" style="flex:2;font-weight:700;" />
             <input data-b-field="muscle" data-idx="${i}" value="${esc(e.muscle)}" style="flex:1;" placeholder="muscle" />
           </div>
+          <button data-open-library-replace="${i}" style="width:100%;border:1px dashed var(--accent);background:none;color:var(--accent);border-radius:10px;padding:8px;font-size:12.5px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="16 3 21 3 21 8"/><line x1="21" y1="3" x2="12" y2="12"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg> Choisir dans la liste des exercices</button>
+          ${(state.libraryOpenForDay === day.id && state.libraryReplaceIdx === i) ? (() => {
+            const q = state.libraryQuery.toLowerCase();
+            const results = EXERCISE_LIBRARY.filter(ex => !q || (ex.name + " " + ex.muscle).toLowerCase().includes(q)).slice(0, 40);
+            return `<div style="border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;">
+              <input id="libraryQuery" placeholder="Rechercher un exercice ou un muscle…" value="${esc(state.libraryQuery)}" style="margin-bottom:10px;" />
+              <div style="max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+                ${results.map(ex2 => `<button data-add-from-library="${esc(ex2.name)}|${esc(ex2.muscle)}" style="text-align:left;border:1px solid var(--border);background:none;color:var(--text);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
+                  <span>${esc(ex2.name)}</span><span class="pill" style="font-size:11px;">${esc(ex2.muscle)}</span>
+                </button>`).join("")}
+                ${results.length === 0 ? `<div style="color:var(--textDim);font-size:13.5px;padding:8px 0;">Aucun résultat.</div>` : ""}
+              </div>
+            </div>`;
+          })() : ""}
           <div class="row">
             <input data-b-field="rest" data-idx="${i}" value="${esc(e.rest)}" placeholder="repos (ex: 90s)" />
           </div>
@@ -1396,7 +1411,7 @@ function renderProgramBuilder() {
 
     html += `<button data-open-library="1" style="display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--border);border-radius:14px;padding:14px;background:none;color:var(--textDim);width:100%;margin-bottom:16px;">+ Ajouter un exercice</button>`;
 
-    if (state.libraryOpenForDay === day.id) {
+    if (state.libraryOpenForDay === day.id && state.libraryReplaceIdx === null) {
       const q = state.libraryQuery.toLowerCase();
       const results = EXERCISE_LIBRARY.filter(ex => !q || (ex.name + " " + ex.muscle).toLowerCase().includes(q)).slice(0, 40);
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -1978,9 +1993,19 @@ async function attachCoachHandlers() {
   const openLibraryBtn = document.querySelector("[data-open-library]");
   if (openLibraryBtn) openLibraryBtn.onclick = () => {
     state.libraryOpenForDay = state.libraryOpenForDay === state.programBuilderDayId ? null : state.programBuilderDayId;
+    state.libraryReplaceIdx = null;
     state.libraryQuery = "";
     render();
   };
+
+  document.querySelectorAll("[data-open-library-replace]").forEach(b => b.onclick = () => {
+    const idx = parseInt(b.dataset.openLibraryReplace, 10);
+    const isSameOpen = state.libraryOpenForDay === state.programBuilderDayId && state.libraryReplaceIdx === idx;
+    state.libraryOpenForDay = isSameOpen ? null : state.programBuilderDayId;
+    state.libraryReplaceIdx = isSameOpen ? null : idx;
+    state.libraryQuery = "";
+    render();
+  });
 
   const libraryQueryInput = document.getElementById("libraryQuery");
   if (libraryQueryInput) libraryQueryInput.oninput = () => {
@@ -1993,8 +2018,15 @@ async function attachCoachHandlers() {
   document.querySelectorAll("[data-add-from-library]").forEach(b => b.onclick = () => {
     const [name, muscle] = b.dataset.addFromLibrary.split("|");
     const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
-    day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+    if (state.libraryReplaceIdx !== null) {
+      const target = day.exercises[state.libraryReplaceIdx];
+      target.name = name;
+      target.muscle = muscle;
+    } else {
+      day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+    }
     state.libraryOpenForDay = null;
+    state.libraryReplaceIdx = null;
     render();
   });
 
@@ -2002,10 +2034,17 @@ async function attachCoachHandlers() {
   if (addCustomBtn) addCustomBtn.onclick = () => {
     const name = prompt("Nom de l'exercice :");
     if (!name) return;
-    const muscle = prompt("Groupe musculaire :") || "Muscle";
     const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
-    day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+    if (state.libraryReplaceIdx !== null) {
+      const target = day.exercises[state.libraryReplaceIdx];
+      target.name = name;
+      target.muscle = prompt("Groupe musculaire :") || target.muscle;
+    } else {
+      const muscle = prompt("Groupe musculaire :") || "Muscle";
+      day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+    }
     state.libraryOpenForDay = null;
+    state.libraryReplaceIdx = null;
     render();
   };
 
