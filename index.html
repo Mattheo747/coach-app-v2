@@ -195,8 +195,6 @@
     <button class="nav-btn" data-tab="accueil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></button>
     <button class="nav-btn" data-tab="seance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg><span>Séance</span></button>
     <button class="nav-btn" data-tab="nutrition"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg><span>Nutrition</span></button>
-    <button class="nav-btn" data-tab="documents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg><span>Docs</span></button>
-    <button class="nav-btn" data-tab="suivi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><line x1="5" y1="20" x2="5" y2="14"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="19" y1="20" x2="19" y2="4"/></svg><span>Suivi</span></button>
     <button class="nav-btn" data-tab="profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Profil</span></button>
   </div>
 </div>
@@ -1026,6 +1024,7 @@ let state = {
   nutritionDayType: null,
   nutritionSubView: "recherche", // "recherche" | "recent" | "frequent"
   nutritionSelectedDate: null, // set to today at login
+  nutritionHistoryMode: "recent",
   nutritionLogs: null,
   nutritionWeekOffset: 0,
   nutritionActiveMeal: null,
@@ -2823,8 +2822,7 @@ function renderNutrition() {
     html += `<div class="section-label" style="margin-top:0;">Ajouter à : ${mealLabels[state.nutritionActiveMeal] || "Autres"}</div>`;
     html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
     <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recherche" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recherche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><br/>Chercher</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><br/>Récent</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="frequent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg><br/>Top</button>
+    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" || state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><br/>Historique</button>
     <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "scanned" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="scanned"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg><br/>Scan</button>
     <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recipes" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recipes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><br/>Recettes</button>
   </div>`;
@@ -2834,8 +2832,13 @@ function renderNutrition() {
       html += `<div class="empty-state">Chargement…</div>`;
       return html;
     }
+    const historyMode = state.nutritionHistoryMode || "recent";
+    html += `<div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button data-history-mode="recent" style="flex:1;border-radius:999px;padding:8px;font-size:12.5px;font-weight:700;border:1px solid ${historyMode === "recent" ? "var(--accent)" : "var(--border)"};background:${historyMode === "recent" ? "var(--accent)" : "none"};color:${historyMode === "recent" ? "var(--accentText)" : "var(--textDim)"};">Récemment</button>
+      <button data-history-mode="frequent" style="flex:1;border-radius:999px;padding:8px;font-size:12.5px;font-weight:700;border:1px solid ${historyMode === "frequent" ? "var(--accent)" : "var(--border)"};background:${historyMode === "frequent" ? "var(--accent)" : "none"};color:${historyMode === "frequent" ? "var(--accentText)" : "var(--textDim)"};">Plus mangé</button>
+    </div>`;
     let list;
-    if (state.nutritionSubView === "recent") {
+    if (historyMode === "recent") {
       const seen = new Set();
       list = [];
       [...state.allFoodLogs].sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
@@ -3045,11 +3048,12 @@ async function loadDocuments() {
 }
 
 function renderDocuments() {
+  const backHtml = `<button class="back-btn" data-back-to-accueil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>`;
   if (state.documents === null) {
-    return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state">Chargement…</div>`;
+    return backHtml + `<div class="h1" style="font-size:26px;margin-top:10px;">DOCUMENTS</div><div class="empty-state">Chargement…</div>`;
   }
   if (state.documents.length === 0) {
-    return `<div class="h1" style="font-size:26px;">DOCUMENTS</div><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div>Aucun document pour l'instant.</div></div>`;
+    return backHtml + `<div class="h1" style="font-size:26px;margin-top:10px;">DOCUMENTS</div><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div>Aucun document pour l'instant.</div></div>`;
   }
 
   const groups = {};
@@ -3079,8 +3083,8 @@ function renderDocuments() {
     return html;
   }
 
-  let html = `
-    <div class="h1" style="font-size:26px;">DOCUMENTS</div>
+  let html = backHtml + `
+    <div class="h1" style="font-size:26px;margin-top:10px;">DOCUMENTS</div>
     <div class="subtitle">Choisis une catégorie</div>`;
   Object.keys(groups).sort().forEach(cat => {
     html += `<button class="day-card" data-open-doc-category="${esc(cat)}">
@@ -3181,7 +3185,8 @@ async function loadCheckinsHistory() {
 }
 
 function renderBodyProgress() {
-  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
+  let html = `<button class="back-btn" data-back-to-accueil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
+    <div class="h1" style="font-size:26px;margin-top:10px;">PROGRESSION</div>` + suiviToggle();
 
   const checkins = state.checkinsHistory;
   if (checkins === null) {
@@ -3245,7 +3250,8 @@ function renderProgress() {
   const exo = day.exercises.find(e => e.id === state.progressExId);
   const hist = exo ? getExerciseHistory(exo.id) : [];
 
-  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle() + `
+  let html = `<button class="back-btn" data-back-to-accueil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
+    <div class="h1" style="font-size:26px;margin-top:10px;">PROGRESSION</div>` + suiviToggle() + `
     <div class="day-tabs">
       ${trainingDays.map(d => `<button class="day-tab ${d.id === state.progressDayId ? "active" : ""}" data-progress-day="${d.id}">${esc(d.name)}</button>`).join("")}
     </div>
@@ -3474,6 +3480,18 @@ function renderProfil() {
       <div class="stat-card"><div style="color:var(--taupe);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg></div><div class="stat-value" style="color:var(--taupe);">${totalExercisesTracked.size}</div><div class="stat-label">Exercices suivis</div></div>
     </div>
     <div class="section-label">Mon suivi</div>
+    <button class="day-card" data-goto-tab="suivi">
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="5" y1="20" x2="5" y2="14"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="19" y1="20" x2="19" y2="4"/></svg></div>
+        <div><div class="day-title">Progression</div><div class="day-sub">Charges par exercice, poids & photos</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
+    <button class="day-card" data-goto-tab="documents">
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>
+        <div><div class="day-title">Documents</div><div class="day-sub">Les fichiers partagés par ton coach</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
     <button class="day-card" data-goto-tab="historique">
       <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/><polyline points="12 7 12 12 16 14"/></svg></div>
         <div><div class="day-title">Historique complet</div><div class="day-sub">Consulter ou corriger une séance passée</div></div>
@@ -3902,6 +3920,11 @@ function attachHandlers() {
     if (state.nutritionSubView === "recipes" && state.recipes === null) {
       loadRecipes();
     }
+    render();
+  });
+
+  app.querySelectorAll("[data-history-mode]").forEach(b => b.onclick = () => {
+    state.nutritionHistoryMode = b.dataset.historyMode;
     render();
   });
 
