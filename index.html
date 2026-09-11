@@ -3048,7 +3048,7 @@ async function loadDocuments() {
 }
 
 function renderDocuments() {
-  const backHtml = `<button class="back-btn" data-back-to-accueil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>`;
+  const backHtml = `<button class="back-btn" data-back-to-profil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>`;
   if (state.documents === null) {
     return backHtml + `<div class="h1" style="font-size:26px;margin-top:10px;">DOCUMENTS</div><div class="empty-state">Chargement…</div>`;
   }
@@ -3185,7 +3185,7 @@ async function loadCheckinsHistory() {
 }
 
 function renderBodyProgress() {
-  let html = `<button class="back-btn" data-back-to-accueil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
+  let html = `<button class="back-btn" data-back-to-profil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
     <div class="h1" style="font-size:26px;margin-top:10px;">PROGRESSION</div>` + suiviToggle();
 
   const checkins = state.checkinsHistory;
@@ -3250,7 +3250,7 @@ function renderProgress() {
   const exo = day.exercises.find(e => e.id === state.progressExId);
   const hist = exo ? getExerciseHistory(exo.id) : [];
 
-  let html = `<button class="back-btn" data-back-to-accueil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
+  let html = `<button class="back-btn" data-back-to-profil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
     <div class="h1" style="font-size:26px;margin-top:10px;">PROGRESSION</div>` + suiviToggle() + `
     <div class="day-tabs">
       ${trainingDays.map(d => `<button class="day-tab ${d.id === state.progressDayId ? "active" : ""}" data-progress-day="${d.id}">${esc(d.name)}</button>`).join("")}
