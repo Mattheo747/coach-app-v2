@@ -1033,6 +1033,8 @@ let state = {
   coachViewingScheduleId: null,
   coachTab: "clients",
   coachExpandedClientId: null,
+  coachDetailView: null, // null | "schedule" | "videos" | "checkins" | "followup" | "json"
+  coachDetailClientId: null,
   suiviView: "exercices", // "exercices" | "corps" | "tonnage" | "calendrier"
   calendarMonthOffset: 0,
   checkinsHistory: null,
@@ -1183,7 +1185,20 @@ function render() {
   }
   if (state.screen === "coach") {
     nav.style.display = "none";
-    app.innerHTML = state.programBuilderOpen ? renderProgramBuilder() : renderCoachScreen();
+    if (state.programBuilderOpen) {
+      app.innerHTML = renderProgramBuilder();
+    } else if (state.coachDetailView) {
+      const dc = state.coachClients.find(c => c.id === state.coachDetailClientId);
+      if (!dc) { state.coachDetailView = null; app.innerHTML = renderCoachScreen(); }
+      else if (state.coachDetailView === "schedule") app.innerHTML = renderCoachSchedule(dc);
+      else if (state.coachDetailView === "videos") app.innerHTML = renderCoachVideos(dc);
+      else if (state.coachDetailView === "checkins") app.innerHTML = renderCoachCheckins(dc);
+      else if (state.coachDetailView === "followup") app.innerHTML = renderCoachFollowup(dc);
+      else if (state.coachDetailView === "json") app.innerHTML = renderCoachJson(dc);
+      else app.innerHTML = renderCoachScreen();
+    } else {
+      app.innerHTML = renderCoachScreen();
+    }
     attachCoachHandlers();
     return;
   }
@@ -1507,143 +1522,6 @@ function renderCoachScreen() {
         <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;margin-top:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer ce client et toutes ses données</button>
       </div>`;
     }
-    if (isExpanded && state.coachViewingScheduleId === c.id) {
-      const program = c.program_json || DEFAULT_PROGRAM;
-      const now = new Date();
-      const jsDay = (now.getDay() + 6) % 7;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - jsDay);
-      monday.setHours(0, 0, 0, 0);
-      const todayStr = todayISO();
-      const doneDays = c.scheduleDone || [];
-      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Séances de la semaine — ${esc(c.name)}</div>
-        ${program.map((d, idx) => {
-          const dayDate = new Date(monday);
-          dayDate.setDate(monday.getDate() + idx);
-          const dayStr = localDateStr(dayDate);
-          let status, color;
-          if (d.isRest) { status = "Repos"; color = "var(--textDim)"; }
-          else if (doneDays.includes(d.id)) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/></svg> Fait`; color = "var(--accent)"; }
-          else if (dayStr === todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="8" fill="currentColor" stroke="none"/></svg> Aujourd'hui`; color = "var(--accentDim)"; }
-          else if (dayStr < todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg> Manqué`; color = "var(--danger)"; }
-          else { status = "⏳ À venir"; color = "var(--textDim)"; }
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border);">
-            <div><div style="font-weight:700;">${esc(d.day)}${d.isRest ? "" : " : " + esc(d.name)}</div><div style="font-size:12px;color:var(--textDim);">${formatDateFR(dayStr)}</div></div>
-            <div style="color:${color};font-weight:700;font-size:13.5px;">${status}</div>
-          </div>`;
-        }).join("")}
-      </div></div>`;
-    }
-    if (isExpanded && state.coachEditingVideosId === c.id) {
-      const program = c.program_json || DEFAULT_PROGRAM;
-      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg> Vidéos des exercices — ${esc(c.name)}</div>
-        ${program.filter(d => !d.isRest).map(d => `
-          <div class="section-label" style="margin-top:14px;">${esc(d.day)} : ${esc(d.name)}</div>
-          ${d.exercises.map(e => `
-            <div style="margin-bottom:10px;">
-              <div style="font-size:13px;color:var(--textDim);margin-bottom:4px;">${esc(e.name)}</div>
-              <input data-video-input="${e.id}" placeholder="Lien YouTube (optionnel)" value="${esc(e.video || "")}" />
-            </div>`).join("")}
-        `).join("")}
-        <label style="display:flex;align-items:center;gap:8px;margin:14px 0;font-size:13.5px;color:var(--textDim);">
-          <input type="checkbox" id="applyAllVideos" style="width:auto;" />
-          Appliquer aussi ces vidéos à tous mes autres clients ayant le même exercice (par nom)
-        </label>
-        <div style="display:flex;gap:8px;">
-          <button class="validate-btn" style="margin-top:0;flex:1;" data-save-videos="${c.id}">✓ Enregistrer les vidéos</button>
-          <button data-cancel-videos="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
-        </div>
-      </div></div>`;
-    }
-    if (isExpanded && state.coachViewingCheckinsId === c.id) {
-      const checkins = c.checkins || [];
-      const ckRow = (label, value) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border);font-size:13.5px;">
-        <span style="color:var(--textDim);">${label}</span><span style="font-weight:700;text-align:right;max-width:60%;">${value}</span>
-      </div>`;
-      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg> Bilans de ${esc(c.name)}</div>
-        ${checkins.length === 0 ? `<div style="color:var(--textDim);font-size:13.5px;">Aucun bilan envoyé pour l'instant.</div>` : checkins.map(ck => `
-          <div style="border-top:1px solid var(--border);padding:14px 0;">
-            <div style="font-weight:800;margin-bottom:10px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0, 10))}</div>
-            ${ckRow("Ressenti global", `${ck.feeling ?? "—"}/5`)}
-            ${ckRow("Qualité du sommeil", `${ck.sleep_quality ?? "—"}/5`)}
-            ${ckRow("Niveau de stress", `${ck.stress_level ?? "—"}/5`)}
-            ${ckRow("Motivation", `${ck.motivation ?? "—"}/5`)}
-            ${ckRow("Eau (3L/jour)", ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—")}
-            ${ckRow("Douleurs (hors courbatures)", ck.pain_other === true ? `Oui — ${esc(ck.pain_detail || "")}` : ck.pain_other === false ? "Non" : "—")}
-            ${ckRow("Nutrition respectée", esc(ck.nutrition_respect || "—"))}
-            ${ckRow("Séances manquées", ck.missed_sessions === true ? `Oui — ${esc(ck.missed_reason || "")}` : ck.missed_sessions === false ? "Non" : "—")}
-            ${ckRow("Poids actuel (à jeun)", ck.bodyweight != null ? `${formatNum(ck.bodyweight)}kg` : "—")}
-            ${ckRow("Bras gauche / droit", `${formatNum(ck.arm_left) ?? "—"} / ${formatNum(ck.arm_right) ?? "—"} cm`)}
-            ${ckRow("Jambe gauche / droite", `${formatNum(ck.leg_left) ?? "—"} / ${formatNum(ck.leg_right) ?? "—"} cm`)}
-            ${ckRow("Tour d'épaules", ck.shoulders != null ? `${formatNum(ck.shoulders)}cm` : "—")}
-            ${ckRow("Tour de taille", ck.waist != null ? `${formatNum(ck.waist)}cm` : "—")}
-            <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
-              ${ck.photo_front_url ? `<a href="${esc(ck.photo_front_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo face</a>` : ""}
-              ${ck.photo_back_url ? `<a href="${esc(ck.photo_back_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo dos</a>` : ""}
-              ${ck.photo_side_url ? `<a href="${esc(ck.photo_side_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Photo profil</a>` : ""}
-              ${ck.steps_screenshot_url ? `<a href="${esc(ck.steps_screenshot_url)}" target="_blank" style="color:var(--accent);font-size:13px;">Capture pas</a>` : ""}
-            </div>
-          </div>
-        `).join("")}
-      </div></div>`;
-    }
-    if (isExpanded && state.coachEditingNutritionId === c.id) {
-      const n = c.nutrition || {};
-      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg> Objectifs nutritionnels — ${esc(c.name)}</div>
-        <div class="section-label">Jour ON (entraînement)</div>
-        <div class="row">
-          <input id="fKcalOn" placeholder="kcal" value="${n.kcal_on ?? ""}" inputmode="numeric" />
-          <input id="fProtOn" placeholder="protéines g" value="${n.protein_on ?? ""}" inputmode="numeric" />
-        </div>
-        <div class="row">
-          <input id="fCarbsOn" placeholder="glucides g" value="${n.carbs_on ?? ""}" inputmode="numeric" />
-          <input id="fFatOn" placeholder="lipides g" value="${n.fat_on ?? ""}" inputmode="numeric" />
-        </div>
-        <div class="section-label">Jour OFF (repos)</div>
-        <div class="row">
-          <input id="fKcalOff" placeholder="kcal" value="${n.kcal_off ?? ""}" inputmode="numeric" />
-          <input id="fProtOff" placeholder="protéines g" value="${n.protein_off ?? ""}" inputmode="numeric" />
-        </div>
-        <div class="row">
-          <input id="fCarbsOff" placeholder="glucides g" value="${n.carbs_off ?? ""}" inputmode="numeric" />
-          <input id="fFatOff" placeholder="lipides g" value="${n.fat_off ?? ""}" inputmode="numeric" />
-        </div>
-        <div class="section-label">Pas, eau et message</div>
-        <div class="row" style="margin-bottom:10px;">
-          <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" />
-          <input id="fWater" placeholder="objectif d'eau (L/jour)" value="${c.water ?? ""}" />
-        </div>
-        <textarea id="fMessage" placeholder="Message affiché sur son accueil…" rows="3" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
-        <div class="section-label">⏰ Échéance de son bilan hebdomadaire</div>
-        <div class="row" style="margin-bottom:12px;">
-          <select id="fDeadlineDay">
-            ${["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"].map(day =>
-              `<option value="${day}" ${(c.checkinSettings?.deadline_day || "Dimanche") === day ? "selected" : ""}>${day}</option>`).join("")}
-          </select>
-          <input id="fDeadlineTime" type="time" value="${esc(c.checkinSettings?.deadline_time || "20:00")}" />
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="validate-btn" style="margin-top:0;flex:1;" data-save-followup="${c.id}">✓ Enregistrer</button>
-          <button data-cancel-followup="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
-        </div>
-      </div></div>`;
-    }
-    if (isExpanded && state.coachEditingClientId === c.id) {
-      html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-size:13px;color:var(--textDim);margin-bottom:8px;">
-          Programme JSON de ${esc(c.name)} — modifie avec précaution, format technique.
-        </div>
-        <textarea id="programJsonEditor" rows="14" style="font-size:12.5px;">${esc(JSON.stringify(c.program_json || DEFAULT_PROGRAM, null, 2))}</textarea>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="validate-btn" style="margin-top:0;flex:1;" data-save-program="${c.id}">✓ Enregistrer</button>
-          <button data-cancel-program="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
-        </div>
-      </div></div>`;
-    }
   });
   }
 
@@ -1723,6 +1601,166 @@ function renderCoachScreen() {
   }
   }
 
+  return html;
+}
+
+function coachDetailBackBtn() {
+  return `<div style="margin:20px 0 4px;"><button class="back-btn" data-back-coach-detail="1">← Retour</button></div>`;
+}
+
+function renderCoachSchedule(c) {
+  const program = c.program_json || DEFAULT_PROGRAM;
+  const now = new Date();
+  const jsDay = (now.getDay() + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - jsDay);
+  monday.setHours(0, 0, 0, 0);
+  const todayStr = todayISO();
+  const doneDays = c.scheduleDone || [];
+  let html = coachDetailBackBtn() + `
+    <div class="h1" style="font-size:24px;margin-top:10px;">SÉANCES DE LA SEMAINE</div>
+    <div class="subtitle">${esc(c.name)}</div>`;
+  program.forEach((d, idx) => {
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + idx);
+    const dayStr = localDateStr(dayDate);
+    let status, color;
+    if (d.isRest) { status = "Repos"; color = "var(--textDim)"; }
+    else if (doneDays.includes(d.id)) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/></svg> Fait`; color = "var(--accent)"; }
+    else if (dayStr === todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="8" fill="currentColor" stroke="none"/></svg> Aujourd'hui`; color = "var(--accentDim)"; }
+    else if (dayStr < todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg> Manqué`; color = "var(--danger)"; }
+    else { status = "À venir"; color = "var(--textDim)"; }
+    html += `<div class="day-card" style="cursor:default;">
+      <div class="day-left"><div><div class="day-title">${esc(d.day)}${d.isRest ? "" : " : " + esc(d.name)}</div><div class="day-sub">${formatDateFR(dayStr)}</div></div></div>
+      <div style="color:${color};font-weight:700;font-size:13.5px;">${status}</div>
+    </div>`;
+  });
+  return html;
+}
+
+function renderCoachVideos(c) {
+  const program = c.program_json || DEFAULT_PROGRAM;
+  let html = coachDetailBackBtn() + `
+    <div class="h1" style="font-size:24px;margin-top:10px;">VIDÉOS DES EXERCICES</div>
+    <div class="subtitle">${esc(c.name)}</div>`;
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    ${program.filter(d => !d.isRest).map(d => `
+      <div class="section-label" style="margin-top:14px;">${esc(d.day)} : ${esc(d.name)}</div>
+      ${d.exercises.map(e => `
+        <div style="margin-bottom:10px;">
+          <div style="font-size:13px;color:var(--textDim);margin-bottom:4px;">${esc(e.name)}</div>
+          <input data-video-input="${e.id}" placeholder="Lien YouTube (optionnel)" value="${esc(e.video || "")}" />
+        </div>`).join("")}
+    `).join("")}
+    <label style="display:flex;align-items:center;gap:8px;margin:14px 0;font-size:13.5px;color:var(--textDim);">
+      <input type="checkbox" id="applyAllVideos" style="width:auto;" />
+      Appliquer aussi ces vidéos à tous mes autres clients ayant le même exercice (par nom)
+    </label>
+    <button class="validate-btn" style="margin-top:0;" data-save-videos="${c.id}">✓ Enregistrer les vidéos</button>
+  </div></div>`;
+  return html;
+}
+
+function renderCoachCheckins(c) {
+  const checkins = c.checkins || [];
+  const ckRow = (label, value) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border);font-size:13.5px;">
+    <span style="color:var(--textDim);">${label}</span><span style="font-weight:700;text-align:right;max-width:60%;">${value}</span>
+  </div>`;
+  let html = coachDetailBackBtn() + `
+    <div class="h1" style="font-size:24px;margin-top:10px;">BILANS</div>
+    <div class="subtitle">${esc(c.name)}</div>`;
+  if (checkins.length === 0) {
+    html += `<div class="empty-state">📋<div>Aucun bilan envoyé pour l'instant.</div></div>`;
+    return html;
+  }
+  html += checkins.map(ck => {
+    const photos = [
+      { label: "Face", url: ck.photo_front_url },
+      { label: "Dos", url: ck.photo_back_url },
+      { label: "Profil", url: ck.photo_side_url },
+    ].filter(p => p.url);
+    return `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+      <div style="font-weight:800;margin-bottom:12px;font-size:15px;">Semaine ${esc(ck.week_key)} · ${formatDateFR(ck.created_at.slice(0, 10))}</div>
+      ${photos.length > 0 ? `<div style="display:grid;grid-template-columns:repeat(${photos.length}, 1fr);gap:8px;margin-bottom:14px;">
+        ${photos.map(p => `<a href="${esc(p.url)}" target="_blank"><img src="${esc(p.url)}" alt="${esc(p.label)}" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;border:1px solid var(--border);" /><div style="text-align:center;font-size:11px;color:var(--textDim);margin-top:4px;">${esc(p.label)}</div></a>`).join("")}
+      </div>` : `<div style="font-size:12.5px;color:var(--textDim);margin-bottom:12px;">Aucune photo envoyée pour ce bilan.</div>`}
+      ${ck.steps_screenshot_url ? `<a href="${esc(ck.steps_screenshot_url)}" target="_blank" style="display:inline-block;color:var(--accent);font-size:13px;margin-bottom:12px;">Voir la capture d'écran des pas →</a>` : ""}
+      ${ckRow("Ressenti global", `${ck.feeling ?? "—"}/5`)}
+      ${ckRow("Qualité du sommeil", `${ck.sleep_quality ?? "—"}/5`)}
+      ${ckRow("Niveau de stress", `${ck.stress_level ?? "—"}/5`)}
+      ${ckRow("Motivation", `${ck.motivation ?? "—"}/5`)}
+      ${ckRow("Eau (3L/jour)", ck.water_3l === true ? "Oui" : ck.water_3l === false ? "Non" : "—")}
+      ${ckRow("Douleurs (hors courbatures)", ck.pain_other === true ? `Oui — ${esc(ck.pain_detail || "")}` : ck.pain_other === false ? "Non" : "—")}
+      ${ckRow("Nutrition respectée", esc(ck.nutrition_respect || "—"))}
+      ${ckRow("Séances manquées", ck.missed_sessions === true ? `Oui — ${esc(ck.missed_reason || "")}` : ck.missed_sessions === false ? "Non" : "—")}
+      ${ckRow("Poids actuel (à jeun)", ck.bodyweight != null ? `${formatNum(ck.bodyweight)}kg` : "—")}
+      ${ckRow("Bras gauche / droit", `${formatNum(ck.arm_left) ?? "—"} / ${formatNum(ck.arm_right) ?? "—"} cm`)}
+      ${ckRow("Jambe gauche / droite", `${formatNum(ck.leg_left) ?? "—"} / ${formatNum(ck.leg_right) ?? "—"} cm`)}
+      ${ckRow("Tour d'épaules", ck.shoulders != null ? `${formatNum(ck.shoulders)}cm` : "—")}
+      ${ckRow("Tour de taille", ck.waist != null ? `${formatNum(ck.waist)}cm` : "—")}
+    </div></div>`;
+  }).join("");
+  return html;
+}
+
+function renderCoachFollowup(c) {
+  const n = c.nutrition || {};
+  let html = coachDetailBackBtn() + `
+    <div class="h1" style="font-size:24px;margin-top:10px;">SUIVI</div>
+    <div class="subtitle">${esc(c.name)}</div>`;
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div class="section-label">Jour ON (entraînement)</div>
+    <div class="row">
+      <input id="fKcalOn" placeholder="kcal" value="${n.kcal_on ?? ""}" inputmode="numeric" />
+      <input id="fProtOn" placeholder="protéines g" value="${n.protein_on ?? ""}" inputmode="numeric" />
+    </div>
+    <div class="row">
+      <input id="fCarbsOn" placeholder="glucides g" value="${n.carbs_on ?? ""}" inputmode="numeric" />
+      <input id="fFatOn" placeholder="lipides g" value="${n.fat_on ?? ""}" inputmode="numeric" />
+    </div>
+    <div class="section-label">Jour OFF (repos)</div>
+    <div class="row">
+      <input id="fKcalOff" placeholder="kcal" value="${n.kcal_off ?? ""}" inputmode="numeric" />
+      <input id="fProtOff" placeholder="protéines g" value="${n.protein_off ?? ""}" inputmode="numeric" />
+    </div>
+    <div class="row">
+      <input id="fCarbsOff" placeholder="glucides g" value="${n.carbs_off ?? ""}" inputmode="numeric" />
+      <input id="fFatOff" placeholder="lipides g" value="${n.fat_off ?? ""}" inputmode="numeric" />
+    </div>
+    <div class="section-label">Pas et eau</div>
+    <div class="row" style="margin-bottom:16px;">
+      <input id="fSteps" placeholder="objectif de pas / jour" value="${c.steps ?? ""}" inputmode="numeric" />
+      <input id="fWater" placeholder="objectif d'eau (L/jour)" value="${c.water ?? ""}" />
+    </div>
+    <div class="section-label">Échéance de son bilan hebdomadaire</div>
+    <div class="row" style="margin-bottom:8px;">
+      <select id="fDeadlineDay">
+        ${["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"].map(day =>
+          `<option value="${day}" ${(c.checkinSettings?.deadline_day || "Dimanche") === day ? "selected" : ""}>${day}</option>`).join("")}
+      </select>
+      <input id="fDeadlineTime" type="time" value="${esc(c.checkinSettings?.deadline_time || "20:00")}" />
+    </div>
+    <button class="validate-btn" style="margin-top:16px;" data-save-followup="${c.id}">✓ Enregistrer</button>
+  </div></div>`;
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Message affiché sur son accueil</div>
+    <textarea id="fMessage" placeholder="Écris un message pour ce client…" rows="4" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
+    <button class="validate-btn" style="margin-top:0;" data-save-message="${c.id}">✓ Envoyer le message</button>
+  </div></div>`;
+  return html;
+}
+
+function renderCoachJson(c) {
+  let html = coachDetailBackBtn() + `
+    <div class="h1" style="font-size:24px;margin-top:10px;">JSON AVANCÉ</div>
+    <div class="subtitle">${esc(c.name)}</div>`;
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-size:13px;color:var(--textDim);margin-bottom:8px;">
+      Programme JSON — modifie avec précaution, format technique.
+    </div>
+    <textarea id="programJsonEditor" rows="16" style="font-size:12.5px;">${esc(JSON.stringify(c.program_json || DEFAULT_PROGRAM, null, 2))}</textarea>
+    <button class="validate-btn" style="margin-top:10px;" data-save-program="${c.id}">✓ Enregistrer</button>
+  </div></div>`;
   return html;
 }
 
@@ -2096,14 +2134,10 @@ async function attachCoachHandlers() {
   };
 
   document.querySelectorAll("[data-edit-program]").forEach(b => b.onclick = () => {
-    state.coachEditingClientId = state.coachEditingClientId === b.dataset.editProgram ? null : b.dataset.editProgram;
-    state.coachEditingVideosId = null;
-    state.coachViewingScheduleId = null;
+    state.coachDetailClientId = b.dataset.editProgram;
+    state.coachDetailView = "json";
     render();
   });
-
-  const cancelProgram = document.querySelector("[data-cancel-program]");
-  if (cancelProgram) cancelProgram.onclick = () => { state.coachEditingClientId = null; render(); };
 
   const saveProgram = document.querySelector("[data-save-program]");
   if (saveProgram) saveProgram.onclick = async () => {
@@ -2115,22 +2149,16 @@ async function attachCoachHandlers() {
     if (error) { showToast("Erreur lors de l'enregistrement."); return; }
     const c = state.coachClients.find(c => c.id === clientId);
     if (c) c.program_json = parsed;
-    state.coachEditingClientId = null;
+    state.coachDetailView = null;
     showToast("Programme mis à jour.");
     render();
   };
 
   document.querySelectorAll("[data-edit-videos]").forEach(b => b.onclick = () => {
-    state.coachEditingVideosId = state.coachEditingVideosId === b.dataset.editVideos ? null : b.dataset.editVideos;
-    state.coachEditingClientId = null;
-    state.coachEditingNutritionId = null;
-    state.coachViewingCheckinsId = null;
-    state.coachViewingScheduleId = null;
+    state.coachDetailClientId = b.dataset.editVideos;
+    state.coachDetailView = "videos";
     render();
   });
-
-  const cancelVideos = document.querySelector("[data-cancel-videos]");
-  if (cancelVideos) cancelVideos.onclick = () => { state.coachEditingVideosId = null; render(); };
 
   const saveVideos = document.querySelector("[data-save-videos]");
   if (saveVideos) saveVideos.onclick = async () => {
@@ -2169,7 +2197,7 @@ async function attachCoachHandlers() {
     }
 
     showToast(applyAll ? "Vidéos enregistrées pour tous les clients concernés." : "Vidéos enregistrées.");
-    state.coachEditingVideosId = null;
+    state.coachDetailView = null;
     render();
   };
 
@@ -2270,29 +2298,16 @@ async function attachCoachHandlers() {
 
   document.querySelectorAll("[data-view-checkins]").forEach(b => b.onclick = async () => {
     const clientId = b.dataset.viewCheckins;
-    if (state.coachViewingCheckinsId === clientId) {
-      state.coachViewingCheckinsId = null;
-      render();
-      return;
-    }
     const c = state.coachClients.find(c => c.id === clientId);
     const { data } = await sb.from("weekly_checkins").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
     c.checkins = data || [];
-    state.coachViewingCheckinsId = clientId;
-    state.coachEditingClientId = null;
-    state.coachEditingNutritionId = null;
-    state.coachEditingVideosId = null;
-    state.coachViewingScheduleId = null;
+    state.coachDetailClientId = clientId;
+    state.coachDetailView = "checkins";
     render();
   });
 
   document.querySelectorAll("[data-view-schedule]").forEach(b => b.onclick = async () => {
     const clientId = b.dataset.viewSchedule;
-    if (state.coachViewingScheduleId === clientId) {
-      state.coachViewingScheduleId = null;
-      render();
-      return;
-    }
     const c = state.coachClients.find(c => c.id === clientId);
     const now = new Date();
     const jsDay = (now.getDay() + 6) % 7;
@@ -2301,21 +2316,13 @@ async function attachCoachHandlers() {
     const mondayStr = localDateStr(monday);
     const { data } = await sb.from("session_logs").select("day_id, log_date").eq("client_id", clientId).gte("log_date", mondayStr);
     c.scheduleDone = [...new Set((data || []).map(l => l.day_id))];
-    state.coachViewingScheduleId = clientId;
-    state.coachEditingClientId = null;
-    state.coachEditingNutritionId = null;
-    state.coachEditingVideosId = null;
-    state.coachViewingCheckinsId = null;
+    state.coachDetailClientId = clientId;
+    state.coachDetailView = "schedule";
     render();
   });
 
   document.querySelectorAll("[data-edit-followup]").forEach(b => b.onclick = async () => {
     const clientId = b.dataset.editFollowup;
-    if (state.coachEditingNutritionId === clientId) {
-      state.coachEditingNutritionId = null;
-      render();
-      return;
-    }
     const c = state.coachClients.find(c => c.id === clientId);
     const { data: n } = await sb.from("nutrition_targets").select("*").eq("client_id", clientId).maybeSingle();
     const { data: s } = await sb.from("steps_targets").select("*").eq("client_id", clientId).maybeSingle();
@@ -2326,16 +2333,13 @@ async function attachCoachHandlers() {
     c.water = s ? s.water_liters : "";
     c.message = m ? m.message : "";
     c.checkinSettings = cd || { deadline_day: "Dimanche", deadline_time: "20:00" };
-    state.coachEditingNutritionId = clientId;
-    state.coachEditingClientId = null;
-    state.coachViewingCheckinsId = null;
-    state.coachEditingVideosId = null;
-    state.coachViewingScheduleId = null;
+    state.coachDetailClientId = clientId;
+    state.coachDetailView = "followup";
     render();
   });
 
-  const cancelFollowup = document.querySelector("[data-cancel-followup]");
-  if (cancelFollowup) cancelFollowup.onclick = () => { state.coachEditingNutritionId = null; render(); };
+  const backCoachDetail = document.querySelector("[data-back-coach-detail]");
+  if (backCoachDetail) backCoachDetail.onclick = () => { state.coachDetailView = null; render(); };
 
   const saveFollowup = document.querySelector("[data-save-followup]");
   if (saveFollowup) saveFollowup.onclick = async () => {
@@ -2353,7 +2357,6 @@ async function attachCoachHandlers() {
     const stepsVal = val("fSteps");
     const waterValRaw = document.getElementById("fWater").value;
     const waterVal = toNum(waterValRaw);
-    const messageVal = document.getElementById("fMessage").value;
     const deadlineDay = document.getElementById("fDeadlineDay").value;
     const deadlineTime = document.getElementById("fDeadlineTime").value;
 
@@ -2361,12 +2364,24 @@ async function attachCoachHandlers() {
     if (stepsVal !== null || waterVal !== null) {
       await sb.from("steps_targets").upsert({ client_id: clientId, daily_steps: stepsVal, water_liters: waterVal });
     }
-    await sb.from("coach_messages").upsert({ client_id: clientId, message: messageVal, updated_at: new Date().toISOString() });
     await sb.from("checkin_settings").upsert({ client_id: clientId, deadline_day: deadlineDay, deadline_time: deadlineTime });
 
     showToast("Suivi mis à jour.");
-    state.coachEditingNutritionId = null;
+    state.coachDetailView = null;
     render();
+  };
+
+  const saveMessage = document.querySelector("[data-save-message]");
+  if (saveMessage) saveMessage.onclick = async () => {
+    const clientId = saveMessage.dataset.saveMessage;
+    const messageVal = document.getElementById("fMessage").value;
+    saveMessage.textContent = "Envoi…";
+    saveMessage.disabled = true;
+    const { error } = await sb.from("coach_messages").upsert({ client_id: clientId, message: messageVal, updated_at: new Date().toISOString() });
+    if (error) { showToast("Erreur lors de l'envoi."); saveMessage.disabled = false; saveMessage.textContent = "✓ Envoyer le message"; return; }
+    showToast("Message envoyé.");
+    saveMessage.disabled = false;
+    saveMessage.textContent = "✓ Envoyer le message";
   };
 }
 
