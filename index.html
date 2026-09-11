@@ -30,14 +30,17 @@
     --display: 'Playfair Display', Georgia, serif;
   }
   body.light {
-    --bg: #f6f0e5; --card: #fffcf6; --border: #e6dbc8;
-    --text: #1a1815; --textDim: #8a6a4a;
+    --bg: #efe4d0; --card: #fffdf9; --border: #ddcfb0;
+    --text: #1a1815; --textDim: #7a5c3d;
     --accent: #a9744a; --accentDim: #8a5c38;
     --orange: #5a3320; --accentText: #fdf8f0;
     --taupe: #7d6f5a; --olive: #74804a; --gold: #b8863a; --clay: #a15a3d;
-    --shadow-card: 0 1px 2px rgba(60,40,20,0.06), 0 10px 24px rgba(60,40,20,0.06);
+    --shadow-card: 0 1px 3px rgba(60,40,20,0.10), 0 8px 20px rgba(60,40,20,0.10);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body.light .day-card, body.light .ex-card, body.light .stat-card, body.light .chart-card {
+    border-color: rgba(90,51,32,0.08);
+  }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
     font-family: var(--body); }
   body { padding-bottom: 90px; min-height: 100vh; }
