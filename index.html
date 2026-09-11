@@ -1237,10 +1237,7 @@ function render() {
     app.innerHTML = renderDocuments();
     if (state.documents === null) loadDocuments();
   } else if (state.tab === "suivi") {
-    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress()
-      : state.suiviView === "tonnage" ? renderTonnageProgress()
-      : state.suiviView === "calendrier" ? renderCalendarView()
-      : renderProgress();
+    app.innerHTML = state.suiviView === "corps" ? renderBodyProgress() : renderProgress();
     if (state.suiviView === "corps" && state.checkinsHistory === null) loadCheckinsHistory();
   } else {
     app.innerHTML = state.checkinOpen ? renderCheckin() : renderProfil();
@@ -3172,124 +3169,9 @@ function renderHistoriqueDetail(logId) {
 /* ---------------- Progress ---------------- */
 function suiviToggle() {
   return `<div class="day-tabs" style="margin-bottom:16px;">
-    <button class="day-tab ${state.suiviView !== "corps" && state.suiviView !== "tonnage" && state.suiviView !== "calendrier" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
-    <button class="day-tab ${state.suiviView === "tonnage" ? "active" : ""}" data-suivi-view="tonnage">Tonnage</button>
+    <button class="day-tab ${state.suiviView !== "corps" ? "active" : ""}" data-suivi-view="exercices">Exercices</button>
     <button class="day-tab ${state.suiviView === "corps" ? "active" : ""}" data-suivi-view="corps">Poids & Photos</button>
-    <button class="day-tab ${state.suiviView === "calendrier" ? "active" : ""}" data-suivi-view="calendrier">Calendrier</button>
   </div>`;
-}
-
-function renderCalendarView() {
-  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
-
-  const now = new Date();
-  const viewDate = new Date(now.getFullYear(), now.getMonth() + state.calendarMonthOffset, 1);
-  const year = viewDate.getFullYear(), month = viewDate.getMonth();
-  const monthLabel = viewDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-
-  const order = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-  const doneDates = new Set(state.sessionLogs.map(l => l.date));
-
-  const firstOfMonth = new Date(year, month, 1);
-  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday = 0
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayStr = todayISO();
-
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <button data-calendar-nav="-1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 14px;">‹</button>
-    <div style="font-weight:800;text-transform:capitalize;">${monthLabel}</div>
-    <button data-calendar-nav="1" style="background:none;border:1px solid var(--border);color:var(--textDim);border-radius:10px;padding:8px 14px;">›</button>
-  </div>`;
-
-  html += `<div class="chart-card">
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:11px;color:var(--textDim);margin-bottom:6px;">
-      <div>L</div><div>M</div><div>M</div><div>J</div><div>V</div><div>S</div><div>D</div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">`;
-
-  for (let i = 0; i < startOffset; i++) html += `<div></div>`;
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateObj = new Date(year, month, day);
-    const dateStr = localDateStr(dateObj);
-    const dayName = order[dateObj.getDay()];
-    const programDay = state.program.find(d => d.day === dayName);
-    const isRest = programDay ? programDay.isRest : true;
-    const isDone = doneDates.has(dateStr);
-    const isFuture = dateStr > todayStr;
-    const isToday = dateStr === todayStr;
-
-    let bg = "transparent", color = "var(--textDim)", border = "1px solid var(--border)";
-    if (isDone) { bg = "var(--accent)"; color = "var(--accentText)"; border = "none"; }
-    else if (isRest) { bg = "transparent"; color = "var(--textDim)"; }
-    else if (!isFuture) { border = "1.5px solid var(--danger)"; color = "var(--danger)"; }
-    if (isToday) border = "2px solid var(--accent)";
-
-    html += `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;background:${bg};color:${color};border:${border};font-size:12.5px;font-weight:${isDone ? "800" : "500"};">${day}</div>`;
-  }
-
-  html += `</div></div>`;
-  html += `<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--textDim);">
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--accent);margin-right:4px;"></span>Séance faite</span>
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:1.5px solid var(--danger);margin-right:4px;"></span>Séance manquée</span>
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;border:1px solid var(--border);margin-right:4px;"></span>Repos</span>
-  </div>`;
-
-  return html;
-}
-
-function logTonnage(log) {
-  let t = 0;
-  Object.values(log.entries).forEach(sets => sets.forEach(s => {
-    t += (parseInt(s.reps, 10) || 0) * (toNum(s.kg) || 0);
-  }));
-  return t;
-}
-
-function renderTonnageProgress() {
-  let html = `<div class="h1" style="font-size:26px;">PROGRESSION</div>` + suiviToggle();
-
-  if (state.sessionLogs.length === 0) {
-    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg><div>Valide des séances pour voir ton tonnage total évoluer ici.</div></div>`;
-    return html;
-  }
-
-  const weekly = {};
-  state.sessionLogs.forEach(log => {
-    const wk = isoWeekKey(log.date);
-    weekly[wk] = (weekly[wk] || 0) + logTonnage(log);
-  });
-  const weeks = Object.keys(weekly).sort();
-
-  const w = 300, h = 160, padX = 24, padY = 16;
-  const maxT = Math.max(...weeks.map(wk => weekly[wk]), 1);
-  const stepX = weeks.length > 1 ? (w - padX * 2) / (weeks.length - 1) : 0;
-  const coords = weeks.map((wk, i) => {
-    const x = padX + stepX * i;
-    const y = h - padY - (weekly[wk] / maxT) * (h - padY * 2);
-    return { x, y, wk, t: weekly[wk] };
-  });
-  const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
-  const totalAllTime = weeks.reduce((s, wk) => s + weekly[wk], 0);
-
-  html += `<div class="stat-row">
-    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg></div><div class="stat-value">${Math.round(totalAllTime).toLocaleString("fr-FR")} kg</div><div class="stat-label">Tonnage cumulé total</div></div>
-    <div class="stat-card"><div style="color:var(--accentDim);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="stat-value">${Math.round(weekly[weeks[weeks.length - 1]]).toLocaleString("fr-FR")} kg</div><div class="stat-label">Cette semaine</div></div>
-  </div>`;
-
-  html += `<div class="chart-card">
-    <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Tonnage total soulevé, par semaine (toutes séances confondues)</div>
-    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:180px;">
-      <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
-      ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)"><title>Semaine ${c.wk} — ${Math.round(c.t).toLocaleString("fr-FR")}kg</title></circle>`).join("")}
-    </svg>
-    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--textDim);margin-top:4px;">
-      <span>${weeks[0]}</span>
-      <span>${weeks[weeks.length - 1]}</span>
-    </div>
-  </div>`;
-
-  return html;
 }
 
 async function loadCheckinsHistory() {
@@ -3931,12 +3813,6 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-suivi-view]").forEach(b => b.onclick = () => {
     state.suiviView = b.dataset.suiviView;
-    state.calendarMonthOffset = 0;
-    render();
-  });
-
-  app.querySelectorAll("[data-calendar-nav]").forEach(b => b.onclick = () => {
-    state.calendarMonthOffset += parseInt(b.dataset.calendarNav, 10);
     render();
   });
 
