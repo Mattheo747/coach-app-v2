@@ -1132,6 +1132,7 @@ let state = {
   nutritionSubView: "recherche", // "recherche" | "recent" | "frequent"
   nutritionSelectedDate: null, // set to today at login
   nutritionHistoryMode: "recent",
+  showDaytypeEdit: false,
   nutritionLogs: null,
   nutritionWeekOffset: 0,
   nutritionActiveMeal: null,
@@ -2900,10 +2901,14 @@ function renderNutrition() {
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
   let html = `<div style="padding-top:20px;"></div>` + renderWeekBubbles() + `
-    <div class="day-tabs">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:13px;color:var(--textDim);">
+      <span>Jour ${dayType === "on" ? "ON (entraînement)" : "OFF (repos)"}</span>
+      <button data-toggle-daytype-edit="1" style="background:none;border:none;color:var(--accent);font-weight:700;padding:0;">Modifier</button>
+    </div>
+    ${state.showDaytypeEdit ? `<div class="day-tabs">
       <button class="day-tab ${dayType === "on" ? "active" : ""}" data-set-daytype="on">Jour ON (entraînement)</button>
       <button class="day-tab ${dayType === "off" ? "active" : ""}" data-set-daytype="off">Jour OFF (repos)</button>
-    </div>`;
+    </div>` : ""}`;
 
   if (!t) {
     html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg><div>Ton coach n'a pas encore défini tes objectifs nutritionnels.</div></div>`;
@@ -2927,154 +2932,111 @@ function renderNutrition() {
     const mealLabels = { petit_dejeuner: "Petit déjeuner", midi: "Midi", encas: "Encas (4h)", soir: "Soir", autres: "Autres" };
     html += `<button class="back-btn" data-back-meal="1" style="margin-bottom:12px;">← Retour aux repas</button>`;
     html += `<div class="section-label" style="margin-top:0;">Ajouter à : ${mealLabels[state.nutritionActiveMeal] || "Autres"}</div>`;
-    html += `<div style="display:flex;gap:3px;margin-bottom:16px;">
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recherche" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recherche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><br/>Chercher</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recent" || state.nutritionSubView === "frequent" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg><br/>Historique</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "scanned" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="scanned"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg><br/>Scan</button>
-    <button class="day-tab" style="flex:1;padding:8px 1px;font-size:10px;white-space:normal;line-height:1.2;${state.nutritionSubView === "recipes" ? "background:var(--accent);color:var(--accentText);" : ""}" data-nutrition-subview="recipes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><br/>Recettes</button>
-  </div>`;
 
-  if (state.nutritionSubView === "recent" || state.nutritionSubView === "frequent") {
-    if (state.allFoodLogs === null) {
-      html += `<div class="empty-state">Chargement…</div>`;
-      return html;
-    }
-    const historyMode = state.nutritionHistoryMode || "recent";
-    html += `<div style="display:flex;gap:6px;margin-bottom:14px;">
-      <button data-history-mode="recent" style="flex:1;border-radius:999px;padding:8px;font-size:12.5px;font-weight:700;border:1px solid ${historyMode === "recent" ? "var(--accent)" : "var(--border)"};background:${historyMode === "recent" ? "var(--accent)" : "none"};color:${historyMode === "recent" ? "var(--accentText)" : "var(--textDim)"};">Récemment</button>
-      <button data-history-mode="frequent" style="flex:1;border-radius:999px;padding:8px;font-size:12.5px;font-weight:700;border:1px solid ${historyMode === "frequent" ? "var(--accent)" : "var(--border)"};background:${historyMode === "frequent" ? "var(--accent)" : "none"};color:${historyMode === "frequent" ? "var(--accentText)" : "var(--textDim)"};">Plus mangé</button>
-    </div>`;
-    let list;
-    if (historyMode === "recent") {
-      const seen = new Set();
-      list = [];
-      [...state.allFoodLogs].sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
-        if (seen.has(f.food_name)) return;
-        seen.add(f.food_name);
-        list.push(f);
-      });
-      list = list.slice(0, 20);
-    } else {
-      const counts = {};
-      state.allFoodLogs.forEach(f => {
-        if (!counts[f.food_name]) counts[f.food_name] = { entry: f, count: 0 };
-        counts[f.food_name].count++;
-        if (f.created_at > counts[f.food_name].entry.created_at) counts[f.food_name].entry = f;
-      });
-      list = Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 20).map(c => c.entry);
-    }
-    if (list.length === 0) {
-      html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg><div>Pas encore d'historique alimentaire.</div></div>`;
-    } else {
-      html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
-      list.forEach(f => {
-        const ratio = 100 / (Number(f.grams) || 100);
-        html += `<button class="day-card" data-reuse-food="${esc(f.food_name)}|${Math.round(f.kcal * ratio)}|${Math.round(f.protein * ratio)}|${Math.round(f.carbs * ratio)}|${Math.round(f.fat * ratio)}|${f.grams}">
-          <div class="day-left"><div>
-            <div class="day-title">${esc(f.food_name)}</div>
-            <div class="day-sub">Dernière fois : ${f.grams}g · ${Math.round(f.kcal)} kcal</div>
-          </div></div>
-          <span style="color:var(--textDim);">›</span>
-        </button>`;
-      });
-      html += `</div>`;
-    }
-  } else if (state.nutritionSubView === "scanned") {
-    if (state.scannedProducts === null) {
-      html += `<div class="empty-state">Chargement…</div>`;
-      return html;
-    }
-    if (state.scannedProducts.length === 0) {
-      html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg><div>Aucun produit scanné pour l'instant.</div><div style="font-size:13px;">Scanne un code-barres pour l'ajouter ici, il sera instantané la prochaine fois — même pour un autre client.</div></div>`;
-    } else {
-      html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
-      state.scannedProducts.forEach(p => {
-        html += `<button class="day-card" data-select-scanned="${esc(p.barcode)}">
-          <div class="day-left"><div>
-            <div class="day-title">${esc(p.name)}</div>
-            <div class="day-sub">${p.kcal_per_100} kcal / 100g</div>
-          </div></div>
-          <span style="color:var(--textDim);">›</span>
-        </button>`;
-      });
-      html += `</div>`;
-    }
-  } else if (state.nutritionSubView === "recipes") {
-    if (state.recipes === null) {
-      html += `<div class="empty-state">Chargement…</div>`;
-      return html;
-    }
-    if (state.recipeOpenId) {
-      const r = state.recipes.find(r => r.id === state.recipeOpenId);
-      if (!r) { state.recipeOpenId = null; }
-      else {
-        html += `<button class="back-btn" data-back-recipe="1" style="margin-bottom:12px;">← Retour aux recettes</button>`;
-        html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-          <div class="ex-name">${esc(r.title)}</div>
-          <span class="pill" style="margin-bottom:12px;display:inline-flex;">${esc(r.category)}</span>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;">
-            <span class="chip-lastweek">${r.kcal} kcal</span>
-            <span class="chip-lastweek">${r.protein}g prot</span>
-            <span class="chip-lastweek">${r.carbs}g gluc</span>
-            <span class="chip-lastweek">${r.fat}g lip</span>
-          </div>
-          <div style="font-weight:700;margin-bottom:6px;font-size:13.5px;">Ingrédients</div>
-          <div style="color:var(--textDim);font-size:13.5px;margin-bottom:14px;line-height:1.6;">${esc(r.ingredients || "")}</div>
-          <div style="font-weight:700;margin-bottom:6px;font-size:13.5px;">Préparation</div>
-          <div style="color:var(--textDim);font-size:13.5px;margin-bottom:16px;line-height:1.6;">${esc(r.instructions || "")}</div>
-          <button class="validate-btn" style="margin-top:0;" data-log-recipe="${r.id}">✓ Ajouter à mon repas</button>
-        </div></div>`;
+    if (state.nutritionSubView === "recipes") {
+      html += `<button class="back-btn" data-back-to-search="1" style="margin-bottom:12px;">← Retour à la recherche</button>`;
+      if (state.recipes === null) {
+        html += `<div class="empty-state">Chargement…</div>`;
+        return html;
       }
-    } else {
-      const cats = ["Entrée", "Plat", "Encas", "Dessert"];
-      cats.forEach(cat => {
-        const items = state.recipes.filter(r => r.category === cat);
-        if (items.length === 0) return;
-        html += `<div class="section-label">${cat}s</div>`;
-        items.forEach(r => {
-          html += `<button class="day-card" data-open-recipe="${r.id}">
-            <div class="day-left"><div>
-              <div class="day-title">${esc(r.title)}</div>
-              <div class="day-sub">${r.kcal} kcal · ${r.protein}g prot / ${r.carbs}g gluc / ${r.fat}g lip</div>
-            </div></div>
-            <span style="color:var(--textDim);">›</span>
-          </button>`;
+      if (state.recipeOpenId) {
+        const r = state.recipes.find(r => r.id === state.recipeOpenId);
+        if (!r) { state.recipeOpenId = null; }
+        else {
+          html += `<button class="back-btn" data-back-recipe="1" style="margin-bottom:12px;">← Retour aux recettes</button>`;
+          html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+            <div class="ex-name">${esc(r.title)}</div>
+            <span class="pill" style="margin-bottom:12px;display:inline-flex;">${esc(r.category)}</span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;">
+              <span class="chip-lastweek">${r.kcal} kcal</span>
+              <span class="chip-lastweek">${r.protein}g prot</span>
+              <span class="chip-lastweek">${r.carbs}g gluc</span>
+              <span class="chip-lastweek">${r.fat}g lip</span>
+            </div>
+            <div style="font-weight:700;margin-bottom:6px;font-size:13.5px;">Ingrédients</div>
+            <div style="color:var(--textDim);font-size:13.5px;margin-bottom:14px;line-height:1.6;">${esc(r.ingredients || "")}</div>
+            <div style="font-weight:700;margin-bottom:6px;font-size:13.5px;">Préparation</div>
+            <div style="color:var(--textDim);font-size:13.5px;margin-bottom:16px;line-height:1.6;">${esc(r.instructions || "")}</div>
+            <button class="validate-btn" style="margin-top:0;" data-log-recipe="${r.id}">✓ Ajouter à mon repas</button>
+          </div></div>`;
+        }
+      } else {
+        const cats = ["Entrée", "Plat", "Encas", "Dessert"];
+        cats.forEach(cat => {
+          const items = state.recipes.filter(r => r.category === cat);
+          if (items.length === 0) return;
+          html += `<div class="section-label">${cat}s</div>`;
+          items.forEach(r => {
+            html += `<button class="day-card" data-open-recipe="${r.id}">
+              <div class="day-left"><div>
+                <div class="day-title">${esc(r.title)}</div>
+                <div class="day-sub">${r.kcal} kcal · ${r.protein}g prot / ${r.carbs}g gluc / ${r.fat}g lip</div>
+              </div></div>
+              <span style="color:var(--textDim);">›</span>
+            </button>`;
+          });
         });
-      });
-      if (state.recipes.length === 0) {
-        html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><div>Ton coach n'a pas encore ajouté de recette.</div></div>`;
+        if (state.recipes.length === 0) {
+          html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><div>Ton coach n'a pas encore ajouté de recette.</div></div>`;
+        }
       }
-    }
-  } else {
-    html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-      <div style="font-weight:700;margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg> Ajouter un aliment</div>
-      <input id="foodSearchInput" placeholder="ex : yaourt nature, blanc de poulet…" value="${esc(state.foodSearchQuery)}" autocomplete="off" autocorrect="off" style="margin-bottom:10px;" />
-      <button class="validate-btn" id="foodSearchBtn" style="margin-top:0;margin-bottom:8px;">Rechercher</button>
-      <button data-open-scanner="1" style="width:100%;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> Scanner un code-barres</button>
-      <button data-toggle-create-food="1" style="width:100%;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;font-size:13px;">+ Créer mon propre aliment</button>
-    </div></div>`;
-
-    if (state.showCreateFood) {
+    } else {
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:700;margin-bottom:10px;">Nouvel aliment (valeurs pour 100g)</div>
-        <input id="newFoodName" placeholder="Nom de l'aliment" style="margin-bottom:10px;" />
-        <div class="row">
-          <input id="newFoodKcal" placeholder="kcal" />
-          <input id="newFoodProtein" placeholder="protéines g" />
-        </div>
-        <div class="row" style="margin-bottom:10px;">
-          <input id="newFoodCarbs" placeholder="glucides g" />
-          <input id="newFoodFat" placeholder="lipides g" />
-        </div>
+        <input id="foodSearchInput" placeholder="🔍 Cherche un aliment…" value="${esc(state.foodSearchQuery)}" autocomplete="off" autocorrect="off" style="margin-bottom:10px;font-size:15px;" />
         <div style="display:flex;gap:8px;">
-          <button class="validate-btn" id="createFoodBtn" style="margin-top:0;flex:1;">✓ Créer et utiliser</button>
-          <button data-cancel-create-food="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+          <button data-open-scanner="1" style="flex:1;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:10px;padding:10px;font-size:13px;font-weight:700;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> Scanner</button>
+          <button data-toggle-create-food="1" style="flex:1;border:1px dashed var(--border);background:none;color:var(--textDim);border-radius:10px;padding:10px;font-size:13px;">+ Créer un aliment</button>
         </div>
       </div></div>`;
-    }
 
-    html += `<div id="foodResultsContainer">${renderFoodResultsHTML()}</div>`;
-  }
+      if (state.showCreateFood) {
+        html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+          <div style="font-weight:700;margin-bottom:10px;">Nouvel aliment (valeurs pour 100g)</div>
+          <input id="newFoodName" placeholder="Nom de l'aliment" style="margin-bottom:10px;" />
+          <div class="row">
+            <input id="newFoodKcal" placeholder="kcal" />
+            <input id="newFoodProtein" placeholder="protéines g" />
+          </div>
+          <div class="row" style="margin-bottom:10px;">
+            <input id="newFoodCarbs" placeholder="glucides g" />
+            <input id="newFoodFat" placeholder="lipides g" />
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="validate-btn" id="createFoodBtn" style="margin-top:0;flex:1;">✓ Créer et utiliser</button>
+            <button data-cancel-create-food="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
+          </div>
+        </div></div>`;
+      }
+
+      if (state.foodSearchQuery.trim()) {
+        html += `<div id="foodResultsContainer">${renderFoodResultsHTML()}</div>`;
+      } else {
+        if (state.allFoodLogs === null) loadAllFoodLogs();
+        const seen = new Set();
+        const recentList = [];
+        (state.allFoodLogs || []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
+          if (seen.has(f.food_name)) return;
+          seen.add(f.food_name);
+          recentList.push(f);
+        });
+        if (recentList.length > 0) {
+          html += `<div class="section-label" style="margin-top:16px;">Récemment mangé</div>`;
+          html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">`;
+          recentList.slice(0, 8).forEach(f => {
+            const ratio = 100 / (Number(f.grams) || 100);
+            html += `<button class="day-card" data-reuse-food="${esc(f.food_name)}|${Math.round(f.kcal * ratio)}|${Math.round(f.protein * ratio)}|${Math.round(f.carbs * ratio)}|${Math.round(f.fat * ratio)}|${f.grams}">
+              <div class="day-left"><div>
+                <div class="day-title">${esc(f.food_name)}</div>
+                <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal</div>
+              </div></div>
+              <span style="color:var(--textDim);">›</span>
+            </button>`;
+          });
+          html += `</div>`;
+        }
+        html += `<button data-open-nutrition-recipes="1" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);background:none;color:var(--text);border-radius:12px;padding:12px;font-size:13.5px;font-weight:700;margin-bottom:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> Voir mes recettes</button>`;
+      }
+    }
 
   if (state.selectedFood) {
     const f = state.selectedFood;
@@ -3970,8 +3932,22 @@ function attachHandlers() {
 
   app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
     state.nutritionDayType = b.dataset.setDaytype;
+    state.showDaytypeEdit = false;
     render();
   });
+
+  const toggleDaytypeEdit = app.querySelector("[data-toggle-daytype-edit]");
+  if (toggleDaytypeEdit) toggleDaytypeEdit.onclick = () => { state.showDaytypeEdit = !state.showDaytypeEdit; render(); };
+
+  const openNutritionRecipes = app.querySelector("[data-open-nutrition-recipes]");
+  if (openNutritionRecipes) openNutritionRecipes.onclick = () => {
+    state.nutritionSubView = "recipes";
+    if (state.recipes === null) loadRecipes();
+    render();
+  };
+
+  const backToSearch = app.querySelector("[data-back-to-search]");
+  if (backToSearch) backToSearch.onclick = () => { state.nutritionSubView = "recherche"; render(); };
 
   app.querySelectorAll("[data-open-meal]").forEach(b => b.onclick = () => {
     state.nutritionActiveMeal = b.dataset.openMeal;
