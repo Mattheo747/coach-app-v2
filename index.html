@@ -1222,7 +1222,7 @@ async function loadClientByCode(code) {
     const { data: foodRows } = await sb.from("food_logs").select("*").eq("client_id", clientRow.id).eq("log_date", todayISO()).order("created_at", { ascending: true });
     state.foodLogsToday = foodRows || [];
     state.nutritionSelectedDate = todayISO();
-    state.nutritionLogs = state.foodLogsToday;
+    state.nutritionLogs = [...state.foodLogsToday]; // copie indépendante : ne jamais partager le même tableau
 
     const { data: customFoodsData } = await sb.from("custom_foods").select("*").order("name", { ascending: true });
     state.customFoods = customFoodsData || [];
