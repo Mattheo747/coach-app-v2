@@ -877,11 +877,15 @@ let foodSearchDebounce = null;
 function updateLiveFoodResults() {
   const input = document.getElementById("foodSearchInput");
   const container = document.getElementById("foodResultsContainer");
+  const recentSection = document.getElementById("foodRecentSection");
   if (!input || !container) return;
   const query = input.value;
   state.foodSearchQuery = query;
   state.foodSearchLoading = false;
-  state.foodSearchResults = query.trim() ? searchLocalFoods(query).slice(0, 12) : [];
+  const hasQuery = !!query.trim();
+  container.style.display = hasQuery ? "block" : "none";
+  if (recentSection) recentSection.style.display = hasQuery ? "none" : "block";
+  state.foodSearchResults = hasQuery ? searchLocalFoods(query).slice(0, 12) : [];
   container.innerHTML = renderFoodResultsHTML();
   container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
     state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
@@ -3008,34 +3012,36 @@ function renderNutrition() {
         </div></div>`;
       }
 
-      if (state.foodSearchQuery.trim()) {
-        html += `<div id="foodResultsContainer">${renderFoodResultsHTML()}</div>`;
-      } else {
-        if (state.allFoodLogs === null) loadAllFoodLogs();
-        const seen = new Set();
-        const recentList = [];
-        (state.allFoodLogs || []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
-          if (seen.has(f.food_name)) return;
-          seen.add(f.food_name);
-          recentList.push(f);
+      if (state.allFoodLogs === null) loadAllFoodLogs();
+      const seen = new Set();
+      const recentList = [];
+      (state.allFoodLogs || []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
+        if (seen.has(f.food_name)) return;
+        seen.add(f.food_name);
+        recentList.push(f);
+      });
+      const hasQuery = !!state.foodSearchQuery.trim();
+
+      html += `<div id="foodResultsContainer" style="display:${hasQuery ? "block" : "none"};">${renderFoodResultsHTML()}</div>`;
+
+      html += `<div id="foodRecentSection" style="display:${hasQuery ? "none" : "block"};">`;
+      if (recentList.length > 0) {
+        html += `<div class="section-label" style="margin-top:16px;">Récemment mangé</div>`;
+        html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">`;
+        recentList.slice(0, 8).forEach(f => {
+          const ratio = 100 / (Number(f.grams) || 100);
+          html += `<button class="day-card" data-reuse-food="${esc(f.food_name)}|${Math.round(f.kcal * ratio)}|${Math.round(f.protein * ratio)}|${Math.round(f.carbs * ratio)}|${Math.round(f.fat * ratio)}|${f.grams}">
+            <div class="day-left"><div>
+              <div class="day-title">${esc(f.food_name)}</div>
+              <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal</div>
+            </div></div>
+            <span style="color:var(--textDim);">›</span>
+          </button>`;
         });
-        if (recentList.length > 0) {
-          html += `<div class="section-label" style="margin-top:16px;">Récemment mangé</div>`;
-          html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">`;
-          recentList.slice(0, 8).forEach(f => {
-            const ratio = 100 / (Number(f.grams) || 100);
-            html += `<button class="day-card" data-reuse-food="${esc(f.food_name)}|${Math.round(f.kcal * ratio)}|${Math.round(f.protein * ratio)}|${Math.round(f.carbs * ratio)}|${Math.round(f.fat * ratio)}|${f.grams}">
-              <div class="day-left"><div>
-                <div class="day-title">${esc(f.food_name)}</div>
-                <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal</div>
-              </div></div>
-              <span style="color:var(--textDim);">›</span>
-            </button>`;
-          });
-          html += `</div>`;
-        }
-        html += `<button data-open-nutrition-recipes="1" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);background:none;color:var(--text);border-radius:12px;padding:12px;font-size:13.5px;font-weight:700;margin-bottom:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> Voir mes recettes</button>`;
+        html += `</div>`;
       }
+      html += `<button data-open-nutrition-recipes="1" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border);background:none;color:var(--text);border-radius:12px;padding:12px;font-size:13.5px;font-weight:700;margin-bottom:16px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> Voir mes recettes</button>`;
+      html += `</div>`;
     }
 
   if (state.selectedFood) {
