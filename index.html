@@ -824,6 +824,26 @@ function searchLocalFoods(query) {
   return [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary];
 }
 
+function foodGramsPreviewHTML(f, grams) {
+  const g = grams > 0 ? grams : 0;
+  const ratio = g / 100;
+  const vals = [
+    { label: "kcal", v: Math.round(f.kcalPer100 * ratio), color: "var(--text)" },
+    { label: "Prot", v: Math.round(f.proteinPer100 * ratio), color: "var(--taupe)" },
+    { label: "Gluc", v: Math.round(f.carbsPer100 * ratio), color: "var(--gold)" },
+    { label: "Lip", v: Math.round(f.fatPer100 * ratio), color: "var(--clay)" },
+  ];
+  return vals.map(x => `<div><div style="font-weight:800;font-size:17px;color:${x.color};">${x.v}${x.label === "kcal" ? "" : "g"}</div><div style="font-size:11px;color:var(--textDim);">${x.label}</div></div>`).join("");
+}
+
+function updateFoodGramsPreview() {
+  const input = document.getElementById("foodGramsInput");
+  const preview = document.getElementById("foodGramsPreview");
+  if (!input || !preview || !state.selectedFood) return;
+  const grams = toNum(input.value) || 0;
+  preview.innerHTML = foodGramsPreviewHTML(state.selectedFood, grams);
+}
+
 function renderFoodResultsHTML() {
   if (state.foodSearchLoading) {
     return `<div class="empty-state">Recherche en cours…</div>`;
@@ -3053,6 +3073,7 @@ function renderNutrition() {
 
   if (state.selectedFood) {
     const f = state.selectedFood;
+    const initGrams = toNum(f.defaultGrams) || 100;
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
       <div class="ex-name">${esc(f.name)}</div>
       <div style="font-size:13px;color:var(--textDim);margin-bottom:12px;">${f.kcalPer100} kcal · ${f.proteinPer100}g prot · ${f.carbsPer100}g gluc · ${f.fatPer100}g lip — pour 100g</div>
@@ -3060,6 +3081,9 @@ function renderNutrition() {
         <span style="color:var(--textDim);font-size:13px;">Poids pesé</span>
         <input id="foodGramsInput" placeholder="grammes" value="${f.defaultGrams || ""}" style="width:100px;" />
         <span style="color:var(--textDim);font-size:13px;">g</span>
+      </div>
+      <div id="foodGramsPreview" style="background:var(--bg);border-radius:12px;padding:12px 14px;margin:14px 0;display:flex;justify-content:space-between;text-align:center;">
+        ${foodGramsPreviewHTML(f, initGrams)}
       </div>
       <div style="display:flex;gap:8px;">
         <button class="validate-btn" id="addFoodBtn" style="margin-top:0;flex:1;">✓ Ajouter</button>
@@ -4075,6 +4099,9 @@ function attachHandlers() {
 
   const foodSearchInputEl = app.querySelector("#foodSearchInput");
   if (foodSearchInputEl) foodSearchInputEl.oninput = () => { updateLiveFoodResults(); };
+
+  const foodGramsInputEl = app.querySelector("#foodGramsInput");
+  if (foodGramsInputEl) foodGramsInputEl.oninput = () => { updateFoodGramsPreview(); };
 
   const foodSearchBtn = app.querySelector("#foodSearchBtn");
   if (foodSearchBtn) foodSearchBtn.onclick = async () => {
