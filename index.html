@@ -4237,7 +4237,7 @@ function attachHandlers() {
       if (!file) return existingUrl || null;
       const path = `${state.client.id}-${isoWeekKey(todayISO())}-${inputId}-${Date.now()}-${file.name}`;
       const { error } = await sb.storage.from("checkin-photos").upload(path, file);
-      if (error) { showToast("Erreur d'upload : " + inputId); return existingUrl || null; }
+      if (error) { showToast(`Erreur d'upload (${inputId}) : ${error.message}`); return existingUrl || null; }
       const { data } = sb.storage.from("checkin-photos").getPublicUrl(path);
       return data.publicUrl;
     };
