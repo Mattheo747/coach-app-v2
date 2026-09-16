@@ -4152,9 +4152,11 @@ function attachHandlers() {
 
   const addFoodBtn = app.querySelector("#addFoodBtn");
   if (addFoodBtn) addFoodBtn.onclick = async () => {
-    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour ajouter un aliment."); return; }
+    if (addFoodBtn.disabled) return;
+    addFoodBtn.disabled = true;
+    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour ajouter un aliment."); addFoodBtn.disabled = false; return; }
     const grams = toNum(document.getElementById("foodGramsInput").value);
-    if (!grams || grams <= 0) { alert("Entre un poids valide."); return; }
+    if (!grams || grams <= 0) { alert("Entre un poids valide."); addFoodBtn.disabled = false; return; }
     const f = state.selectedFood;
     const ratio = grams / 100;
     const entry = {
@@ -4169,7 +4171,6 @@ function attachHandlers() {
       meal: state.nutritionActiveMeal || "autres",
     };
     addFoodBtn.textContent = "Ajout…";
-    addFoodBtn.disabled = true;
     const { data, error } = await sb.from("food_logs").insert(entry).select().single();
     if (error) { showToast("Erreur lors de l'ajout."); addFoodBtn.disabled = false; addFoodBtn.textContent = "✓ Ajouter"; return; }
     state.nutritionLogs.push(data);
@@ -4359,6 +4360,15 @@ document.getElementById("manualBarcodeBtn").onclick = async () => {
 document.getElementById("manualBarcodeInput").onkeydown = (e) => {
   if (e.key === "Enter") { e.preventDefault(); document.getElementById("manualBarcodeBtn").click(); }
 };
+
+// Si le téléphone se verrouille ou qu'on change d'appli pendant que le scanner est ouvert,
+// on libère la caméra proprement — sinon iOS peut la garder à moitié occupée et dégrader
+// les scans suivants.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && scannerInstance) {
+    closeScanner();
+  }
+});
 
 window.addEventListener("offline", () => {
   state.isOffline = true;
