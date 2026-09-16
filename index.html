@@ -669,6 +669,18 @@ const RAW_FOOD_LIBRARY = [
   rf("Riz complet, cru (sec)", 370, 7.9, 77, 2.9), rf("Riz rond (arborio), cru (sec)", 360, 6.7, 80, 0.6),
   rf("Pâtes, crues (sèches)", 371, 13, 75, 1.5), rf("Pâtes Barilla, crues (sèches)", 359, 12.5, 71, 1.5),
   rf("Pâtes Panzani, crues (sèches)", 358, 12.5, 71, 1.5), rf("Spaghetti, crus (secs)", 371, 13, 75, 1.5),
+  rf("Farfalle, crues (sèches)", 371, 13, 75, 1.5), rf("Fusilli, crus (secs)", 371, 13, 75, 1.5),
+  rf("Penne, crues (sèches)", 371, 13, 75, 1.5), rf("Macaroni, crus (secs)", 371, 13, 75, 1.5),
+  rf("Tagliatelles, crues (sèches)", 371, 13, 75, 1.5), rf("Coquillettes, crues (sèches)", 371, 13, 75, 1.5),
+  rf("Linguine, crues (sèches)", 371, 13, 75, 1.5), rf("Rigatoni, crus (secs)", 371, 13, 75, 1.5),
+  rf("Lasagnes, crues (sèches)", 350, 12, 72, 1.8),
+  // Confitures, miels & pâtes à tartiner
+  rf("Confiture (classique)", 250, 0.4, 62, 0.1), rf("Confiture sans sucre ajouté", 130, 0.5, 30, 0.2),
+  rf("Confiture allégée en sucre", 150, 0.4, 35, 0.1), rf("Confiture de fraise", 246, 0.3, 61, 0.1),
+  rf("Marmelade d'orange", 245, 0.3, 60, 0.1), rf("Miel", 304, 0.3, 76, 0),
+  rf("Miel de fleurs", 309, 0.3, 76, 0), rf("Miel d'acacia", 304, 0.3, 76, 0),
+  rf("Miel de lavande", 309, 0.4, 76, 0), rf("Miel de châtaignier", 300, 0.5, 75, 0),
+  rf("Pâte à tartiner chocolat-noisettes", 546, 6, 57, 31),
   rf("Quinoa, cru (sec)", 368, 14, 64, 6), rf("Boulgour, cru (sec)", 342, 12, 76, 1.3),
   rf("Semoule, crue (sèche)", 360, 12.8, 72, 1), rf("Lentilles, crues (sèches)", 353, 25, 60, 1.1),
   rf("Pois chiches, crus (secs)", 364, 19, 61, 6), rf("Haricots rouges, crus (secs)", 333, 24, 60, 0.8),
@@ -810,6 +822,76 @@ function searchLocalFoods(query) {
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
   }));
   return [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary];
+}
+
+function renderFoodResultsHTML() {
+  if (state.foodSearchLoading) {
+    return `<div class="empty-state">Recherche en cours…</div>`;
+  }
+  if (state.foodSearchResults.length === 0 || state.selectedFood) return "";
+  let html = `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
+  state.foodSearchResults.forEach((food, i) => {
+    html += `<button class="day-card" data-select-food="${i}">
+      <div class="day-left"><div>
+        <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 21c0-8 4-14 14-16-1 9-6 14-14 16Z"/><path d="M5 21c2-3 4-5 8-7"/></svg> brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>` : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>` : ""}</div>
+        <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
+      </div></div>
+      <span style="color:var(--textDim);">›</span>
+    </button>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+let foodSearchDebounce = null;
+
+// Suggestions instantanées pendant la frappe : on met à jour uniquement le conteneur
+// de résultats (pas tout l'écran), pour ne jamais faire perdre le focus du clavier.
+// Les résultats locaux (bruts, scannés, perso) sont instantanés ; Open Food Facts
+// (marques, enseignes) arrive juste après, sans bloquer l'affichage.
+function updateLiveFoodResults() {
+  const input = document.getElementById("foodSearchInput");
+  const container = document.getElementById("foodResultsContainer");
+  if (!input || !container) return;
+  const query = input.value;
+  state.foodSearchQuery = query;
+  state.foodSearchLoading = false;
+  state.foodSearchResults = query.trim() ? searchLocalFoods(query).slice(0, 12) : [];
+  container.innerHTML = renderFoodResultsHTML();
+  container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
+    state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
+    render();
+  });
+
+  if (foodSearchDebounce) clearTimeout(foodSearchDebounce);
+  if (query.trim().length < 2) return;
+  foodSearchDebounce = setTimeout(async () => {
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24`);
+      const data = await res.json();
+      // Si la personne a continué à taper depuis, on ignore cette réponse devenue obsolète.
+      if (document.getElementById("foodSearchInput")?.value !== query) return;
+      const offResults = (data.products || [])
+        .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
+        .map(p => ({
+          name: p.product_name,
+          brand: p.brands || "",
+          kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
+          proteinPer100: Math.round(p.nutriments["proteins_100g"] || 0),
+          carbsPer100: Math.round(p.nutriments["carbohydrates_100g"] || 0),
+          fatPer100: Math.round(p.nutriments["fat_100g"] || 0),
+          source: "off",
+        }));
+      state.foodSearchResults = [...state.foodSearchResults, ...offResults];
+      container.innerHTML = renderFoodResultsHTML();
+      container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
+        state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
+        render();
+      });
+    } catch (e) {
+      // pas grave si Open Food Facts échoue : les résultats locaux restent affichés
+    }
+  }, 350);
 }
 
 /* ---------------- Barcode scanner ---------------- */
@@ -2966,21 +3048,7 @@ function renderNutrition() {
       </div></div>`;
     }
 
-    if (state.foodSearchLoading) {
-      html += `<div class="empty-state">Recherche en cours…</div>`;
-    } else if (state.foodSearchResults.length > 0 && !state.selectedFood) {
-      html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
-      state.foodSearchResults.forEach((food, i) => {
-        html += `<button class="day-card" data-select-food="${i}">
-          <div class="day-left"><div>
-            <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 21c0-8 4-14 14-16-1 9-6 14-14 16Z"/><path d="M5 21c2-3 4-5 8-7"/></svg> brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;">➕ perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>` : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>` : ""}</div>
-            <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
-          </div></div>
-          <span style="color:var(--textDim);">›</span>
-        </button>`;
-      });
-      html += `</div>`;
-    }
+    html += `<div id="foodResultsContainer">${renderFoodResultsHTML()}</div>`;
   }
 
   if (state.selectedFood) {
@@ -4005,6 +4073,9 @@ function attachHandlers() {
     render();
   };
 
+  const foodSearchInputEl = app.querySelector("#foodSearchInput");
+  if (foodSearchInputEl) foodSearchInputEl.oninput = () => { updateLiveFoodResults(); };
+
   const foodSearchBtn = app.querySelector("#foodSearchBtn");
   if (foodSearchBtn) foodSearchBtn.onclick = async () => {
     const query = document.getElementById("foodSearchInput").value.trim();
@@ -4017,7 +4088,7 @@ function attachHandlers() {
     const localResults = searchLocalFoods(query);
     let offResults = [];
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=8`);
+      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24`);
       const data = await res.json();
       offResults = (data.products || [])
         .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
