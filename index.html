@@ -171,6 +171,9 @@
 <div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;text-align:center;font-size:12.5px;font-weight:700;padding:8px 16px;padding-top:calc(env(safe-area-inset-top, 0px) + 8px);z-index:150;">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M2 12a10 10 0 0 1 20 0"/><path d="M5 12a7 7 0 0 1 14 0"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg> Hors ligne — tu vois tes dernières données enregistrées. Reconnecte-toi pour valider une séance ou voir les mises à jour.
 </div>
+<button id="updateBanner" style="display:none;position:fixed;top:0;left:0;right:0;background:var(--accent);color:var(--accentText);text-align:center;font-size:13px;font-weight:800;padding:10px 16px;padding-top:calc(env(safe-area-inset-top, 0px) + 10px);z-index:151;border:none;width:100%;align-items:center;justify-content:center;gap:8px;">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><polyline points="21 3 21 9 15 9"/></svg> Nouvelle version disponible — Mettre à jour
+</button>
 <div id="scannerOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:200;flex-direction:column;overflow-y:auto;">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top, 0px) + 28px) 16px 16px;">
     <div style="color:#fff;font-weight:700;">Scanner un code-barres</div>
@@ -218,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "1";
+const APP_VERSION = "2";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1296,7 +1299,8 @@ async function boot() {
       state.screen = "app";
       render();
       if (previousVersion && previousVersion !== APP_VERSION) {
-        showToast("✨ Appli mise à jour vers la dernière version !");
+        const btn = document.getElementById("updateBanner");
+        btn.style.display = "flex";
       }
       return;
     }
@@ -4332,6 +4336,11 @@ document.getElementById("themeToggle").onclick = () => {
 };
 
 document.getElementById("scannerCloseBtn").onclick = () => { closeScanner(); };
+
+document.getElementById("updateBanner").onclick = () => {
+  // Recharge en contournant le cache du navigateur pour être sûr d'avoir la toute dernière version.
+  window.location.href = window.location.pathname + "?v=" + Date.now();
+};
 
 document.getElementById("manualBarcodeBtn").onclick = async () => {
   const input = document.getElementById("manualBarcodeInput");
