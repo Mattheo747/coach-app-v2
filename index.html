@@ -157,12 +157,12 @@
     font-size: 13.5px; padding: 0; }
 </style>
 </head>
-<body class="dark">
+<body class="light">
 <div class="header">
   <div class="header-inner">
     <div class="brand">MATTHEO<span>PHYSIC</span></div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <button id="themeToggle" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg></button>
+      <button id="themeToggle" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4" y1="12" x2="2" y2="12"/><line x1="22" y1="12" x2="20" y2="12"/><line x1="5" y1="5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19" y2="19"/><line x1="5" y1="19" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19" y2="5"/></svg></button>
     </div>
   </div>
 </div>
@@ -1104,7 +1104,7 @@ let state = {
   historyDraft: null,
   sessionInputs: {},
   openEx: {},
-  dark: true,
+  dark: false,
   coachClients: [],
   coachEditingClientId: null,
   coachEditingNutritionId: null,
@@ -2905,14 +2905,10 @@ function renderNutrition() {
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
   let html = `<div style="padding-top:20px;"></div>` + renderWeekBubbles() + `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:13px;color:var(--textDim);">
-      <span>Jour ${dayType === "on" ? "ON (entraînement)" : "OFF (repos)"}</span>
-      <button data-toggle-daytype-edit="1" style="background:none;border:none;color:var(--accent);font-weight:700;padding:0;">Modifier</button>
-    </div>
-    ${state.showDaytypeEdit ? `<div class="day-tabs">
-      <button class="day-tab ${dayType === "on" ? "active" : ""}" data-set-daytype="on">Jour ON (entraînement)</button>
-      <button class="day-tab ${dayType === "off" ? "active" : ""}" data-set-daytype="off">Jour OFF (repos)</button>
-    </div>` : ""}`;
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      <button data-set-daytype="on" style="flex:1;border-radius:999px;padding:7px;font-size:12px;font-weight:700;border:1px solid ${dayType === "on" ? "var(--accent)" : "var(--border)"};background:${dayType === "on" ? "var(--accent)" : "none"};color:${dayType === "on" ? "var(--accentText)" : "var(--textDim)"};">Jour ON (entraînement)</button>
+      <button data-set-daytype="off" style="flex:1;border-radius:999px;padding:7px;font-size:12px;font-weight:700;border:1px solid ${dayType === "off" ? "var(--accent)" : "var(--border)"};background:${dayType === "off" ? "var(--accent)" : "none"};color:${dayType === "off" ? "var(--accentText)" : "var(--textDim)"};">Jour OFF (repos)</button>
+    </div>`;
 
   if (!t) {
     html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 21c-4.2 0-7.5-3.8-7.5-8.5C4.5 9 6.7 6.5 9.5 6.5c1 0 1.9.3 2.5.9.6-.6 1.5-.9 2.5-.9 2.8 0 5 2.5 5 6C19.5 17.2 16.2 21 12 21Z"/><path d="M12 6.5C12 4.5 13.3 3 15 3"/></svg><div>Ton coach n'a pas encore défini tes objectifs nutritionnels.</div></div>`;
@@ -3941,9 +3937,6 @@ function attachHandlers() {
     state.showDaytypeEdit = false;
     render();
   });
-
-  const toggleDaytypeEdit = app.querySelector("[data-toggle-daytype-edit]");
-  if (toggleDaytypeEdit) toggleDaytypeEdit.onclick = () => { state.showDaytypeEdit = !state.showDaytypeEdit; render(); };
 
   const openNutritionRecipes = app.querySelector("[data-open-nutrition-recipes]");
   if (openNutritionRecipes) openNutritionRecipes.onclick = () => {
