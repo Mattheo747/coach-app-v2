@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "4";
+const APP_VERSION = "5";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -820,16 +820,22 @@ const STARTER_RECIPES = [
     "Émiette les spéculoos au fond d'un ramequin. Mélange le fromage blanc, l'œuf et l'édulcorant, verse par-dessus. Cuis au four 20 min à 160°C."),
 ];
 
+// Beaucoup de gens tapent "oeuf" (o + e séparés) plutôt que "œuf" (le caractère spécial) —
+// on ignore cette différence pour que la recherche fonctionne dans les deux cas.
+function normalizeSearchText(s) {
+  return s.toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae");
+}
+
 function searchLocalFoods(query) {
-  const q = query.toLowerCase().trim();
+  const q = normalizeSearchText(query.trim());
   if (!q) return [];
-  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => f.name.toLowerCase().includes(q)).map(f => ({ ...f, brand: "", source: "local" }));
-  const fromFastFood = FASTFOOD_LIBRARY.filter(f => f.name.toLowerCase().includes(q)).map(f => ({ ...f, brand: "", source: "fastfood" }));
-  const fromCustom = (state.customFoods || []).filter(f => f.name.toLowerCase().includes(q)).map(f => ({
+  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({ ...f, brand: "", source: "local" }));
+  const fromFastFood = FASTFOOD_LIBRARY.filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({ ...f, brand: "", source: "fastfood" }));
+  const fromCustom = (state.customFoods || []).filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
   }));
-  const fromScanned = (state.scannedProducts || []).filter(f => f.name.toLowerCase().includes(q)).map(f => ({
+  const fromScanned = (state.scannedProducts || []).filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
   }));
