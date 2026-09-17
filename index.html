@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "2";
+const APP_VERSION = "3";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -4233,9 +4233,10 @@ function attachHandlers() {
 
   const submitCheckinBtn = app.querySelector("#submitCheckinBtn");
   if (submitCheckinBtn) submitCheckinBtn.onclick = async () => {
-    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour envoyer ton bilan."); return; }
-    submitCheckinBtn.textContent = "Envoi…";
+    if (submitCheckinBtn.disabled) return;
     submitCheckinBtn.disabled = true;
+    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour envoyer ton bilan."); submitCheckinBtn.disabled = false; return; }
+    submitCheckinBtn.textContent = "Envoi…";
     const d = state.checkinDraft || {};
     const num = (id) => {
       const v = document.getElementById(id)?.value;
