@@ -216,6 +216,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ACCESS_KEY = "mattheophysic_access_code";
 const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
+// À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
+// "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
+const APP_VERSION = "1";
+const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
 // en UTC et afficherait donc parfois la mauvaise date, juste après minuit en France).
@@ -1282,10 +1286,20 @@ async function loadClientByCode(code) {
 }
 
 async function boot() {
+  const previousVersion = localStorage.getItem(APP_VERSION_KEY);
+  localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
+
   const saved = localStorage.getItem(ACCESS_KEY);
   if (saved) {
     const ok = await loadClientByCode(saved);
-    if (ok) { state.screen = "app"; render(); return; }
+    if (ok) {
+      state.screen = "app";
+      render();
+      if (previousVersion && previousVersion !== APP_VERSION) {
+        showToast("✨ Appli mise à jour vers la dernière version !");
+      }
+      return;
+    }
   }
   state.screen = "access";
   render();
