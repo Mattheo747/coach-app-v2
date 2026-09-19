@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "11";
+const APP_VERSION = "12";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -800,6 +800,37 @@ const FASTFOOD_LIBRARY = [
   ff("Sandwich Jambon Emmental (Marie Blachère)", 200, 464, 22, 50, 19),
   ff("Sandwich Poulet Crudités (Marie Blachère)", 335, 895, 43, 115, 28),
   ff("Part de pizza (Marie Blachère)", 166, 463, 18, 55, 18),
+  // Burger King (site officiel burgerking.fr + valeurs déclarées)
+  ff("Whopper (Burger King)", 291, 629, 28, 49, 35), ff("Whopper Jr (Burger King)", 148, 330, 15, 30, 18),
+  ff("Cheeseburger (Burger King)", 133, 343, 17, 33, 17), ff("Double Cheeseburger (Burger King)", 171, 400, 24, 32, 21),
+  ff("Big King (Burger King)", 196, 490, 26, 34, 30), ff("Frites moyennes (Burger King)", 142, 370, 5, 54, 16),
+  ff("Onion Rings (Burger King)", 91, 360, 4, 48, 16),
+  // KFC (valeurs déclarées, bases FatSecret/OpenFoodFacts)
+  ff("Tender Original (KFC)", 35, 130, 12, 7, 6), ff("Filet de poulet Original (KFC)", 90, 260, 16, 10, 20),
+  ff("Hot Wing, 1 pièce (KFC)", 30, 84, 5, 3, 6), ff("Frites moyennes (KFC)", 114, 226, 3, 30, 10),
+  ff("Colonel Original, burger (KFC)", 140, 540, 27, 50, 25), ff("Tower Spicy, burger (KFC)", 160, 570, 27, 50, 30),
+  ff("Boxmaster (KFC)", 220, 657, 36, 56, 32.5),
+  // Buffalo Grill (valeurs déclarées, base FatSecret)
+  rf("Frites (Buffalo Grill)", 320, 5, 52, 20), ff("Buffalo Chicken Burger (Buffalo Grill)", 230, 560, 26, 46, 29),
+  // O'Tacos (estimation moyenne d'après plusieurs sources tierces — très variable selon garniture/sauce choisies)
+  rf("Tacos, sauce fromagère (O'Tacos)", 267, 8.5, 23.4, 15.1),
+  ff("Tacos taille S, 1 viande (O'Tacos)", 320, 854, 27, 75, 48),
+  ff("Tacos taille M, 2 viandes (O'Tacos)", 430, 1148, 37, 101, 65),
+  ff("Tacos taille L, 3 viandes (O'Tacos)", 525, 1402, 45, 123, 79),
+  ff("Tacos taille XL, 4 viandes (O'Tacos)", 640, 1709, 54, 150, 97),
+  // Quick (valeurs déclarées, sources tierces)
+  ff("Cheeseburger (Quick)", 130, 310, 15, 28, 15), ff("Giant (Quick)", 200, 540, 27, 39, 31),
+  ff("Suprême Chicken (Quick)", 210, 560, 24, 42, 32), ff("Long Chicken (Quick)", 190, 490, 20, 45, 25),
+  ff("Quick Fish (Quick)", 170, 430, 16, 42, 22), ff("Double Cheese (Quick)", 220, 650, 35, 38, 38),
+  // La Brioche Dorée (valeurs déclarées, sources tierces)
+  ff("Croissant pur beurre (Brioche Dorée)", 55, 270, 6, 28, 14), ff("Pain au chocolat (Brioche Dorée)", 65, 310, 7, 34, 16),
+  ff("Brioche tressée, part (Brioche Dorée)", 70, 260, 7, 36, 10), ff("Pain aux raisins (Brioche Dorée)", 75, 330, 7, 46, 13),
+  ff("Chausson aux pommes (Brioche Dorée)", 85, 340, 5, 40, 17), ff("Croissant jambon-fromage (Brioche Dorée)", 110, 360, 14, 28, 20),
+  ff("Palmier (Brioche Dorée)", 40, 220, 3, 26, 12), ff("Muffin chocolat (Brioche Dorée)", 90, 380, 6, 48, 18),
+  ff("Jambon-beurre, baguette (Brioche Dorée)", 180, 440, 20, 48, 16), ff("Sandwich poulet mayo (Brioche Dorée)", 200, 460, 24, 46, 18),
+  ff("Sandwich thon crudités (Brioche Dorée)", 190, 430, 20, 42, 16), ff("Croque-monsieur (Brioche Dorée)", 150, 470, 22, 36, 24),
+  ff("Wrap poulet Caesar (Brioche Dorée)", 220, 480, 24, 42, 20), ff("Panini 3 fromages (Brioche Dorée)", 180, 540, 22, 42, 28),
+  ff("Quiche lorraine, part (Brioche Dorée)", 150, 380, 14, 24, 24), ff("Sandwich saumon-aneth (Brioche Dorée)", 190, 420, 22, 40, 16),
 ];
 
 function rc(title, category, kcal, protein, carbs, fat, ingredients, instructions) {
