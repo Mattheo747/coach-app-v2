@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "5";
+const APP_VERSION = "6";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -662,6 +662,9 @@ const RAW_FOOD_LIBRARY = [
   rf("Moules", 86, 12, 3.7, 2.2), rf("Saint-Jacques", 88, 17, 3, 0.8),
   // Œufs & laitages
   rf("Œuf entier", 143, 13, 1.1, 10), rf("Blanc d'œuf", 52, 11, 0.7, 0.2), rf("Jaune d'œuf", 322, 16, 3.6, 27),
+  rf("Œuf dur", 143, 13, 1.1, 10), rf("Œuf à la coque", 143, 13, 1.1, 10), rf("Œuf mollet", 143, 13, 1.1, 10),
+  rf("Œuf poché", 143, 13, 1.1, 10), rf("Œuf au plat", 196, 14, 1, 15), rf("Œufs brouillés", 168, 12, 1.5, 13),
+  rf("Omelette nature", 154, 11, 1, 12),
   rf("Yaourt nature", 61, 3.5, 4.7, 3.3), rf("Yaourt 0%", 45, 5, 4, 0.2), rf("Fromage blanc 20%", 79, 8, 4, 3.6),
   rf("Fromage blanc 0%", 45, 7.5, 4, 0.2), rf("Skyr", 63, 11, 4, 0.2), rf("Lait écrémé", 35, 3.4, 5, 0.1),
   rf("Lait demi-écrémé", 46, 3.3, 4.8, 1.6), rf("Lait entier", 61, 3.2, 4.8, 3.6), rf("Mozzarella", 280, 22, 2.2, 20),
@@ -839,7 +842,12 @@ function searchLocalFoods(query) {
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
   }));
-  return [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary];
+  // Aliments bruts d'abord (locaux, perso, scannés, fast-food), les recettes toujours en dernier.
+  const fromRecipes = (state.recipes || []).filter(r => normalizeSearchText(r.title).includes(q)).map(r => ({
+    id: r.id, name: r.title, brand: "", kcalTotal: r.kcal, proteinTotal: r.protein,
+    carbsTotal: r.carbs, fatTotal: r.fat, source: "recipe",
+  }));
+  return [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary, ...fromRecipes];
 }
 
 function foodGramsPreviewHTML(f, grams) {
@@ -869,16 +877,50 @@ function renderFoodResultsHTML() {
   if (state.foodSearchResults.length === 0 || state.selectedFood) return "";
   let html = `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
   state.foodSearchResults.forEach((food, i) => {
+    const badge = food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 21c0-8 4-14 14-16-1 9-6 14-14 16Z"/><path d="M5 21c2-3 4-5 8-7"/></svg> brut</span>`
+      : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> perso</span>`
+      : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>`
+      : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>`
+      : food.source === "recipe" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;background:rgba(169,116,74,0.18);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> recette</span>`
+      : "";
+    const subtitle = food.source === "recipe" ? `${food.kcalTotal} kcal (portion)` : `${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}`;
     html += `<button class="day-card" data-select-food="${i}">
       <div class="day-left"><div>
-        <div class="day-title">${esc(food.name)}${food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 21c0-8 4-14 14-16-1 9-6 14-14 16Z"/><path d="M5 21c2-3 4-5 8-7"/></svg> brut</span>` : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> perso</span>` : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>` : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>` : ""}</div>
-        <div class="day-sub">${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}</div>
+        <div class="day-title">${esc(food.name)}${badge}</div>
+        <div class="day-sub">${subtitle}</div>
       </div></div>
       <span style="color:var(--textDim);">›</span>
     </button>`;
   });
   html += `</div>`;
   return html;
+}
+
+async function logRecipeSearchResult(food) {
+  showToast("Ajout…");
+  const entry = {
+    client_id: state.client.id, log_date: state.nutritionSelectedDate, food_name: food.name,
+    grams: 1, kcal: food.kcalTotal, protein: food.proteinTotal, carbs: food.carbsTotal, fat: food.fatTotal,
+    meal: state.nutritionActiveMeal || "autres",
+  };
+  const { data, error } = await sb.from("food_logs").insert(entry).select().single();
+  if (error) { showToast("Erreur lors de l'ajout."); return; }
+  state.nutritionLogs.push(data);
+  if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
+  state.nutritionActiveMeal = null;
+  state.foodSearchQuery = "";
+  state.foodSearchResults = [];
+  showToast("Recette ajoutée à ton repas !");
+  render();
+}
+
+function onSelectFoodResult(food) {
+  if (food.source === "recipe") {
+    logRecipeSearchResult(food);
+  } else {
+    state.selectedFood = food;
+    render();
+  }
 }
 
 let foodSearchDebounce = null;
@@ -901,8 +943,7 @@ function updateLiveFoodResults() {
   state.foodSearchResults = hasQuery ? searchLocalFoods(query).slice(0, 12) : [];
   container.innerHTML = renderFoodResultsHTML();
   container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
-    state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
-    render();
+    onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)]);
   });
 
   if (foodSearchDebounce) clearTimeout(foodSearchDebounce);
@@ -927,8 +968,7 @@ function updateLiveFoodResults() {
       state.foodSearchResults = [...state.foodSearchResults, ...offResults];
       container.innerHTML = renderFoodResultsHTML();
       container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
-        state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
-        render();
+        onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)]);
       });
     } catch (e) {
       // pas grave si Open Food Facts échoue : les résultats locaux restent affichés
@@ -3033,6 +3073,7 @@ function renderNutrition() {
       }
 
       if (state.allFoodLogs === null) loadAllFoodLogs();
+      if (state.recipes === null) loadRecipes();
       const seen = new Set();
       const recentList = [];
       (state.allFoodLogs || []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).forEach(f => {
@@ -4142,8 +4183,7 @@ function attachHandlers() {
   };
 
   app.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
-    state.selectedFood = state.foodSearchResults[parseInt(b.dataset.selectFood, 10)];
-    render();
+    onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)]);
   });
 
   const cancelFoodBtn = app.querySelector("[data-cancel-food]");
