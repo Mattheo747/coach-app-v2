@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "12";
+const APP_VERSION = "13";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -831,6 +831,36 @@ const FASTFOOD_LIBRARY = [
   ff("Sandwich thon crudités (Brioche Dorée)", 190, 430, 20, 42, 16), ff("Croque-monsieur (Brioche Dorée)", 150, 470, 22, 36, 24),
   ff("Wrap poulet Caesar (Brioche Dorée)", 220, 480, 24, 42, 20), ff("Panini 3 fromages (Brioche Dorée)", 180, 540, 22, 42, 28),
   ff("Quiche lorraine, part (Brioche Dorée)", 150, 380, 14, 24, 24), ff("Sandwich saumon-aneth (Brioche Dorée)", 190, 420, 22, 40, 16),
+  // Subway (valeurs déclarées, sources tierces)
+  ff("Sub 15cm Dinde, sans sauce (Subway)", 226, 270, 18, 40, 3.5), ff("Sub 15cm Poulet (Subway)", 219, 304, 28, 38, 8),
+  ff("Sub 15cm Steak & Cheese (Subway)", 219, 303, 22, 36, 10), ff("Sub 15cm Thon (Subway)", 226, 370, 18, 37, 16),
+  ff("Sub 15cm Italian BMT (Subway)", 226, 360, 17, 40, 13), ff("Sub 15cm Poulet Teriyaki (Subway)", 281, 330, 26, 44, 4.5),
+  ff("Sub 15cm Veggie Delite (Subway)", 200, 200, 8, 37, 2), ff("Wrap Poulet Caesar (Subway)", 294, 522, 30, 45, 22),
+  ff("Cookie pépites de chocolat (Subway)", 45, 215, 2, 30, 10),
+  // Domino's Pizza (1 part, taille medium — valeurs déclarées)
+  ff("Pizza Margherita, 1 part (Domino's)", 62, 200, 8, 26, 7), ff("Pizza Pepperoni, 1 part (Domino's)", 62, 230, 10, 26, 10),
+  ff("Pizza 4 Fromages, 1 part (Domino's)", 62, 250, 11, 26, 12), ff("Pizza Reine, 1 part (Domino's)", 62, 220, 10, 26, 9),
+  ff("Pizza ExtravaganZZa, 1 part (Domino's)", 62, 280, 12, 27, 14), ff("Pizza Chicken BBQ, 1 part (Domino's)", 62, 240, 11, 28, 9),
+  ff("Chicken Wings, 6 pièces (Domino's)", 110, 290, 22, 3, 21), ff("Potato Wedges (Domino's)", 140, 280, 4, 38, 13),
+  // Five Guys (valeurs déclarées officielles)
+  ff("Hamburger (Five Guys)", 265, 700, 39, 39, 43), ff("Cheeseburger (Five Guys)", 303, 840, 47, 40, 55),
+  ff("Little Hamburger (Five Guys)", 171, 480, 23, 39, 26), ff("Bacon Burger (Five Guys)", 279, 780, 43, 39, 50),
+  ff("Bacon Cheeseburger (Five Guys)", 317, 920, 51, 40, 62), ff("Frites régulières (Five Guys)", 411, 953, 15, 131, 41),
+  // Starbucks (valeurs déclarées, taille grande/473ml)
+  ff("Caffè Latte, grande (Starbucks)", 473, 190, 13, 19, 7), ff("Cappuccino, grande (Starbucks)", 350, 140, 9, 10, 7),
+  ff("Caramel Macchiato, grande (Starbucks)", 473, 250, 10, 33, 9), ff("Flat White, grande (Starbucks)", 355, 220, 12, 17, 12),
+  ff("Caffè Americano, grande (Starbucks)", 473, 15, 1, 0, 0.2), ff("Frappuccino café, grande (Starbucks)", 473, 230, 3, 46, 3),
+  ff("Frappuccino caramel, grande (Starbucks)", 473, 380, 5, 54, 16), ff("Frappuccino fraise, grande (Starbucks)", 473, 370, 5, 51, 16),
+  // Sushi Shop (valeurs déclarées, base FatSecret)
+  rf("Riz vinaigré (Sushi Shop)", 180, 0, 35, 8), rf("Chirashi saumon avocat (Sushi Shop)", 162, 7.1, 18.9, 6.1),
+  ff("Soupe miso (Sushi Shop)", 250, 36, 2, 4.9, 1),
+  // Big Fernand (valeurs déclarées, sources tierces)
+  ff("Le Bartholomé, burger (Big Fernand)", 300, 840, 56, 46, 48), ff("Le Smash Fernand, burger (Big Fernand)", 280, 800, 40, 50, 45),
+  ff("Fernandines (Big Fernand)", 150, 362, 5, 45, 18),
+  // Flunch (grillades, valeurs déclarées)
+  ff("Steak haché 100% bœuf 150g (Flunch)", 150, 340, 32, 0, 22), ff("Entrecôte grillée 200g (Flunch)", 200, 440, 44, 0, 28),
+  ff("Filet de poulet grillé 150g (Flunch)", 150, 220, 38, 0, 6), ff("Cuisse de poulet rôti (Flunch)", 150, 280, 34, 0, 14),
+  ff("Saumon grillé 150g (Flunch)", 150, 300, 32, 0, 18), ff("Filet de merlu (Flunch)", 150, 180, 36, 0, 4),
 ];
 
 function rc(title, category, kcal, protein, carbs, fat, ingredients, instructions) {
