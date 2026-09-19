@@ -2133,12 +2133,17 @@ function renderCoachBilan(c) {
     html += `</div>`; // fin .bilan-grid
   }
 
-  // Panneau ajustements & message — pleine largeur, en bas
-  html += `<div class="bilan-grid wide" style="margin-top:20px;">`;
+  // Message et Objectifs — deux cartes bien séparées, côte à côte sur grand écran
+  html += `<div class="bilan-grid" style="margin-top:20px;">`;
+
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:800;margin-bottom:10px;font-size:14.5px;">✏️ Ajustements & message pour ${esc(c.name)}</div>
-    <textarea id="fMessage" placeholder="Écris un message pour ce client…" rows="4" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
-    <button class="validate-btn" style="margin-top:0;margin-bottom:16px;" data-save-message="${c.id}">✓ Envoyer le message</button>
+    <div style="font-weight:800;margin-bottom:10px;font-size:14.5px;">💬 Message pour ${esc(c.name)}</div>
+    <textarea id="fMessage" placeholder="Écris un message pour ce client…" rows="6" style="margin-bottom:12px;">${esc(c.message || "")}</textarea>
+    <button class="validate-btn" style="margin-top:0;" data-save-message="${c.id}">✓ Envoyer le message</button>
+  </div></div>`;
+
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
+    <div style="font-weight:800;margin-bottom:10px;font-size:14.5px;">🎯 Objectifs & ajustements nutrition</div>
     <div class="section-label" style="margin-top:0;">Jour ON (entraînement)</div>
     <div class="row">
       <input id="fKcalOn" placeholder="kcal" value="${n.kcal_on ?? ""}" inputmode="numeric" />
