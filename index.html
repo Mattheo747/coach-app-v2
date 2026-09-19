@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "6";
+const APP_VERSION = "7";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -829,6 +829,50 @@ function normalizeSearchText(s) {
   return s.toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae");
 }
 
+// Distance de Levenshtein : mesure combien de lettres il faut changer pour passer d'un mot à l'autre.
+// Sert à proposer des suggestions quand l'orthographe tapée n'est pas exacte (ex: "poulet" mal orthographié).
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+// Cherche, parmi tous les mots des noms d'aliments, ceux les plus proches orthographiquement de la requête.
+function fuzzyMatchFoods(query) {
+  const q = normalizeSearchText(query);
+  if (q.length < 3) return [];
+  const maxDist = q.length <= 5 ? 1 : q.length <= 8 ? 2 : 3;
+  const candidates = [
+    ...RAW_FOOD_LIBRARY.map(f => ({ ...f, brand: "", source: "local" })),
+    ...FASTFOOD_LIBRARY.map(f => ({ ...f, brand: "", source: "fastfood" })),
+  ];
+  const scored = [];
+  candidates.forEach(food => {
+    const words = normalizeSearchText(food.name).split(/[\s,()%']+/).filter(w => w.length >= 3);
+    let best = Infinity;
+    words.forEach(w => { const d = levenshtein(q, w); if (d < best) best = d; });
+    if (best <= maxDist) scored.push({ food, dist: best });
+  });
+  scored.sort((a, b) => a.dist - b.dist);
+  const seen = new Set();
+  const results = [];
+  scored.forEach(s => {
+    if (seen.has(s.food.name)) return;
+    seen.add(s.food.name);
+    results.push({ ...s.food, fuzzy: true });
+  });
+  return results.slice(0, 8);
+}
+
 function searchLocalFoods(query) {
   const q = normalizeSearchText(query.trim());
   if (!q) return [];
@@ -847,7 +891,10 @@ function searchLocalFoods(query) {
     id: r.id, name: r.title, brand: "", kcalTotal: r.kcal, proteinTotal: r.protein,
     carbsTotal: r.carbs, fatTotal: r.fat, source: "recipe",
   }));
-  return [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary, ...fromRecipes];
+  const exact = [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary, ...fromRecipes];
+  // Si rien ne correspond exactement, on propose les aliments dont l'orthographe se rapproche le plus.
+  if (exact.length === 0) return fuzzyMatchFoods(q);
+  return exact;
 }
 
 function foodGramsPreviewHTML(f, grams) {
@@ -874,8 +921,17 @@ function renderFoodResultsHTML() {
   if (state.foodSearchLoading) {
     return `<div class="empty-state">Recherche en cours…</div>`;
   }
-  if (state.foodSearchResults.length === 0 || state.selectedFood) return "";
-  let html = `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
+  if (state.foodSearchResults.length === 0 || state.selectedFood) {
+    if (state.foodSearchResults.length === 0 && !state.selectedFood && state.foodSearchQuery.trim().length >= 2 && !state.foodSearchLoading) {
+      return `<div class="empty-state" style="padding:20px 0;">Aucun résultat, même approchant. Tu peux le créer toi-même avec "+ Créer un aliment" ci-dessus.</div>`;
+    }
+    return "";
+  }
+  let html = "";
+  if (state.foodSearchResults[0]?.fuzzy) {
+    html += `<div style="font-size:12.5px;color:var(--textDim);margin-bottom:10px;">Aucun résultat exact — voici ce qui s'en rapproche le plus :</div>`;
+  }
+  html += `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">`;
   state.foodSearchResults.forEach((food, i) => {
     const badge = food.source === "local" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M5 21c0-8 4-14 14-16-1 9-6 14-14 16Z"/><path d="M5 21c2-3 4-5 8-7"/></svg> brut</span>`
       : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> perso</span>`
