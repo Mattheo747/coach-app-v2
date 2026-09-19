@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "9";
+const APP_VERSION = "11";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -721,6 +721,36 @@ const RAW_FOOD_LIBRARY = [
   rf("Cookie", 480, 6, 62, 23), rf("Muffin au chocolat", 400, 6, 50, 19), rf("Pain au lait", 330, 9, 52, 9),
   rf("Beignet sucré", 350, 5, 45, 16), rf("Palmier", 500, 6, 55, 28), rf("Cannelé", 320, 6, 40, 14),
   rf("Kouign-amann", 430, 5, 45, 26), rf("Paris-Brest", 380, 6, 30, 26), rf("Opéra (pâtisserie)", 380, 6, 35, 24),
+  // Plats composés & cuisine française (valeurs génériques type CIQUAL, moyenne représentative de la catégorie)
+  rf("Quiche lorraine", 300, 10, 18, 22), rf("Quiche aux légumes", 250, 8, 17, 16),
+  rf("Croque-monsieur", 290, 15, 20, 17), rf("Croque-madame", 280, 14, 19, 17),
+  rf("Tarte flambée (flammekueche)", 260, 9, 24, 14), rf("Couscous royal", 150, 9, 15, 6),
+  rf("Blanquette de veau", 140, 14, 6, 7), rf("Bœuf bourguignon (plat)", 160, 14, 5, 9),
+  rf("Ratatouille", 60, 1.5, 7, 3), rf("Gratin dauphinois", 165, 4, 15, 10),
+  rf("Cassoulet", 165, 9, 14, 8), rf("Choucroute garnie", 180, 10, 6, 12),
+  rf("Hachis parmentier", 140, 7, 14, 6), rf("Pot-au-feu", 120, 14, 4, 5),
+  rf("Tartiflette", 220, 9, 15, 14), rf("Aligot", 220, 8, 20, 12),
+  rf("Soupe à l'oignon gratinée", 110, 5, 9, 6), rf("Salade niçoise", 130, 8, 6, 8),
+  rf("Flan pâtissier", 180, 5, 25, 6), rf("Riz au lait", 120, 3.5, 20, 3),
+  rf("Mousse au chocolat", 260, 5, 22, 17), rf("Crème brûlée", 300, 4, 22, 22),
+  rf("Tarte Tatin", 240, 2.5, 34, 10), rf("Profiteroles", 320, 5, 28, 20),
+  rf("Île flottante", 180, 4, 28, 5), rf("Clafoutis aux cerises", 180, 4, 26, 6),
+  rf("Far breton", 200, 4, 30, 7), rf("Galette des rois", 420, 6, 38, 27),
+  rf("Crêpe nature", 220, 6, 32, 7), rf("Crêpe jambon-fromage", 230, 11, 20, 12),
+  rf("Gaufre", 290, 6, 38, 13), rf("Pain perdu", 260, 7, 35, 10),
+  rf("Lasagnes bolognaise (plat cuisiné)", 145, 8, 13, 7), rf("Moussaka", 150, 8, 8, 9),
+  rf("Paella", 160, 9, 18, 6), rf("Risotto", 150, 4, 22, 5),
+  rf("Chili con carne", 130, 9, 11, 6), rf("Curry de poulet", 150, 12, 6, 9),
+  rf("Poulet basquaise", 130, 14, 6, 6), rf("Pizza margherita", 260, 11, 33, 9),
+  rf("Pizza reine", 250, 12, 28, 10), rf("Kebab (sandwich)", 250, 12, 25, 11),
+  rf("Nems", 250, 6, 25, 14), rf("Sushi (assortiment)", 150, 6, 28, 1.5),
+  rf("Falafel", 330, 13, 32, 18), rf("Empanada", 280, 8, 30, 13), rf("Samoussa légumes", 260, 6, 30, 13),
+  // Marie Blachère (valeurs déclarées, base FatSecret)
+  rf("Pain Nordique (Marie Blachère)", 260, 22, 7, 12), rf("Baguette (Marie Blachère)", 279, 3.6, 38.7, 11.9),
+  rf("Pain Complet (Marie Blachère)", 279, 3.6, 38.7, 11.9), rf("Pain Sportif (Marie Blachère)", 279, 3.6, 38.7, 11.9),
+  rf("Pain Multicéréales (Marie Blachère)", 279, 3, 38, 11), rf("Pain aux Noix (Marie Blachère)", 279, 5, 38, 11),
+  rf("Pain Oriental (Marie Blachère)", 290, 8, 46, 7), rf("Pain Grillé (Marie Blachère)", 378, 12, 76, 1.7),
+  rf("Brioche aux Pralines Roses (Marie Blachère)", 375, 8, 53, 11), rf("Croissant (Marie Blachère)", 360, 6, 44, 18),
 ];
 
 // Fast food — valeurs approximatives par produit (poids officiel/typique x kcal/macros
@@ -766,6 +796,10 @@ const FASTFOOD_LIBRARY = [
   ff("Fanta moyenne (McDonald's)", 400, 180, 0, 44, 0),
   ff("Sprite moyenne (McDonald's)", 400, 168, 0, 41, 0),
   ff("Oasis tropical moyenne (McDonald's)", 400, 180, 0, 44, 0),
+  // Marie Blachère — sandwichs & parts (valeurs déclarées, base FatSecret)
+  ff("Sandwich Jambon Emmental (Marie Blachère)", 200, 464, 22, 50, 19),
+  ff("Sandwich Poulet Crudités (Marie Blachère)", 335, 895, 43, 115, 28),
+  ff("Part de pizza (Marie Blachère)", 166, 463, 18, 55, 18),
 ];
 
 function rc(title, category, kcal, protein, carbs, fat, ingredients, instructions) {
