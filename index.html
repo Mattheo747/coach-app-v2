@@ -227,7 +227,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "15";
+const APP_VERSION = "17";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -751,6 +751,11 @@ const RAW_FOOD_LIBRARY = [
   rf("Pizza reine", 250, 12, 28, 10), rf("Kebab (sandwich)", 250, 12, 25, 11),
   rf("Nems", 250, 6, 25, 14), rf("Sushi (assortiment)", 150, 6, 28, 1.5),
   rf("Falafel", 330, 13, 32, 18), rf("Empanada", 280, 8, 30, 13), rf("Samoussa légumes", 260, 6, 30, 13),
+  // Marie — plats préparés (valeurs officielles marie.fr / déclarées OpenFoodFacts)
+  rf("Quiche lorraine (Marie)", 297, 11, 18, 20), rf("Tarte aux poireaux (Marie)", 213, 7.7, 20, 11),
+  rf("Tarte 3 fromages (Marie)", 212, 12.9, 7.9, 14.3), rf("Tarte au fromage (Marie)", 247, 11, 19, 14),
+  rf("Gratin dauphinois aux lardons (Marie)", 150, 3.4, 12, 9.4), rf("Tarte tomates-fromage frais (Marie)", 216, 5, 23, 11),
+  rf("Tarte à la sarladaise (Marie)", 222, 7.3, 18.2, 13.2), rf("Riz poulet basquaise (Marie)", 101, 6.9, 14, 1.7),
   // Marie Blachère (valeurs déclarées, base FatSecret)
   rf("Pain Nordique (Marie Blachère)", 260, 22, 7, 12), rf("Baguette (Marie Blachère)", 279, 3.6, 38.7, 11.9),
   rf("Pain Complet (Marie Blachère)", 279, 3.6, 38.7, 11.9), rf("Pain Sportif (Marie Blachère)", 279, 3.6, 38.7, 11.9),
