@@ -221,7 +221,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "7";
+const APP_VERSION = "9";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -669,6 +669,11 @@ const RAW_FOOD_LIBRARY = [
   rf("Fromage blanc 0%", 45, 7.5, 4, 0.2), rf("Skyr", 63, 11, 4, 0.2), rf("Lait écrémé", 35, 3.4, 5, 0.1),
   rf("Lait demi-écrémé", 46, 3.3, 4.8, 1.6), rf("Lait entier", 61, 3.2, 4.8, 3.6), rf("Mozzarella", 280, 22, 2.2, 20),
   rf("Emmental", 380, 29, 0, 29), rf("Comté", 412, 28, 0, 32), rf("Feta", 264, 14, 4, 21),
+  rf("Saint Môret", 245, 6, 3, 23), rf("Kiri", 275, 9, 3, 24), rf("La vache qui rit", 271, 10, 5, 23),
+  rf("Boursin ail & fines herbes", 394, 7, 2.6, 39), rf("Morbier", 340, 24, 0, 27), rf("Camembert", 300, 20, 0.5, 24),
+  rf("Brie", 330, 20, 0.5, 27), rf("Roquefort", 370, 20, 2, 31), rf("Cantal", 380, 25, 0, 30),
+  rf("Chèvre (bûche)", 290, 19, 2, 23), rf("Babybel", 306, 24, 0, 24), rf("Philadelphia nature", 245, 5.5, 4, 23),
+  rf("Ricotta", 150, 9, 3, 11), rf("Raclette", 340, 24, 0, 27), rf("Tomme", 330, 24, 0, 26),
   rf("Cottage cheese", 98, 11, 3.4, 4.3), rf("Beurre", 717, 0.9, 0.1, 81), rf("Crème fraîche", 292, 2.2, 3, 30),
   rf("Parmesan râpé", 431, 38, 4.1, 29), rf("Parmesan (bloc, à râper)", 431, 38, 4.1, 29),
   // Féculents & céréales — pesés cuits
@@ -706,6 +711,16 @@ const RAW_FOOD_LIBRARY = [
   // Autres
   rf("Tofu nature", 76, 8, 1.9, 4.8), rf("Seitan", 370, 75, 14, 1.9), rf("Houmous", 166, 7.9, 14, 9.6),
   rf("Chocolat noir 70%", 598, 7.8, 46, 43),
+  // Boulangerie, viennoiseries & pâtisseries
+  rf("Baguette", 274, 9, 55, 1.3), rf("Pain de mie", 265, 8.5, 49, 3.3), rf("Pain complet", 246, 9, 45, 2.5),
+  rf("Croissant", 406, 8, 46, 21), rf("Pain au chocolat", 410, 7.5, 45, 22), rf("Pain aux raisins", 330, 6, 50, 12),
+  rf("Chausson aux pommes", 300, 3.5, 38, 15), rf("Brioche", 372, 8, 51, 15), rf("Chouquette", 380, 7, 44, 19),
+  rf("Éclair au chocolat", 330, 5.5, 34, 19), rf("Éclair au café", 330, 5.5, 34, 19),
+  rf("Tarte aux pommes", 240, 3, 32, 11), rf("Tarte au citron", 320, 4.5, 40, 16),
+  rf("Macaron", 400, 6, 55, 18), rf("Financier", 430, 7, 45, 25), rf("Madeleine", 410, 6, 52, 20),
+  rf("Cookie", 480, 6, 62, 23), rf("Muffin au chocolat", 400, 6, 50, 19), rf("Pain au lait", 330, 9, 52, 9),
+  rf("Beignet sucré", 350, 5, 45, 16), rf("Palmier", 500, 6, 55, 28), rf("Cannelé", 320, 6, 40, 14),
+  rf("Kouign-amann", 430, 5, 45, 26), rf("Paris-Brest", 380, 6, 30, 26), rf("Opéra (pâtisserie)", 380, 6, 35, 24),
 ];
 
 // Fast food — valeurs approximatives par produit (poids officiel/typique x kcal/macros
