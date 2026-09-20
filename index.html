@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "22";
+const APP_VERSION = "23";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1603,6 +1603,7 @@ function render() {
       : state.courseView === "history" ? renderCourseHistory()
       : renderCourseHome();
     if (state.courseView === "home" && state.courseRuns === null) loadCourseRuns();
+    if (state.courseView === "summary" && state.courseRuns === null) loadCourseRuns();
     if (state.courseView === "tracking") {
       nav.style.display = "none";
       if (state.activeRun && state.activeRun.status === "running") {
@@ -3770,12 +3771,41 @@ function renderCourseTracking() {
   return html;
 }
 
+function getRunFeedbackMessages(distanceKm, avgPaceSecPerKm, pastRuns) {
+  if (!pastRuns) return [];
+  if (pastRuns.length === 0) return ["🎉 Bravo pour cette première sortie enregistrée !"];
+
+  const messages = [];
+  const maxDist = Math.max(...pastRuns.map(r => r.distance_km));
+  const avgDist = pastRuns.reduce((s, r) => s + r.distance_km, 0) / pastRuns.length;
+  const pastPaces = pastRuns.filter(r => r.avg_pace_seconds_per_km).map(r => r.avg_pace_seconds_per_km);
+  const bestPace = pastPaces.length ? Math.min(...pastPaces) : null;
+  const avgPace = pastPaces.length ? pastPaces.reduce((s, p) => s + p, 0) / pastPaces.length : null;
+
+  if (distanceKm > maxDist) messages.push("🏆 Bravo, c'est ta plus longue distance parcourue jusqu'ici !");
+  else if (distanceKm > avgDist * 1.05) messages.push("👏 Tu es allé plus loin qu'à tes sorties précédentes !");
+
+  if (avgPaceSecPerKm && bestPace != null && avgPaceSecPerKm < bestPace) messages.push("⚡ Nouveau record d'allure, félicitations !");
+  else if (avgPaceSecPerKm && avgPace != null && avgPaceSecPerKm < avgPace * 0.97) messages.push("🔥 Meilleure allure que ta moyenne récente !");
+
+  if (messages.length === 0) messages.push("💪 Sortie enregistrée, continue comme ça !");
+  return messages;
+}
+
 function renderCourseSummary() {
   const r = state.activeRun;
   if (!r) { state.courseView = "home"; return renderCourseHome(); }
 
   let html = `<div class="h1" style="font-size:26px;margin-top:20px;">RÉSUMÉ DE LA SORTIE</div>
     <div class="subtitle">${r.type === "exterieur" ? "Extérieur" : "Tapis de course"} · ${formatDateFR(localDateStr(new Date(r.startedAt)))}</div>`;
+
+  if (r.type === "exterieur" && state.courseRuns !== null) {
+    const pace = r.distanceKm > 0 ? r.finalElapsedSeconds / r.distanceKm : null;
+    const feedback = getRunFeedbackMessages(r.distanceKm, pace, state.courseRuns);
+    if (feedback.length > 0) {
+      html += `<div class="info-box" style="margin-top:14px;">${feedback.map(m => `<div>${esc(m)}</div>`).join("")}</div>`;
+    }
+  }
 
   if (r.type === "exterieur") {
     html += `<div id="courseMap" style="width:100%;height:220px;border-radius:16px;overflow:hidden;margin:16px 0;background:var(--card);"></div>`;
@@ -3798,7 +3828,9 @@ function renderCourseSummary() {
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">`;
   if (r.type === "tapis") {
     html += `<div class="section-label" style="margin-top:0;">Distance parcourue</div>
-      <input id="courseManualDistance" placeholder="distance en km (ex: 5.2)" style="margin-bottom:14px;" />`;
+      <input id="courseManualDistance" placeholder="distance en km (ex: 5.2)" style="margin-bottom:8px;" />
+      <div id="tapisFeedback"></div>
+      <div style="margin-bottom:6px;"></div>`;
   }
   html += `<div class="section-label" style="margin-top:0;">Ton poids (pour estimer les calories brûlées)</div>
     <input id="courseWeightInput" placeholder="poids en kg" value="${state.runnerWeight ?? ""}" style="margin-bottom:16px;" />
@@ -5058,6 +5090,17 @@ function attachHandlers() {
 
   const backCourseHome = app.querySelector("[data-back-course-home]");
   if (backCourseHome) backCourseHome.onclick = () => { state.courseView = "home"; render(); };
+
+  const courseManualDistance = app.querySelector("#courseManualDistance");
+  if (courseManualDistance) courseManualDistance.oninput = () => {
+    const feedbackEl = document.getElementById("tapisFeedback");
+    if (!feedbackEl || !state.activeRun) return;
+    const distanceKm = toNum(courseManualDistance.value);
+    if (!distanceKm || distanceKm <= 0 || state.courseRuns === null) { feedbackEl.innerHTML = ""; return; }
+    const pace = state.activeRun.finalElapsedSeconds / distanceKm;
+    const feedback = getRunFeedbackMessages(distanceKm, pace, state.courseRuns);
+    feedbackEl.innerHTML = feedback.length > 0 ? `<div class="info-box" style="margin-bottom:14px;">${feedback.map(m => `<div>${esc(m)}</div>`).join("")}</div>` : "";
+  };
 
   const saveRunBtn = app.querySelector("#saveRunBtn");
   if (saveRunBtn) saveRunBtn.onclick = () => { saveRunToSupabase(); };
