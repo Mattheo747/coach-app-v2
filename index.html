@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "20";
+const APP_VERSION = "21";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -3696,7 +3696,8 @@ async function saveRunToSupabase() {
 }
 
 function renderCourseHome() {
-  let html = `<div class="h1" style="font-size:26px;margin-top:20px;">COURSE À PIED</div>`;
+  let html = `<button class="back-btn" data-back-to-profil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
+    <div class="h1" style="font-size:26px;margin-top:10px;">COURSE À PIED</div>`;
 
   if (state.activeRun && (state.activeRun.status === "running" || state.activeRun.status === "paused")) {
     const elapsed = getActiveRunElapsedSeconds();
