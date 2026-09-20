@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "23";
+const APP_VERSION = "24";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -3771,6 +3771,31 @@ function renderCourseTracking() {
   return html;
 }
 
+function computeKmSplits(gpsPath) {
+  if (!gpsPath || gpsPath.length < 2) return [];
+  const splits = [];
+  let cumDist = 0;
+  let nextThreshold = 1;
+  let splitStartTime = gpsPath[0].t;
+  for (let i = 1; i < gpsPath.length; i++) {
+    const prev = gpsPath[i - 1], cur = gpsPath[i];
+    const segKm = haversineKm(prev.lat, prev.lng, cur.lat, cur.lng);
+    if (segKm <= 0.003 || segKm >= 0.3) continue; // même filtrage que pendant l'enregistrement (bruit / saut GPS)
+    cumDist += segKm;
+    if (cumDist >= nextThreshold) {
+      splits.push({ km: nextThreshold, seconds: (cur.t - splitStartTime) / 1000 });
+      splitStartTime = cur.t;
+      nextThreshold += 1;
+    }
+  }
+  const lastPoint = gpsPath[gpsPath.length - 1];
+  const partialKm = Math.round((cumDist - (nextThreshold - 1)) * 100) / 100;
+  if (partialKm > 0.05) {
+    splits.push({ km: nextThreshold - 1 + partialKm, seconds: (lastPoint.t - splitStartTime) / 1000, partial: true, partialKm });
+  }
+  return splits;
+}
+
 function getRunFeedbackMessages(distanceKm, avgPaceSecPerKm, pastRuns) {
   if (!pastRuns) return [];
   if (pastRuns.length === 0) return ["🎉 Bravo pour cette première sortie enregistrée !"];
@@ -3823,6 +3848,18 @@ function renderCourseSummary() {
       <div class="stat-card"><div class="stat-value">${Math.round(r.elevationGain)} m</div><div class="stat-label">Dénivelé positif</div></div>
     </div>
     <div style="font-size:11.5px;color:var(--textDim);margin:-10px 0 16px;">Le dénivelé est une estimation — moins précis que la distance, selon le GPS du téléphone.</div>`;
+
+    const splits = computeKmSplits(r.gpsPath);
+    if (splits.length > 0) {
+      const bestSeconds = Math.min(...splits.filter(s => !s.partial).map(s => s.seconds));
+      html += `<div class="ex-card" style="margin-bottom:16px;"><div class="ex-body" style="padding-top:16px;">
+        <div style="font-weight:800;margin-bottom:12px;font-size:14.5px;">Kilomètre par kilomètre</div>
+        ${splits.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border);">
+          <span style="font-size:13.5px;color:var(--textDim);">${s.partial ? `Dernier ${formatNum(s.partialKm)}km` : `Km ${s.km}`}</span>
+          <span style="font-weight:700;${!s.partial && s.seconds === bestSeconds ? "color:var(--olive);" : ""}">${formatDuration(s.seconds)}${!s.partial && s.seconds === bestSeconds ? " ⚡" : ""}</span>
+        </div>`).join("")}
+      </div></div>`;
+    }
   }
 
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">`;
