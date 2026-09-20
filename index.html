@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "24";
+const APP_VERSION = "25";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -952,6 +952,14 @@ function normalizeSearchText(s) {
   return s.toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae");
 }
 
+// Fait correspondre la requête au DÉBUT d'un mot dans le nom, pas n'importe où dedans —
+// sinon "oeuf" matcherait aussi "bOEUF" (bœuf), ce qui polluait les résultats.
+function matchesQuery(normalizedName, normalizedQuery) {
+  if (!normalizedQuery) return false;
+  const escaped = normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("(^|[^a-z0-9])" + escaped).test(normalizedName);
+}
+
 // Distance de Levenshtein : mesure combien de lettres il faut changer pour passer d'un mot à l'autre.
 // Sert à proposer des suggestions quand l'orthographe tapée n'est pas exacte (ex: "poulet" mal orthographié).
 function levenshtein(a, b) {
@@ -999,18 +1007,18 @@ function fuzzyMatchFoods(query) {
 function searchLocalFoods(query) {
   const q = normalizeSearchText(query.trim());
   if (!q) return [];
-  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({ ...f, brand: "", source: "local" }));
-  const fromFastFood = FASTFOOD_LIBRARY.filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({ ...f, brand: "", source: "fastfood" }));
-  const fromCustom = (state.customFoods || []).filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({
+  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({ ...f, brand: "", source: "local" }));
+  const fromFastFood = FASTFOOD_LIBRARY.filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({ ...f, brand: "", source: "fastfood" }));
+  const fromCustom = (state.customFoods || []).filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
   }));
-  const fromScanned = (state.scannedProducts || []).filter(f => normalizeSearchText(f.name).includes(q)).map(f => ({
+  const fromScanned = (state.scannedProducts || []).filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
   }));
   // Aliments bruts d'abord (locaux, perso, scannés, fast-food), les recettes toujours en dernier.
-  const fromRecipes = (state.recipes || []).filter(r => normalizeSearchText(r.title).includes(q)).map(r => ({
+  const fromRecipes = (state.recipes || []).filter(r => matchesQuery(normalizeSearchText(r.title), q)).map(r => ({
     id: r.id, name: r.title, brand: "", kcalTotal: r.kcal, proteinTotal: r.protein,
     carbsTotal: r.carbs, fatTotal: r.fat, source: "recipe",
   }));
