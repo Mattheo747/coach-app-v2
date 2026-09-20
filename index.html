@@ -17,6 +17,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: #16140f; --card: #211d17; --border: #332c22;
@@ -227,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "18";
+const APP_VERSION = "19";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1369,6 +1371,10 @@ let state = {
   showDaytypeEdit: false,
   metaCalcDraft: null,
   metaCalcResult: null,
+  courseView: "home", // home | tracking | summary | history
+  courseRuns: null,
+  activeRun: null, // { type, status, startedAt, pausedMs, pauseStartedAt, distanceKm, gpsPath, elevationGain }
+  runnerWeight: null,
   nutritionLogs: null,
   nutritionWeekOffset: 0,
   nutritionActiveMeal: null,
@@ -1516,6 +1522,7 @@ async function loadClientByCode(code) {
 async function boot() {
   const previousVersion = localStorage.getItem(APP_VERSION_KEY);
   localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
+  loadActiveRunFromStorage();
 
   const saved = localStorage.getItem(ACCESS_KEY);
   if (saved) {
@@ -1590,6 +1597,23 @@ function render() {
     app.innerHTML = state.historyOpenLogId ? renderHistoriqueDetail(state.historyOpenLogId) : renderHistorique();
   } else if (state.tab === "metabolisme") {
     app.innerHTML = renderMetabolismeCalculator();
+  } else if (state.tab === "course") {
+    app.innerHTML = state.courseView === "tracking" ? renderCourseTracking()
+      : state.courseView === "summary" ? renderCourseSummary()
+      : state.courseView === "history" ? renderCourseHistory()
+      : renderCourseHome();
+    if (state.courseView === "home" && state.courseRuns === null) loadCourseRuns();
+    if (state.courseView === "tracking") {
+      nav.style.display = "none";
+      if (state.activeRun && state.activeRun.status === "running") {
+        if (state.activeRun.type === "exterieur") startGpsWatch();
+        acquireWakeLock();
+        startCourseTick();
+      }
+      if (state.activeRun && state.activeRun.type === "exterieur") setupCourseMap(false);
+    } else if (state.courseView === "summary" && state.activeRun && state.activeRun.type === "exterieur") {
+      setupCourseMap(true);
+    }
   } else if (state.tab === "documents") {
     app.innerHTML = renderDocuments();
     if (state.documents === null) loadDocuments();
@@ -3418,6 +3442,419 @@ async function loadDocuments() {
   render();
 }
 
+/* ---------------- Course à pied ---------------- */
+const ACTIVE_RUN_KEY = "mattheophysic_active_run";
+const RUNNER_WEIGHT_KEY = "mattheophysic_runner_weight";
+let gpsWatchId = null;
+let wakeLockSentinel = null;
+let courseTickInterval = null;
+let courseMapInstance = null;
+let coursePolyline = null;
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDuration(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function formatPace(secPerKm) {
+  if (!secPerKm || !isFinite(secPerKm) || secPerKm <= 0) return "—";
+  const m = Math.floor(secPerKm / 60), s = Math.round(secPerKm % 60);
+  return `${m}'${String(s).padStart(2, "0")}/km`;
+}
+
+function estimateRunCalories(weightKg, distanceKm, durationSeconds) {
+  if (!weightKg || !distanceKm || !durationSeconds) return null;
+  const hours = durationSeconds / 3600;
+  const speedKmh = distanceKm / hours;
+  let met;
+  if (speedKmh < 8) met = 7;
+  else if (speedKmh < 9.7) met = 8.3;
+  else if (speedKmh < 11.3) met = 9.8;
+  else if (speedKmh < 12.9) met = 11;
+  else if (speedKmh < 14.5) met = 11.8;
+  else if (speedKmh < 16.1) met = 12.8;
+  else met = 14.5;
+  return Math.round(met * weightKg * hours);
+}
+
+function saveActiveRunToStorage() {
+  try {
+    if (state.activeRun) localStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(state.activeRun));
+    else localStorage.removeItem(ACTIVE_RUN_KEY);
+  } catch (e) { /* stockage indisponible : tant pis, la session en cours continue */ }
+}
+
+function loadActiveRunFromStorage() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_RUN_KEY);
+    if (!raw) return;
+    const r = JSON.parse(raw);
+    // Une sortie "oubliée" depuis plus de 24h est abandonnée plutôt que réutilisée telle quelle.
+    if (r && r.startedAt && Date.now() - r.startedAt < 24 * 3600 * 1000) state.activeRun = r;
+    else localStorage.removeItem(ACTIVE_RUN_KEY);
+  } catch (e) { /* rien à restaurer */ }
+  try {
+    const w = localStorage.getItem(RUNNER_WEIGHT_KEY);
+    if (w) state.runnerWeight = toNum(w);
+  } catch (e) {}
+}
+
+function getActiveRunElapsedSeconds() {
+  const r = state.activeRun;
+  if (!r) return 0;
+  const now = Date.now();
+  let pausedMs = r.pausedMs || 0;
+  if (r.status === "paused" && r.pauseStartedAt) pausedMs += (now - r.pauseStartedAt);
+  return Math.floor((now - r.startedAt - pausedMs) / 1000);
+}
+
+function startRun(type) {
+  state.activeRun = {
+    type, status: "running", startedAt: Date.now(), pausedMs: 0, pauseStartedAt: null,
+    distanceKm: 0, gpsPath: [], elevationGain: 0,
+  };
+  saveActiveRunToStorage();
+  state.courseView = "tracking";
+  render();
+  if (type === "exterieur") startGpsWatch();
+  acquireWakeLock();
+  startCourseTick();
+}
+
+function pauseRun() {
+  if (!state.activeRun) return;
+  state.activeRun.status = "paused";
+  state.activeRun.pauseStartedAt = Date.now();
+  saveActiveRunToStorage();
+  stopGpsWatch();
+  releaseWakeLock();
+  stopCourseTick();
+  render();
+}
+
+function resumeRun() {
+  if (!state.activeRun) return;
+  const now = Date.now();
+  state.activeRun.pausedMs = (state.activeRun.pausedMs || 0) + (now - (state.activeRun.pauseStartedAt || now));
+  state.activeRun.pauseStartedAt = null;
+  state.activeRun.status = "running";
+  saveActiveRunToStorage();
+  if (state.activeRun.type === "exterieur") startGpsWatch();
+  acquireWakeLock();
+  startCourseTick();
+  render();
+}
+
+function stopRun() {
+  if (!state.activeRun) return;
+  const finalElapsed = getActiveRunElapsedSeconds();
+  stopGpsWatch();
+  releaseWakeLock();
+  stopCourseTick();
+  state.activeRun.status = "completed";
+  state.activeRun.finalElapsedSeconds = finalElapsed;
+  saveActiveRunToStorage();
+  state.courseView = "summary";
+  render();
+}
+
+function startGpsWatch() {
+  if (gpsWatchId != null) return;
+  if (!navigator.geolocation) { showToast("La géolocalisation n'est pas disponible sur cet appareil."); return; }
+  gpsWatchId = navigator.geolocation.watchPosition(onGpsPosition, onGpsError, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+}
+
+function stopGpsWatch() {
+  if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+}
+
+function onGpsPosition(pos) {
+  if (!state.activeRun || state.activeRun.status !== "running") return;
+  const { latitude, longitude, altitude } = pos.coords;
+  const path = state.activeRun.gpsPath;
+  if (path.length > 0) {
+    const last = path[path.length - 1];
+    const segKm = haversineKm(last.lat, last.lng, latitude, longitude);
+    // On ignore le bruit GPS (mouvement infime) et les sauts aberrants (signal perturbé).
+    if (segKm > 0.003 && segKm < 0.3) {
+      state.activeRun.distanceKm += segKm;
+      if (altitude != null && last.alt != null) {
+        const gain = altitude - last.alt;
+        if (gain > 0.5) state.activeRun.elevationGain += gain;
+      }
+    }
+  }
+  path.push({ lat: latitude, lng: longitude, alt: altitude ?? null, t: Date.now() });
+  saveActiveRunToStorage();
+  updateCourseMapLive();
+  updateCourseTickDisplay();
+}
+
+function onGpsError() {
+  showToast("Signal GPS perdu — vérifie que la localisation est autorisée pour cette appli.");
+}
+
+async function acquireWakeLock() {
+  try {
+    if ("wakeLock" in navigator) wakeLockSentinel = await navigator.wakeLock.request("screen");
+  } catch (e) { /* pas grave si indisponible sur cet appareil */ }
+}
+
+function releaseWakeLock() {
+  if (wakeLockSentinel) { wakeLockSentinel.release().catch(() => {}); wakeLockSentinel = null; }
+}
+
+function startCourseTick() {
+  if (courseTickInterval) return;
+  courseTickInterval = setInterval(updateCourseTickDisplay, 1000);
+}
+
+function stopCourseTick() {
+  if (courseTickInterval) { clearInterval(courseTickInterval); courseTickInterval = null; }
+}
+
+function updateCourseTickDisplay() {
+  if (!state.activeRun || state.activeRun.status !== "running") return;
+  const elapsed = getActiveRunElapsedSeconds();
+  const timerEl = document.getElementById("courseTimer");
+  if (timerEl) timerEl.textContent = formatDuration(elapsed);
+  const distEl = document.getElementById("courseDistance");
+  if (distEl) distEl.textContent = `${formatNum(Math.round(state.activeRun.distanceKm * 100) / 100)} km`;
+  const paceEl = document.getElementById("coursePace");
+  if (paceEl) paceEl.textContent = state.activeRun.distanceKm > 0.05 ? formatPace(elapsed / state.activeRun.distanceKm) : "—";
+}
+
+function setupCourseMap(fitFullRoute) {
+  const el = document.getElementById("courseMap");
+  if (!el || typeof L === "undefined") return;
+  if (courseMapInstance) { courseMapInstance.remove(); courseMapInstance = null; coursePolyline = null; }
+  const path = (state.activeRun && state.activeRun.gpsPath) || [];
+  const center = path.length > 0 ? [path[path.length - 1].lat, path[path.length - 1].lng] : [46.6, 2.5];
+  courseMapInstance = L.map(el, { zoomControl: false, attributionControl: false }).setView(center, path.length > 0 ? 16 : 5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(courseMapInstance);
+  if (path.length > 1) {
+    const latlngs = path.map(p => [p.lat, p.lng]);
+    coursePolyline = L.polyline(latlngs, { color: "#a9744a", weight: 4 }).addTo(courseMapInstance);
+    if (fitFullRoute) courseMapInstance.fitBounds(coursePolyline.getBounds(), { padding: [20, 20] });
+  }
+}
+
+function updateCourseMapLive() {
+  if (!courseMapInstance || !state.activeRun) return;
+  const latlngs = state.activeRun.gpsPath.map(p => [p.lat, p.lng]);
+  if (latlngs.length === 0) return;
+  if (!coursePolyline) coursePolyline = L.polyline(latlngs, { color: "#a9744a", weight: 4 }).addTo(courseMapInstance);
+  else coursePolyline.setLatLngs(latlngs);
+  courseMapInstance.setView(latlngs[latlngs.length - 1], Math.max(courseMapInstance.getZoom(), 16));
+}
+
+async function loadCourseRuns() {
+  const { data } = await sb.from("runs").select("*").eq("client_id", state.client.id).eq("status", "completed").order("started_at", { ascending: false });
+  state.courseRuns = data || [];
+  render();
+}
+
+async function saveRunToSupabase() {
+  const r = state.activeRun;
+  let distanceKm = r.distanceKm;
+  if (r.type === "tapis") {
+    distanceKm = toNum(document.getElementById("courseManualDistance").value) || 0;
+    if (distanceKm <= 0) { alert("Entre la distance parcourue."); return; }
+  }
+  const durationSeconds = r.finalElapsedSeconds;
+  const avgPaceSecPerKm = distanceKm > 0 ? Math.round(durationSeconds / distanceKm) : null;
+  const weightInput = document.getElementById("courseWeightInput");
+  const weight = (weightInput && toNum(weightInput.value)) || state.runnerWeight;
+  if (weight) { state.runnerWeight = weight; try { localStorage.setItem(RUNNER_WEIGHT_KEY, String(weight)); } catch (e) {} }
+  const calories = estimateRunCalories(weight, distanceKm, durationSeconds);
+  const payload = {
+    client_id: state.client.id, run_type: r.type, started_at: new Date(r.startedAt).toISOString(),
+    duration_seconds: durationSeconds, distance_km: Math.round(distanceKm * 100) / 100,
+    avg_pace_seconds_per_km: avgPaceSecPerKm, elevation_gain_m: r.type === "exterieur" ? Math.round(r.elevationGain) : null,
+    calories_burned: calories, gps_path: r.type === "exterieur" ? r.gpsPath : null, status: "completed",
+  };
+  const saveBtn = document.getElementById("saveRunBtn");
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Enregistrement…"; }
+  const { error } = await sb.from("runs").insert(payload);
+  if (error) { showToast("Erreur lors de l'enregistrement."); if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "✓ Enregistrer cette sortie"; } return; }
+  state.activeRun = null;
+  saveActiveRunToStorage();
+  state.courseView = "home";
+  state.courseRuns = null;
+  showToast("Sortie enregistrée !");
+  render();
+}
+
+function renderCourseHome() {
+  let html = `<div class="h1" style="font-size:26px;margin-top:20px;">COURSE À PIED</div>`;
+
+  if (state.activeRun && (state.activeRun.status === "running" || state.activeRun.status === "paused")) {
+    const elapsed = getActiveRunElapsedSeconds();
+    html += `<button data-resume-to-tracking="1" class="validate-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Sortie en cours (${formatDuration(elapsed)}) — Reprendre
+    </button>`;
+  } else {
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;">
+      <button data-start-run="exterieur" style="text-align:center;background:var(--card);border:1px solid transparent;box-shadow:var(--shadow-card);border-radius:18px;padding:22px 12px;">
+        <div style="color:var(--accent);margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28" style="margin:0 auto;display:block;"><circle cx="12" cy="12" r="9"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div>
+        <div style="font-weight:800;">Extérieur</div>
+        <div style="font-size:12px;color:var(--textDim);">Suivi GPS</div>
+      </button>
+      <button data-start-run="tapis" style="text-align:center;background:var(--card);border:1px solid transparent;box-shadow:var(--shadow-card);border-radius:18px;padding:22px 12px;">
+        <div style="color:var(--accent);margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28" style="margin:0 auto;display:block;"><rect x="2" y="14" width="20" height="4" rx="1"/><path d="M6 14V9a2 2 0 0 1 2-2h1"/><circle cx="15" cy="6" r="2"/><path d="M13 10l4 2-2 4"/></svg></div>
+        <div style="font-weight:800;">Tapis</div>
+        <div style="font-size:12px;color:var(--textDim);">Chrono simple</div>
+      </button>
+    </div>`;
+  }
+
+  html += `<button class="day-card" data-goto-course-history="1">
+    <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="5" y1="20" x2="5" y2="14"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="19" y1="20" x2="19" y2="4"/></svg></div>
+      <div><div class="day-title">Historique complet</div><div class="day-sub">${state.courseRuns ? state.courseRuns.length + " sortie" + (state.courseRuns.length > 1 ? "s" : "") + " enregistrée" + (state.courseRuns.length > 1 ? "s" : "") : "…"}</div></div>
+    </div>
+    <span style="color:var(--textDim);">›</span>
+  </button>`;
+
+  if (state.courseRuns && state.courseRuns.length > 0) {
+    html += `<div class="section-label" style="margin-top:18px;">Dernières sorties</div>`;
+    state.courseRuns.slice(0, 3).forEach(r => {
+      html += `<div class="day-card" style="cursor:default;">
+        <div class="day-left"><div>
+          <div class="day-title">${r.run_type === "exterieur" ? "Extérieur" : "Tapis"} · ${formatDateFR(r.started_at.slice(0, 10))}</div>
+          <div class="day-sub">${formatNum(r.distance_km)}km · ${formatDuration(r.duration_seconds)} · ${formatPace(r.avg_pace_seconds_per_km)}</div>
+        </div></div>
+      </div>`;
+    });
+  }
+  return html;
+}
+
+function renderCourseTracking() {
+  const r = state.activeRun;
+  if (!r) { state.courseView = "home"; return renderCourseHome(); }
+  const elapsed = getActiveRunElapsedSeconds();
+  const pace = r.distanceKm > 0.05 ? elapsed / r.distanceKm : null;
+
+  let html = `<div style="padding-top:24px;text-align:center;">
+    <div style="font-size:13px;color:var(--textDim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${r.type === "exterieur" ? "Course extérieure" : "Tapis de course"}${r.status === "paused" ? " · en pause" : ""}</div>
+    <div id="courseTimer" style="font-size:56px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--accent);">${formatDuration(elapsed)}</div>
+  </div>`;
+
+  html += `<div class="stat-row" style="margin-top:20px;">
+    <div class="stat-card"><div class="stat-value" id="courseDistance">${formatNum(Math.round(r.distanceKm * 100) / 100)} km</div><div class="stat-label">Distance</div></div>
+    <div class="stat-card"><div class="stat-value" id="coursePace">${formatPace(pace)}</div><div class="stat-label">Allure moyenne</div></div>
+  </div>`;
+
+  if (r.type === "exterieur") {
+    html += `<div id="courseMap" style="width:100%;height:260px;border-radius:16px;overflow:hidden;margin-bottom:20px;background:var(--card);"></div>`;
+  }
+
+  html += `<div style="display:flex;gap:10px;">
+    ${r.status === "running"
+      ? `<button data-pause-run="1" style="flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:16px;font-weight:800;">⏸ Pause</button>`
+      : `<button data-resume-run="1" class="validate-btn" style="flex:1;margin-top:0;">▶ Reprendre</button>`}
+    <button data-stop-run="1" style="flex:1;background:var(--danger);border:none;color:#fff;border-radius:14px;padding:16px;font-weight:800;">Terminer</button>
+  </div>`;
+  return html;
+}
+
+function renderCourseSummary() {
+  const r = state.activeRun;
+  if (!r) { state.courseView = "home"; return renderCourseHome(); }
+
+  let html = `<div class="h1" style="font-size:26px;margin-top:20px;">RÉSUMÉ DE LA SORTIE</div>
+    <div class="subtitle">${r.type === "exterieur" ? "Extérieur" : "Tapis de course"} · ${formatDateFR(localDateStr(new Date(r.startedAt)))}</div>`;
+
+  if (r.type === "exterieur") {
+    html += `<div id="courseMap" style="width:100%;height:220px;border-radius:16px;overflow:hidden;margin:16px 0;background:var(--card);"></div>`;
+  }
+
+  html += `<div class="stat-row">
+    <div class="stat-card"><div class="stat-value">${formatDuration(r.finalElapsedSeconds)}</div><div class="stat-label">Temps</div></div>
+    <div class="stat-card"><div class="stat-value">${r.type === "exterieur" ? formatNum(Math.round(r.distanceKm * 100) / 100) + " km" : "—"}</div><div class="stat-label">Distance</div></div>
+  </div>`;
+
+  if (r.type === "exterieur") {
+    const pace = r.distanceKm > 0 ? r.finalElapsedSeconds / r.distanceKm : null;
+    html += `<div class="stat-row">
+      <div class="stat-card"><div class="stat-value">${formatPace(pace)}</div><div class="stat-label">Allure moyenne</div></div>
+      <div class="stat-card"><div class="stat-value">${Math.round(r.elevationGain)} m</div><div class="stat-label">Dénivelé positif</div></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--textDim);margin:-10px 0 16px;">Le dénivelé est une estimation — moins précis que la distance, selon le GPS du téléphone.</div>`;
+  }
+
+  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">`;
+  if (r.type === "tapis") {
+    html += `<div class="section-label" style="margin-top:0;">Distance parcourue</div>
+      <input id="courseManualDistance" placeholder="distance en km (ex: 5.2)" style="margin-bottom:14px;" />`;
+  }
+  html += `<div class="section-label" style="margin-top:0;">Ton poids (pour estimer les calories brûlées)</div>
+    <input id="courseWeightInput" placeholder="poids en kg" value="${state.runnerWeight ?? ""}" style="margin-bottom:16px;" />
+    <button class="validate-btn" id="saveRunBtn" style="margin-top:0;">✓ Enregistrer cette sortie</button>
+  </div></div>`;
+  return html;
+}
+
+function renderCourseHistory() {
+  let html = `<button class="back-btn" data-back-course-home="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
+    <div class="h1" style="font-size:26px;margin-top:10px;">HISTORIQUE</div>`;
+
+  if (state.courseRuns === null) { html += `<div class="empty-state">Chargement…</div>`; return html; }
+  if (state.courseRuns.length === 0) {
+    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg><div>Aucune sortie enregistrée pour l'instant.</div></div>`;
+    return html;
+  }
+
+  const runs = state.courseRuns;
+  const bestPace = runs.filter(r => r.avg_pace_seconds_per_km).reduce((best, r) => !best || r.avg_pace_seconds_per_km < best.avg_pace_seconds_per_km ? r : best, null);
+  const longest = runs.reduce((best, r) => !best || r.distance_km > best.distance_km ? r : best, null);
+
+  html += `<div class="stat-row">
+    <div class="stat-card"><div style="color:var(--gold);margin-bottom:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg></div><div class="stat-value" style="color:var(--gold);font-size:19px;">${bestPace ? formatPace(bestPace.avg_pace_seconds_per_km) : "—"}</div><div class="stat-label">Meilleure allure</div></div>
+    <div class="stat-card"><div style="color:var(--olive);margin-bottom:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="9"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div><div class="stat-value" style="color:var(--olive);font-size:19px;">${longest ? formatNum(longest.distance_km) + "km" : "—"}</div><div class="stat-label">Plus longue sortie</div></div>
+  </div>`;
+
+  const withPace = [...runs].reverse().filter(r => r.avg_pace_seconds_per_km);
+  if (withPace.length >= 2) {
+    const w = 300, h = 140, padX = 20, padY = 16;
+    const paces = withPace.map(r => r.avg_pace_seconds_per_km);
+    const maxP = Math.max(...paces), minP = Math.min(...paces);
+    const range = maxP - minP || 1;
+    const stepX = (w - padX * 2) / (withPace.length - 1);
+    const coords = withPace.map((r, i) => ({ x: padX + stepX * i, y: padY + ((r.avg_pace_seconds_per_km - minP) / range) * (h - padY * 2), r }));
+    const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+    html += `<div class="chart-card" style="margin-top:6px;">
+      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Évolution de l'allure (plus bas = plus rapide)</div>
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:150px;">
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
+        ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="3.5" fill="var(--accent)"><title>${formatDateFR(c.r.started_at.slice(0, 10))} — ${formatPace(c.r.avg_pace_seconds_per_km)}</title></circle>`).join("")}
+      </svg>
+    </div>`;
+  }
+
+  html += `<div class="section-label" style="margin-top:18px;">Toutes les sorties</div>`;
+  runs.forEach(r => {
+    html += `<div class="day-card" style="cursor:default;">
+      <div class="day-left"><div>
+        <div class="day-title">${r.run_type === "exterieur" ? "Extérieur" : "Tapis"} · ${formatDateFR(r.started_at.slice(0, 10))}</div>
+        <div class="day-sub">${formatNum(r.distance_km)}km · ${formatDuration(r.duration_seconds)} · ${formatPace(r.avg_pace_seconds_per_km)}${r.elevation_gain_m ? ` · D+ ${Math.round(r.elevation_gain_m)}m` : ""}${r.calories_burned ? ` · ${r.calories_burned} kcal` : ""}</div>
+      </div></div>
+    </div>`;
+  });
+  return html;
+}
+
 function renderMetabolismeCalculator() {
   const d = state.metaCalcDraft || {};
   let html = `<button class="back-btn" data-back-to-profil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
@@ -3926,6 +4363,12 @@ function renderProfil() {
     </div></div>` : ""}
 
     <div class="section-label">Outils</div>
+    <button class="day-card" data-goto-tab="course">
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="17" cy="4" r="2"/><path d="M10.5 19 8 22"/><path d="m8 14 3-3 3 3 4-6"/><path d="M5 22 8.5 16 6 13l3-5"/><path d="M13 8 9 10l1 4"/></svg></div>
+        <div><div class="day-title">Course à pied</div><div class="day-sub">Chrono, GPS et historique de tes sorties</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
     <button class="day-card" data-goto-tab="metabolisme">
       <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M13 2 3 14h7l-1 8 11-14h-7z"/></svg></div>
         <div><div class="day-title">Calculateur de métabolisme</div><div class="day-sub">Ton métabolisme de base et tes besoins selon ton activité</div></div>
@@ -4538,6 +4981,35 @@ function attachHandlers() {
 
   const toggleIcsBtn = app.querySelector("[data-toggle-ics-form]");
   if (toggleIcsBtn) toggleIcsBtn.onclick = () => { state.showIcsForm = !state.showIcsForm; render(); };
+
+  app.querySelectorAll("[data-start-run]").forEach(b => b.onclick = () => { startRun(b.dataset.startRun); });
+
+  const resumeToTracking = app.querySelector("[data-resume-to-tracking]");
+  if (resumeToTracking) resumeToTracking.onclick = () => { state.courseView = "tracking"; render(); };
+
+  const pauseRunBtn = app.querySelector("[data-pause-run]");
+  if (pauseRunBtn) pauseRunBtn.onclick = () => { pauseRun(); };
+
+  const resumeRunBtn = app.querySelector("[data-resume-run]");
+  if (resumeRunBtn) resumeRunBtn.onclick = () => { resumeRun(); };
+
+  const stopRunBtn = app.querySelector("[data-stop-run]");
+  if (stopRunBtn) stopRunBtn.onclick = () => {
+    if (confirm("Terminer cette sortie ?")) stopRun();
+  };
+
+  const gotoCourseHistory = app.querySelector("[data-goto-course-history]");
+  if (gotoCourseHistory) gotoCourseHistory.onclick = () => {
+    state.courseView = "history";
+    if (state.courseRuns === null) loadCourseRuns();
+    render();
+  };
+
+  const backCourseHome = app.querySelector("[data-back-course-home]");
+  if (backCourseHome) backCourseHome.onclick = () => { state.courseView = "home"; render(); };
+
+  const saveRunBtn = app.querySelector("#saveRunBtn");
+  if (saveRunBtn) saveRunBtn.onclick = () => { saveRunToSupabase(); };
 
   const calcMetaBtn = app.querySelector("#calcMetaBtn");
   if (calcMetaBtn) calcMetaBtn.onclick = () => {
