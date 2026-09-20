@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "21";
+const APP_VERSION = "22";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -3828,35 +3828,67 @@ function renderCourseHistory() {
 
   const withPace = [...runs].reverse().filter(r => r.avg_pace_seconds_per_km);
   if (withPace.length >= 2) {
-    const w = 300, h = 140, padX = 20, padY = 16;
+    const w = 320, h = 170, padL = 42, padR = 10, padT = 14, padB = 22;
     const paces = withPace.map(r => r.avg_pace_seconds_per_km);
     const maxP = Math.max(...paces), minP = Math.min(...paces);
-    const range = maxP - minP || 1;
-    const stepX = (w - padX * 2) / (withPace.length - 1);
-    const coords = withPace.map((r, i) => ({ x: padX + stepX * i, y: padY + ((r.avg_pace_seconds_per_km - minP) / range) * (h - padY * 2), r }));
+    const range = (maxP - minP) || 30;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+    const stepX = withPace.length > 1 ? plotW / (withPace.length - 1) : 0;
+    // Allure rapide en haut du graphique (comme une "performance" qui monte), lente en bas.
+    const coords = withPace.map((r, i) => ({ x: padL + stepX * i, y: padT + ((r.avg_pace_seconds_per_km - minP) / range) * plotH, r }));
     const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+    const areaPath = `${path} L${coords[coords.length - 1].x},${padT + plotH} L${coords[0].x},${padT + plotH} Z`;
+    const midP = (maxP + minP) / 2;
     html += `<div class="chart-card" style="margin-top:6px;">
-      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Évolution de l'allure (plus bas = plus rapide)</div>
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:150px;">
+      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Évolution de l'allure <span style="font-weight:400;">(plus haut = plus rapide)</span></div>
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:170px;">
+        <defs><linearGradient id="paceGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+        </linearGradient></defs>
+        <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--border)" stroke-width="1" />
+        <line x1="${padL}" y1="${padT + plotH / 2}" x2="${w - padR}" y2="${padT + plotH / 2}" stroke="var(--border)" stroke-width="1" />
+        <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
+        <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatPace(minP)}</text>
+        <text x="${padL - 6}" y="${padT + plotH / 2 + 3}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatPace(midP)}</text>
+        <text x="${padL - 6}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatPace(maxP)}</text>
+        <path d="${areaPath}" fill="url(#paceGrad)" stroke="none" />
         <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
         ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="3.5" fill="var(--accent)"><title>${formatDateFR(c.r.started_at.slice(0, 10))} — ${formatPace(c.r.avg_pace_seconds_per_km)}</title></circle>`).join("")}
+        <text x="${coords[0].x}" y="${h - 4}" text-anchor="start" font-size="9" fill="var(--textDim)">${formatDateFR(coords[0].r.started_at.slice(0, 10))}</text>
+        <text x="${coords[coords.length - 1].x}" y="${h - 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatDateFR(coords[coords.length - 1].r.started_at.slice(0, 10))}</text>
       </svg>
     </div>`;
   }
 
   const allByDate = [...runs].reverse();
   if (allByDate.length >= 2) {
-    const w = 300, h = 140, padX = 20, padY = 16;
+    const w = 320, h = 170, padL = 34, padR = 10, padT = 14, padB = 22;
     const dists = allByDate.map(r => r.distance_km);
-    const maxD = Math.max(...dists, 0.1);
-    const stepX = (w - padX * 2) / (allByDate.length - 1);
-    const coords = allByDate.map((r, i) => ({ x: padX + stepX * i, y: h - padY - (r.distance_km / maxD) * (h - padY * 2), r }));
+    const maxD = Math.max(...dists, 0.5);
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+    const stepX = allByDate.length > 1 ? plotW / (allByDate.length - 1) : 0;
+    const coords = allByDate.map((r, i) => ({ x: padL + stepX * i, y: padT + plotH - (r.distance_km / maxD) * plotH, r }));
     const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+    const areaPath = `${path} L${coords[coords.length - 1].x},${padT + plotH} L${coords[0].x},${padT + plotH} Z`;
     html += `<div class="chart-card" style="margin-top:14px;">
       <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Évolution de la distance</div>
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:150px;">
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:170px;">
+        <defs><linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--olive)" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="var(--olive)" stop-opacity="0"/>
+        </linearGradient></defs>
+        <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--border)" stroke-width="1" />
+        <line x1="${padL}" y1="${padT + plotH / 2}" x2="${w - padR}" y2="${padT + plotH / 2}" stroke="var(--border)" stroke-width="1" />
+        <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
+        <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatNum(Math.round(maxD * 10) / 10)}km</text>
+        <text x="${padL - 6}" y="${padT + plotH / 2 + 3}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatNum(Math.round(maxD * 5) / 10)}km</text>
+        <text x="${padL - 6}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">0km</text>
+        <path d="${areaPath}" fill="url(#distGrad)" stroke="none" />
         <path d="${path}" fill="none" stroke="var(--olive)" stroke-width="2.5" />
         ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="3.5" fill="var(--olive)"><title>${formatDateFR(c.r.started_at.slice(0, 10))} — ${formatNum(c.r.distance_km)}km</title></circle>`).join("")}
+        <text x="${coords[0].x}" y="${h - 4}" text-anchor="start" font-size="9" fill="var(--textDim)">${formatDateFR(coords[0].r.started_at.slice(0, 10))}</text>
+        <text x="${coords[coords.length - 1].x}" y="${h - 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatDateFR(coords[coords.length - 1].r.started_at.slice(0, 10))}</text>
       </svg>
     </div>`;
   }
