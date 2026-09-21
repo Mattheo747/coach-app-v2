@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "30";
+const APP_VERSION = "31";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1123,7 +1123,8 @@ function stripStoreNames(query) {
 
 function mapOffProducts(products) {
   return (products || [])
-    .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
+    .map(p => (p && (p.document || p._source)) ? (p.document || p._source) : p)
+    .filter(p => p && p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
     .map(p => ({
       name: p.product_name, brand: p.brands || "",
       kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
@@ -1134,26 +1135,46 @@ function mapOffProducts(products) {
     }));
 }
 
+// L'ancienne API (world.openfoodfacts.org/cgi/search.pl) est dépréciée par Open Food Facts et
+// signalée en panne à plusieurs reprises. On utilise désormais leur API de recherche actuelle,
+// Search-a-licious (search.openfoodfacts.org), avec repli automatique sur l'ancienne API si
+// la nouvelle est temporairement indisponible.
 async function fetchOpenFoodFactsResults(query) {
-  async function searchByTerms(q) {
+  const FIELDS = "product_name,brands,nutriments";
+
+  async function searchNew(q) {
+    const res = await fetch(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=fr,en&page_size=24&fields=${FIELDS}`);
+    if (!res.ok) throw new Error("search-a-licious HTTP " + res.status);
+    const data = await res.json();
+    return mapOffProducts(data.hits || data.products || []);
+  }
+  async function searchNewByField(field, q) {
+    return searchNew(`${field}:"${q}"`);
+  }
+  async function searchLegacy(q) {
     const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24`);
     return mapOffProducts((await res.json()).products);
   }
-  async function searchByTag(tagtype, q) {
-    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1&page_size=24&tagtype_0=${tagtype}&tag_contains_0=contains&tag_0=${encodeURIComponent(q)}`);
-    return mapOffProducts((await res.json()).products);
+
+  let results = [];
+  try {
+    results = await searchNew(query);
+  } catch (e) {
+    // Nouvelle API indisponible : on retombe sur l'ancienne plutôt que de ne rien afficher.
+    try { results = await searchLegacy(query); } catch (e2) { results = []; }
   }
 
-  let results = await searchByTerms(query);
   if (results.length === 0) {
     const simplified = stripStoreNames(query);
-    if (simplified && simplified !== query) results = await searchByTerms(simplified);
+    if (simplified && simplified !== query) {
+      try { results = await searchNew(simplified); } catch (e) { /* on garde résultats vides */ }
+    }
   }
   // Recherche directe par marque et par enseigne, en complément — utile quand la personne tape
-  // juste "Lidl" ou "Nutella" sans rien d'autre, ce qu'une recherche par nom de produit rate souvent.
+  // juste "Lidl" ou "Nutella" sans rien d'autre, ce qu'une recherche en texte libre rate souvent.
   if (results.length < 5) {
     try {
-      const [byBrand, byStore] = await Promise.all([searchByTag("brands", query), searchByTag("stores", query)]);
+      const [byBrand, byStore] = await Promise.all([searchNewByField("brands", query), searchNewByField("stores", query)]);
       const seen = new Set(results.map(r => r.name));
       [...byBrand, ...byStore].forEach(p => {
         if (!seen.has(p.name)) { seen.add(p.name); results.push(p); }
