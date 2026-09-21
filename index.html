@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "28";
+const APP_VERSION = "29";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1110,6 +1110,40 @@ function onSelectFoodResult(food) {
   }
 }
 
+// Le nom d'une enseigne (ex: "Lidl") est souvent enregistré comme magasin, pas dans le nom du
+// produit lui-même — l'inclure dans la recherche peut donc faire échouer un produit qui existe
+// pourtant bien. Si la recherche complète ne donne rien, on réessaie sans le nom de l'enseigne.
+const STORE_NAME_WORDS = ["lidl", "carrefour", "leclerc", "monoprix", "intermarche", "intermarché", "auchan", "casino", "biocoop", "cora", "franprix", "picard", "super u"];
+
+function stripStoreNames(query) {
+  let q = query;
+  STORE_NAME_WORDS.forEach(w => { q = q.replace(new RegExp("\\b" + w + "\\b", "gi"), " "); });
+  return q.replace(/\s+/g, " ").trim();
+}
+
+async function fetchOpenFoodFactsResults(query) {
+  async function search(q) {
+    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24`);
+    const data = await res.json();
+    return (data.products || [])
+      .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
+      .map(p => ({
+        name: p.product_name, brand: p.brands || "",
+        kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
+        proteinPer100: Math.round(p.nutriments["proteins_100g"] || 0),
+        carbsPer100: Math.round(p.nutriments["carbohydrates_100g"] || 0),
+        fatPer100: Math.round(p.nutriments["fat_100g"] || 0),
+        source: "off",
+      }));
+  }
+  let results = await search(query);
+  if (results.length === 0) {
+    const simplified = stripStoreNames(query);
+    if (simplified && simplified !== query) results = await search(simplified);
+  }
+  return results;
+}
+
 let foodSearchDebounce = null;
 
 // Suggestions instantanées pendant la frappe : on met à jour uniquement le conteneur
@@ -1137,21 +1171,9 @@ function updateLiveFoodResults() {
   if (query.trim().length < 2) return;
   foodSearchDebounce = setTimeout(async () => {
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24`);
-      const data = await res.json();
+      const offResults = await fetchOpenFoodFactsResults(query);
       // Si la personne a continué à taper depuis, on ignore cette réponse devenue obsolète.
       if (document.getElementById("foodSearchInput")?.value !== query) return;
-      const offResults = (data.products || [])
-        .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
-        .map(p => ({
-          name: p.product_name,
-          brand: p.brands || "",
-          kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
-          proteinPer100: Math.round(p.nutriments["proteins_100g"] || 0),
-          carbsPer100: Math.round(p.nutriments["carbohydrates_100g"] || 0),
-          fatPer100: Math.round(p.nutriments["fat_100g"] || 0),
-          source: "off",
-        }));
       state.foodSearchResults = [...state.foodSearchResults, ...offResults];
       container.innerHTML = renderFoodResultsHTML();
       container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
@@ -5032,19 +5054,7 @@ function attachHandlers() {
     const localResults = searchLocalFoods(query);
     let offResults = [];
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=24`);
-      const data = await res.json();
-      offResults = (data.products || [])
-        .filter(p => p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
-        .map(p => ({
-          name: p.product_name,
-          brand: p.brands || "",
-          kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
-          proteinPer100: Math.round(p.nutriments["proteins_100g"] || 0),
-          carbsPer100: Math.round(p.nutriments["carbohydrates_100g"] || 0),
-          fatPer100: Math.round(p.nutriments["fat_100g"] || 0),
-          source: "off",
-        }));
+      offResults = await fetchOpenFoodFactsResults(query);
     } catch (e) {
       // pas grave si Open Food Facts échoue : les résultats bruts locaux restent disponibles
       offResults = [];
