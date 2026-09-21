@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "32";
+const APP_VERSION = "33";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1096,6 +1096,7 @@ async function logRecipeSearchResult(food) {
   if (error) { showToast("Erreur lors de l'ajout."); return; }
   state.nutritionLogs.push(data);
   if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
+  state.expandedMeals[entry.meal] = true;
   state.nutritionActiveMeal = null;
   state.foodSearchQuery = "";
   state.foodSearchResults = [];
@@ -1453,6 +1454,7 @@ let state = {
   activeRun: null, // { type, status, startedAt, pausedMs, pauseStartedAt, distanceKm, gpsPath, elevationGain }
   runnerWeight: null,
   offDebug: null,
+  expandedMeals: {},
   nutritionLogs: null,
   nutritionWeekOffset: 0,
   nutritionActiveMeal: null,
@@ -3492,19 +3494,25 @@ function renderMealSections() {
   meals.forEach(m => {
     const items = (state.nutritionLogs || []).filter(f => (f.meal || "autres") === m.key);
     const mealKcal = items.reduce((s, f) => s + (Number(f.kcal) || 0), 0);
-    html += `<div class="section-label" style="display:flex;justify-content:space-between;align-items:center;color:${m.color};">
-      <span>${m.label}</span>
-      <span style="text-transform:none;font-weight:700;color:var(--textDim);">${items.length ? Math.round(mealKcal) + " kcal" : ""}</span>
-    </div>`;
-    items.forEach(f => {
-      html += `<div class="day-card" style="cursor:default;">
-        <div class="day-left"><div>
-          <div class="day-title">${esc(f.food_name)}</div>
-          <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal · ${Math.round(f.protein)}p / ${Math.round(f.carbs)}g / ${Math.round(f.fat)}l</div>
-        </div></div>
-        <button data-delete-food="${f.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:6px 10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
-      </div>`;
-    });
+    const isOpen = !!(state.expandedMeals && state.expandedMeals[m.key]);
+    html += `<button data-toggle-meal="${m.key}" style="width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:none;padding:10px 0 6px;color:${m.color};text-transform:uppercase;font-size:12px;font-weight:700;letter-spacing:0.5px;">
+      <span style="display:flex;align-items:center;gap:6px;">${m.label} ${items.length ? `<span style="background:${m.color};color:var(--card);border-radius:999px;padding:1px 8px;font-size:11px;">${items.length}</span>` : ""}</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span style="text-transform:none;font-weight:700;color:var(--textDim);">${items.length ? Math.round(mealKcal) + " kcal" : ""}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="transform:rotate(${isOpen ? "180deg" : "0deg"});transition:transform 0.15s;"><polyline points="6 9 12 15 18 9"/></svg>
+      </span>
+    </button>`;
+    if (isOpen) {
+      items.forEach(f => {
+        html += `<div class="day-card" style="cursor:default;">
+          <div class="day-left"><div>
+            <div class="day-title">${esc(f.food_name)}</div>
+            <div class="day-sub">${f.grams}g · ${Math.round(f.kcal)} kcal · ${Math.round(f.protein)}p / ${Math.round(f.carbs)}g / ${Math.round(f.fat)}l</div>
+          </div></div>
+          <button data-delete-food="${f.id}" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:6px 10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+        </div>`;
+      });
+    }
     html += `<button data-open-meal="${m.key}" style="display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed ${m.color};border-radius:14px;padding:12px;background:none;color:${m.color};width:100%;margin-bottom:16px;font-weight:700;">+ Ajouter</button>`;
   });
   return html;
@@ -4955,6 +4963,12 @@ function attachHandlers() {
   const backToSearch = app.querySelector("[data-back-to-search]");
   if (backToSearch) backToSearch.onclick = () => { state.nutritionSubView = "recherche"; render(); };
 
+  app.querySelectorAll("[data-toggle-meal]").forEach(b => b.onclick = () => {
+    const key = b.dataset.toggleMeal;
+    state.expandedMeals[key] = !state.expandedMeals[key];
+    render();
+  });
+
   app.querySelectorAll("[data-open-meal]").forEach(b => b.onclick = () => {
     state.nutritionActiveMeal = b.dataset.openMeal;
     state.nutritionSubView = "recherche";
@@ -5030,6 +5044,7 @@ function attachHandlers() {
     if (error) { showToast("Erreur lors de l'ajout."); logRecipeBtn.disabled = false; logRecipeBtn.textContent = "✓ Ajouter à mon repas"; return; }
     state.nutritionLogs.push(data);
     if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
+    state.expandedMeals[entry.meal] = true;
     state.recipeOpenId = null;
     state.nutritionActiveMeal = null;
     showToast("Recette ajoutée à ton repas !");
@@ -5149,6 +5164,7 @@ function attachHandlers() {
     if (error) { showToast("Erreur lors de l'ajout."); addFoodBtn.disabled = false; addFoodBtn.textContent = "✓ Ajouter"; return; }
     state.nutritionLogs.push(data);
     if (state.nutritionSelectedDate === todayISO()) state.foodLogsToday.push(data);
+    state.expandedMeals[entry.meal] = true;
     state.selectedFood = null;
     state.foodSearchResults = [];
     state.foodSearchQuery = "";
