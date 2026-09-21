@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "31";
+const APP_VERSION = "32";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1054,7 +1054,9 @@ function renderFoodResultsHTML() {
   }
   if (state.foodSearchResults.length === 0 || state.selectedFood) {
     if (state.foodSearchResults.length === 0 && !state.selectedFood && state.foodSearchQuery.trim().length >= 2 && !state.foodSearchLoading) {
-      return `<div class="empty-state" style="padding:20px 0;">Aucun résultat, même approchant. Tu peux le créer toi-même avec "+ Créer un aliment" ci-dessus.</div>`;
+      const d = state.offDebug;
+      const debugLine = d ? `<div style="font-size:10.5px;color:var(--textDim);margin-top:10px;opacity:0.7;">Diagnostic recherche en ligne : ${d.newApiError ? `nouvelle API en erreur (${esc(d.newApiError)})` : `nouvelle API OK, ${d.newApiHitCount ?? 0} résultat(s) bruts`}${d.legacyUsed ? `, ancienne API utilisée en repli${d.legacyError ? ` (erreur : ${esc(d.legacyError)})` : ""}` : ""}</div>` : "";
+      return `<div class="empty-state" style="padding:20px 0;">Aucun résultat, même approchant. Tu peux le créer toi-même avec "+ Créer un aliment" ci-dessus.${debugLine}</div>`;
     }
     return "";
   }
@@ -1141,12 +1143,15 @@ function mapOffProducts(products) {
 // la nouvelle est temporairement indisponible.
 async function fetchOpenFoodFactsResults(query) {
   const FIELDS = "product_name,brands,nutriments";
+  state.offDebug = { newApiError: null, newApiHitCount: null, legacyUsed: false, legacyError: null };
 
   async function searchNew(q) {
     const res = await fetch(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=fr,en&page_size=24&fields=${FIELDS}`);
-    if (!res.ok) throw new Error("search-a-licious HTTP " + res.status);
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
-    return mapOffProducts(data.hits || data.products || []);
+    const raw = data.hits || data.products || [];
+    state.offDebug.newApiHitCount = raw.length;
+    return mapOffProducts(raw);
   }
   async function searchNewByField(field, q) {
     return searchNew(`${field}:"${q}"`);
@@ -1161,7 +1166,9 @@ async function fetchOpenFoodFactsResults(query) {
     results = await searchNew(query);
   } catch (e) {
     // Nouvelle API indisponible : on retombe sur l'ancienne plutôt que de ne rien afficher.
-    try { results = await searchLegacy(query); } catch (e2) { results = []; }
+    state.offDebug.newApiError = e.message || String(e);
+    state.offDebug.legacyUsed = true;
+    try { results = await searchLegacy(query); } catch (e2) { results = []; state.offDebug.legacyError = e2.message || String(e2); }
   }
 
   if (results.length === 0) {
@@ -1445,6 +1452,7 @@ let state = {
   courseRuns: null,
   activeRun: null, // { type, status, startedAt, pausedMs, pauseStartedAt, distanceKm, gpsPath, elevationGain }
   runnerWeight: null,
+  offDebug: null,
   nutritionLogs: null,
   nutritionWeekOffset: 0,
   nutritionActiveMeal: null,
