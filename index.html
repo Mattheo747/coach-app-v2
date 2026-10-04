@@ -32,12 +32,12 @@
     --display: 'Playfair Display', Georgia, serif;
   }
   body.light {
-    --bg: #F3EADC; --card: #FFFCF7; --border: #DDCFB8;
-    --text: #14324A; --textDim: #6b7c87;
+    --bg: #EAF2F7; --card: #FFFFFF; --border: #D5E3EB;
+    --text: #14324A; --textDim: #6b8494;
     --accent: #E8632E; --accentDim: #C44F22;
-    --orange: #227CBE; --accentText: #F3EADC;
+    --orange: #227CBE; --accentText: #F7F1E6;
     --taupe: #7d6f5a; --olive: #74804a; --gold: #b8863a; --clay: #a15a3d;
-    --shadow-card: 0 1px 3px rgba(60,40,20,0.10), 0 8px 20px rgba(60,40,20,0.10);
+    --shadow-card: 0 1px 3px rgba(20,50,74,0.08), 0 8px 20px rgba(20,50,74,0.08);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body.light .day-card, body.light .ex-card, body.light .stat-card, body.light .chart-card {
@@ -80,7 +80,7 @@
   .info-box { background: rgba(232,99,46,0.12); border: 1px solid rgba(232,99,46,0.3);
     border-radius: 14px; padding: 16px; margin-bottom: 22px; font-size: 14.5px; line-height: 1.5;
     color: #e8d3ba; }
-  body.light .info-box { color: #a83722; background: rgba(232,99,46,0.12); }
+  body.light .info-box { color: #C44F22; background: rgba(232,99,46,0.12); }
   .section-label { color: var(--textDim); font-size: 12px; font-weight: 700; margin-bottom: 10px;
     text-transform: uppercase; letter-spacing: 1.1px; }
   .day-card { background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 16px;
@@ -233,7 +233,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "46";
+const APP_VERSION = "47";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
