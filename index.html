@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "43";
+const APP_VERSION = "44";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1626,6 +1626,7 @@ async function boot() {
     const ok = await loadClientByCode(saved);
     if (ok) {
       state.screen = "app";
+      state.tab = "accueil";
       render();
       if (previousVersion && previousVersion !== APP_VERSION) {
         const btn = document.getElementById("updateBanner");
@@ -1753,6 +1754,7 @@ function attachAccessHandlers() {
     const ok = await loadClientByCode(code);
     if (ok) {
       state.screen = "app";
+      state.tab = "accueil";
       state.accessError = "";
       render();
     } else {
@@ -4953,6 +4955,7 @@ function attachHandlers() {
     localStorage.removeItem(ACCESS_KEY);
     state.screen = "access";
     state.client = null;
+    state.tab = "accueil";
     render();
   };
 
