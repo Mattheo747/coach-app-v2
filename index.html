@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "33";
+const APP_VERSION = "38";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -632,6 +632,8 @@ const RAW_FOOD_LIBRARY = [
   rf("Poire", 57, 0.4, 15, 0.1), rf("Pêche", 39, 0.9, 10, 0.3), rf("Abricot", 48, 1.4, 11, 0.4),
   rf("Raisin", 69, 0.7, 18, 0.2), rf("Pastèque", 30, 0.6, 8, 0.2), rf("Melon", 34, 0.8, 8, 0.2),
   rf("Ananas", 50, 0.5, 13, 0.1), rf("Mangue", 60, 0.8, 15, 0.4), rf("Kiwi", 61, 1.1, 15, 0.5),
+  rf("Fruit de la passion", 99, 2.2, 23, 0.7), rf("Papaye", 42, 0.5, 8.5, 0.1),
+  rf("Mirabelle", 77, 0.6, 18, 0.2), rf("Groseille", 69, 1.6, 7, 0.7), rf("Litchi", 66, 0.8, 16.5, 0.4),
   rf("Citron", 29, 1.1, 9, 0.3), rf("Pamplemousse", 42, 0.8, 11, 0.1), rf("Cerise", 63, 1.1, 16, 0.2),
   rf("Prune", 46, 0.7, 11, 0.3), rf("Figue fraîche", 74, 0.8, 19, 0.3), rf("Datte séchée", 277, 2, 75, 0.4),
   rf("Clémentine", 47, 0.8, 12, 0.2), rf("Nectarine", 44, 1.1, 10, 0.3), rf("Grenade", 83, 1.7, 19, 1.2),
@@ -639,6 +641,8 @@ const RAW_FOOD_LIBRARY = [
   // Légumes
   rf("Brocoli", 34, 2.8, 7, 0.4), rf("Épinard", 23, 2.9, 3.6, 0.4), rf("Carotte", 41, 0.9, 10, 0.2),
   rf("Courgette", 17, 1.2, 3.1, 0.3), rf("Tomate", 18, 0.9, 3.9, 0.2), rf("Concombre", 15, 0.7, 3.6, 0.1),
+  rf("Olives vertes", 145, 1, 3.8, 15), rf("Olives noires", 115, 1, 6, 11),
+  rf("Artichaut, cru", 47, 3.2, 4.9, 0.2), rf("Blette, crue", 16, 1, 1.6, 0.3), rf("Flageolets, cuits", 84, 6.3, 11.2, 0.4),
   rf("Poivron", 31, 1, 6, 0.3), rf("Chou-fleur", 25, 1.9, 5, 0.3), rf("Chou blanc", 25, 1.3, 6, 0.1),
   rf("Chou rouge", 31, 1.4, 7.4, 0.2), rf("Haricot vert", 31, 1.8, 7, 0.1), rf("Petit pois", 81, 5.4, 14, 0.4),
   rf("Aubergine", 25, 1, 6, 0.2), rf("Patate douce crue", 86, 1.6, 20, 0.1), rf("Pomme de terre crue", 77, 2, 17, 0.1),
@@ -651,6 +655,7 @@ const RAW_FOOD_LIBRARY = [
   rf("Filet de poulet", 110, 23, 0, 1.5), rf("Filet de dinde", 104, 24, 0, 1),
   rf("Poulet blanc (filet), cru", 110, 23, 0, 1.5), rf("Poulet cuisse sans peau, cru", 130, 19, 0, 5.5),
   rf("Dinde blanc (filet), cru", 104, 24, 0, 1), rf("Dinde cuisse, crue", 120, 20, 0, 4),
+  rf("Magret de canard, cru", 205, 26.7, 0, 10.9), rf("Foie gras de canard", 462, 11.4, 4, 44.5),
   rf("Bœuf haché 5% MG, cru", 137, 21, 0, 5), rf("Bœuf haché 10% MG, cru", 176, 20, 0, 10),
   rf("Bœuf haché 15% MG, cru", 215, 19, 0, 15), rf("Bœuf haché 20% MG, cru", 254, 18, 0, 20),
   rf("Steak haché 5% MG, cru", 137, 21, 0, 5), rf("Filet de bœuf, cru", 143, 21, 0, 6),
@@ -662,12 +667,18 @@ const RAW_FOOD_LIBRARY = [
   rf("Filet mignon de porc, cru", 143, 21, 0, 5.5), rf("Échine de porc, crue", 260, 17, 0, 21),
   rf("Gigot d'agneau, cru", 158, 20, 0, 8), rf("Lapin, cru", 173, 21, 0, 8), rf("Escalope de veau, crue", 109, 21, 0, 2.5),
   rf("Jambon blanc", 107, 20, 0.5, 2.5), rf("Bacon", 541, 37, 1.4, 42), rf("Lardons", 380, 13, 0.5, 37),
+  rf("Jambon sec", 192, 26.3, 0, 9.5), rf("Saucisson sec", 418, 24.2, 1.2, 34.5), rf("Chorizo", 431, 23.5, 1, 36.1),
+  rf("Pâté de campagne", 308, 14.7, 2, 25.5), rf("Rillettes de porc", 421, 17.3, 0, 40.2),
+  rf("Saucisse de Strasbourg", 291, 12.4, 2, 25.9), rf("Saucisse de Francfort", 291, 13.7, 2, 23.4),
+  rf("Jambon de Bayonne", 228, 28, 0.6, 12.6), rf("Merguez, crue", 285, 18, 2, 24), rf("Mortadelle", 317, 15, 3, 28), rf("Andouillette", 214, 14, 1, 17),
   // Poissons & fruits de mer
   rf("Saumon, cru", 208, 20, 0, 13), rf("Thon frais, cru", 132, 28, 0, 1), rf("Thon au naturel (boîte)", 116, 26, 0, 1),
   rf("Cabillaud, cru", 82, 18, 0, 0.7), rf("Crevettes", 99, 24, 0.2, 0.3), rf("Sardine fraîche", 208, 25, 0, 11),
   rf("Maquereau", 205, 19, 0, 14), rf("Truite", 119, 20, 0, 4), rf("Colin / Lieu", 82, 18, 0, 0.9),
   rf("Merlu", 86, 17, 0, 1.3), rf("Sole", 86, 17, 0, 1.2), rf("Dorade", 96, 20, 0, 1.5),
   rf("Moules", 86, 12, 3.7, 2.2), rf("Saint-Jacques", 88, 17, 3, 0.8),
+  rf("Bar (loup), cru", 97, 20, 0, 2), rf("Huîtres", 69, 9, 3.5, 2), rf("Calamar", 92, 16, 3, 1.5),
+  rf("Anchois", 131, 20, 0, 5), rf("Bulot, cuit", 98, 20.7, 2.7, 0.5),
   // Œufs & laitages
   rf("Œuf entier", 143, 13, 1.1, 10), rf("Blanc d'œuf", 52, 11, 0.7, 0.2), rf("Jaune d'œuf", 322, 16, 3.6, 27),
   rf("Œuf dur", 143, 13, 1.1, 10), rf("Œuf à la coque", 143, 13, 1.1, 10), rf("Œuf mollet", 143, 13, 1.1, 10),
@@ -677,10 +688,13 @@ const RAW_FOOD_LIBRARY = [
   rf("Fromage blanc 0%", 45, 7.5, 4, 0.2), rf("Skyr", 63, 11, 4, 0.2), rf("Lait écrémé", 35, 3.4, 5, 0.1),
   rf("Lait demi-écrémé", 46, 3.3, 4.8, 1.6), rf("Lait entier", 61, 3.2, 4.8, 3.6), rf("Mozzarella", 280, 22, 2.2, 20),
   rf("Emmental", 380, 29, 0, 29), rf("Comté", 412, 28, 0, 32), rf("Feta", 264, 14, 4, 21),
+  rf("Tome de Savoie", 364, 25.6, 0, 29.1), rf("Beaufort", 410, 26.6, 0, 34), rf("Reblochon", 326, 20.4, 0, 27.4), rf("Abondance", 393, 26.6, 0, 31.6), rf("Bleu d'Auvergne", 341, 20, 1, 29),
   rf("Saint Môret", 245, 6, 3, 23), rf("Kiri", 275, 9, 3, 24), rf("La vache qui rit", 271, 10, 5, 23),
   rf("Boursin ail & fines herbes", 394, 7, 2.6, 39), rf("Morbier", 340, 24, 0, 27), rf("Camembert", 300, 20, 0.5, 24),
   rf("Brie", 330, 20, 0.5, 27), rf("Roquefort", 370, 20, 2, 31), rf("Cantal", 380, 25, 0, 30),
   rf("Chèvre (bûche)", 290, 19, 2, 23), rf("Babybel", 306, 24, 0, 24), rf("Philadelphia nature", 245, 5.5, 4, 23),
+  rf("Chèvre frais", 194, 12, 2.5, 15.2), rf("Munster", 290, 19, 1, 23), rf("Saint-Nectaire", 339, 24.4, 0.2, 28),
+  rf("Gouda", 356, 25, 2, 28), rf("Mascarpone", 385, 3.8, 2.5, 40),
   rf("Ricotta", 150, 9, 3, 11), rf("Raclette", 340, 24, 0, 27), rf("Tomme", 330, 24, 0, 26),
   rf("Cottage cheese", 98, 11, 3.4, 4.3), rf("Beurre", 717, 0.9, 0.1, 81), rf("Crème fraîche", 292, 2.2, 3, 30),
   rf("Parmesan râpé", 431, 38, 4.1, 29), rf("Parmesan (bloc, à râper)", 431, 38, 4.1, 29),
@@ -711,16 +725,19 @@ const RAW_FOOD_LIBRARY = [
   rf("Pâte à tartiner chocolat-noisettes", 546, 6, 57, 31),
   rf("Quinoa, cru (sec)", 368, 14, 64, 6), rf("Boulgour, cru (sec)", 342, 12, 76, 1.3),
   rf("Semoule, crue (sèche)", 360, 12.8, 72, 1), rf("Lentilles, crues (sèches)", 353, 25, 60, 1.1),
+  rf("Sarrasin, cru (sec)", 343, 13.25, 71.5, 3.4), rf("Pois cassés, crus (secs)", 316, 22, 56, 1), rf("Pois cassés, cuits", 118, 8.3, 21, 0.4),
   rf("Pois chiches, crus (secs)", 364, 19, 61, 6), rf("Haricots rouges, crus (secs)", 333, 24, 60, 0.8),
   // Matières grasses & oléagineux
   rf("Huile d'olive", 900, 0, 0, 100), rf("Huile de coco", 862, 0, 0, 100), rf("Amandes", 579, 21, 22, 50),
   rf("Noix", 654, 15, 14, 65), rf("Noix de cajou", 553, 18, 30, 44), rf("Noisettes", 628, 15, 17, 61),
+  rf("Pistaches", 560, 20.2, 27.2, 45.3), rf("Noix de pécan", 691, 9.2, 14, 72), rf("Graines de tournesol", 584, 20.8, 20, 51.5),
   rf("Beurre de cacahuète", 588, 25, 20, 50), rf("Graines de chia", 486, 17, 42, 31), rf("Graines de lin", 534, 18, 29, 42),
   // Autres
   rf("Tofu nature", 76, 8, 1.9, 4.8), rf("Seitan", 370, 75, 14, 1.9), rf("Houmous", 166, 7.9, 14, 9.6),
   rf("Chocolat noir 70%", 598, 7.8, 46, 43),
   // Boulangerie, viennoiseries & pâtisseries
-  rf("Baguette", 274, 9, 55, 1.3), rf("Pain de mie", 265, 8.5, 49, 3.3), rf("Pain complet", 246, 9, 45, 2.5),
+  rf("Baguette", 274, 9, 55, 1.3), rf("Pain de mie", 265, 8.5, 49, 3.3),
+  rf("Pain aux olives", 270, 7.5, 48, 4), rf("Pain de seigle", 259, 8.5, 48, 3.3), rf("Pain aux céréales", 269, 9.6, 47, 4.7),
   rf("Croissant", 406, 8, 46, 21), rf("Pain au chocolat", 410, 7.5, 45, 22), rf("Pain aux raisins", 330, 6, 50, 12),
   rf("Chausson aux pommes", 300, 3.5, 38, 15), rf("Brioche", 372, 8, 51, 15), rf("Chouquette", 380, 7, 44, 19),
   rf("Éclair au chocolat", 330, 5.5, 34, 19), rf("Éclair au café", 330, 5.5, 34, 19),
@@ -2116,6 +2133,7 @@ function renderCoachSchedule(c) {
   monday.setHours(0, 0, 0, 0);
   const todayStr = todayISO();
   const doneDays = c.scheduleDone || [];
+  const logsByDay = c.scheduleLogs || [];
   let html = coachDetailBackBtn() + `
     <div class="h1" style="font-size:24px;margin-top:10px;">SÉANCES DE LA SEMAINE</div>
     <div class="subtitle">${esc(c.name)}</div>`;
@@ -2123,15 +2141,22 @@ function renderCoachSchedule(c) {
     const dayDate = new Date(monday);
     dayDate.setDate(monday.getDate() + idx);
     const dayStr = localDateStr(dayDate);
+    const log = logsByDay.find(l => l.day_id === d.id);
     let status, color;
     if (d.isRest) { status = "Repos"; color = "var(--textDim)"; }
     else if (doneDays.includes(d.id)) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><polyline points="8 12 11 15 16 9"/></svg> Fait`; color = "var(--accent)"; }
     else if (dayStr === todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="8" fill="currentColor" stroke="none"/></svg> Aujourd'hui`; color = "var(--accentDim)"; }
     else if (dayStr < todayStr) { status = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg> Manqué`; color = "var(--danger)"; }
     else { status = "À venir"; color = "var(--textDim)"; }
-    html += `<div class="day-card" style="cursor:default;">
-      <div class="day-left"><div><div class="day-title">${esc(d.day)}${d.isRest ? "" : " : " + esc(d.name)}</div><div class="day-sub">${formatDateFR(dayStr)}</div></div></div>
-      <div style="color:${color};font-weight:700;font-size:13.5px;">${status}</div>
+    html += `<div class="day-card" style="cursor:default;${log ? "flex-direction:column;align-items:stretch;" : ""}">
+      <div class="day-left" style="width:100%;justify-content:space-between;display:flex;">
+        <div><div class="day-title">${esc(d.day)}${d.isRest ? "" : " : " + esc(d.name)}</div><div class="day-sub">${formatDateFR(dayStr)}</div></div>
+        <div style="color:${color};font-weight:700;font-size:13.5px;flex-shrink:0;">${status}</div>
+      </div>
+      ${log && (log.rpe || log.session_comment) ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);width:100%;">
+        ${log.rpe ? `<div style="font-size:12.5px;color:var(--textDim);margin-bottom:${log.session_comment ? "6px" : "0"};">Ressenti (RPE) : <b style="color:var(--text);">${log.rpe}/10</b></div>` : ""}
+        ${log.session_comment ? `<div style="font-size:12.5px;color:var(--text);font-style:italic;">"${esc(log.session_comment)}"</div>` : ""}
+      </div>` : ""}
     </div>`;
   });
   return html;
@@ -2683,11 +2708,14 @@ async function attachCoachHandlers() {
   if (newClientBtn) newClientBtn.onclick = async () => {
     const name = prompt("Prénom du nouveau client :");
     if (!name) return;
+    if (newClientBtn.disabled) return;
+    newClientBtn.disabled = true;
     const code = randomAccessCode();
     const { data: newClient, error } = await sb.from("clients").insert({ name, access_code: code }).select().single();
-    if (error) { showToast("Erreur lors de la création."); return; }
+    if (error) { showToast("Erreur lors de la création."); newClientBtn.disabled = false; return; }
     await sb.from("programs").insert({ client_id: newClient.id, program_json: DEFAULT_PROGRAM });
     state.coachClients.unshift({ id: newClient.id, name, access_code: code, program_json: DEFAULT_PROGRAM });
+    newClientBtn.disabled = false;
     render();
     alert(`Client créé !\n\nDonne-lui ce code d'accès :\n${code}`);
   };
@@ -2892,8 +2920,9 @@ async function attachCoachHandlers() {
     const monday = new Date(now);
     monday.setDate(now.getDate() - jsDay);
     const mondayStr = localDateStr(monday);
-    const { data } = await sb.from("session_logs").select("day_id, log_date").eq("client_id", clientId).gte("log_date", mondayStr);
+    const { data } = await sb.from("session_logs").select("day_id, log_date, rpe, session_comment, entries").eq("client_id", clientId).gte("log_date", mondayStr);
     c.scheduleDone = [...new Set((data || []).map(l => l.day_id))];
+    c.scheduleLogs = data || [];
     state.coachDetailClientId = clientId;
     state.coachDetailView = "schedule";
     render();
