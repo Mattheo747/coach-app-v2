@@ -23,8 +23,8 @@
   :root {
     --bg: #12181f; --card: #1c232c; --border: #2c3642;
     --text: #eef2f5; --textDim: #8d9aa6;
-    --accent: #227CBE; --accentDim: #1b6398;
-    --danger: #ff6b6b; --orange: #D2452A; --accentText: #f9f4ea;
+    --accent: #D2452A; --accentDim: #a83722;
+    --danger: #ff6b6b; --orange: #227CBE; --accentText: #f9f4ea;
     --taupe: #a3947f; --olive: #97a06e; --gold: #d4a84b; --clay: #c07a5c;
     --shadow-card: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.28);
     --mono: 'Inter', -apple-system, sans-serif;
@@ -34,8 +34,8 @@
   body.light {
     --bg: #F3EADC; --card: #fffcf7; --border: #d6cec2;
     --text: #1a1815; --textDim: #7a6f63;
-    --accent: #227CBE; --accentDim: #1b6398;
-    --orange: #D2452A; --accentText: #fdf8f0;
+    --accent: #D2452A; --accentDim: #a83722;
+    --orange: #227CBE; --accentText: #fdf8f0;
     --taupe: #7d6f5a; --olive: #74804a; --gold: #b8863a; --clay: #a15a3d;
     --shadow-card: 0 1px 3px rgba(60,40,20,0.10), 0 8px 20px rgba(60,40,20,0.10);
   }
@@ -75,10 +75,10 @@
     color: var(--textDim); }
   .h1 { font-family: var(--body); font-weight: 900; font-size: 30px; line-height: 1.1; letter-spacing: -0.5px; margin: 20px 0 4px; }
   .subtitle { color: var(--textDim); margin-bottom: 16px; }
-  .info-box { background: rgba(169,116,74,0.12); border: 1px solid rgba(169,116,74,0.3);
+  .info-box { background: rgba(34,124,190,0.12); border: 1px solid rgba(34,124,190,0.3);
     border-radius: 14px; padding: 16px; margin-bottom: 22px; font-size: 14.5px; line-height: 1.5;
     color: #e8d3ba; }
-  body.light .info-box { color: #5c3a1f; background: rgba(169,116,74,0.12); }
+  body.light .info-box { color: #5c3a1f; background: rgba(34,124,190,0.12); }
   .section-label { color: var(--textDim); font-size: 12px; font-weight: 700; margin-bottom: 10px;
     text-transform: uppercase; letter-spacing: 1.1px; }
   .day-card { background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 16px;
@@ -86,7 +86,7 @@
     width: 100%; text-align: left; margin-bottom: 12px; }
   .day-card.rest { border-style: dashed; border-color: var(--border); box-shadow: none; opacity: 0.6; }
   .day-left { display: flex; align-items: center; gap: 12px; }
-  .day-num { width: 34px; height: 34px; border-radius: 10px; background: rgba(169,116,74,0.15);
+  .day-num { width: 34px; height: 34px; border-radius: 10px; background: rgba(34,124,190,0.15);
     display: flex; align-items: center; justify-content: center; font-family: var(--mono);
     font-weight: 800; font-size: 14px; color: var(--accentDim); flex-shrink: 0; }
   .day-num.rest { background: var(--border); color: var(--textDim); }
@@ -94,7 +94,7 @@
   .day-sub { font-size: 13px; color: var(--textDim); }
   .pill { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px;
     font-size: 13px; font-family: var(--mono); font-weight: 600;
-    background: rgba(169,116,74,0.12); color: var(--accent); }
+    background: rgba(210,69,42,0.12); color: var(--accent); }
   body.light .pill { color: var(--accentDim); }
   .back-btn { background: none; border: none; color: var(--textDim); display: flex;
     align-items: center; gap: 6px; font-size: 14px; padding: 0; }
@@ -114,16 +114,16 @@
   .last-perf { display: flex; align-items: center; gap: 6px; color: var(--accentDim); font-size: 13px;
     margin-bottom: 6px; }
   .chip-lastweek { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accentDim);
-    background: rgba(169,116,74,0.1); padding: 4px 10px; border-radius: 999px; }
-  .objective { display: flex; align-items: center; gap: 8px; background: rgba(169,116,74,0.14);
-    border: 1px solid rgba(169,116,74,0.3); border-radius: 10px; padding: 8px 12px; margin-top: 10px;
+    background: rgba(34,124,190,0.1); padding: 4px 10px; border-radius: 999px; }
+  .objective { display: flex; align-items: center; gap: 8px; background: rgba(34,124,190,0.14);
+    border: 1px solid rgba(34,124,190,0.3); border-radius: 10px; padding: 8px 12px; margin-top: 10px;
     font-size: 13.5px; color: var(--accent); font-weight: 600; }
   body.light .objective { color: var(--accentDim); }
   .note-input { border: none; border-top: 1px solid var(--border); border-radius: 0;
     padding-top: 12px; margin-top: 8px; color: var(--textDim); font-size: 13.5px; font-family: var(--body); }
   .validate-btn { margin-top: 22px; width: 100%; padding: 16px; border-radius: 14px; border: none;
-    background: linear-gradient(155deg, var(--accent), var(--accentDim)); color: var(--accentText); font-weight: 800; font-size: 15.5px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.15), 0 6px 16px rgba(169,116,74,0.35);
+    background: linear-gradient(135deg, var(--orange), var(--accent)); color: var(--accentText); font-weight: 800; font-size: 15.5px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15), 0 6px 16px rgba(210,69,42,0.35);
     display: flex; align-items: center; justify-content: center; gap: 8px; }
   .validate-btn:disabled { background: var(--border); color: var(--textDim); box-shadow: none; }
   .superset-wrap { border: 2px solid var(--orange); border-radius: 18px; padding: 12px;
@@ -155,12 +155,12 @@
   .day-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; padding-bottom: 4px; }
   .day-tab { white-space: nowrap; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
     background: transparent; color: var(--textDim); font-weight: 700; font-size: 13.5px; flex-shrink: 0; }
-  .day-tab.active { background: linear-gradient(155deg, var(--accent), var(--accentDim)); color: var(--accentText); box-shadow: 0 2px 8px rgba(169,116,74,0.3); }
+  .day-tab.active { background: linear-gradient(135deg, var(--orange), var(--accent)); color: var(--accentText); box-shadow: 0 2px 8px rgba(210,69,42,0.3); }
   .chart-card { background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 18px; padding: 18px; }
   .empty-state { text-align: center; padding: 40px 0; color: var(--textDim); }
   .center-screen { min-height: 70vh; display: flex; flex-direction: column; justify-content: center; }
   .access-code-chip { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--accent);
-    background: rgba(169,116,74,0.1); padding: 8px 14px; border-radius: 10px; letter-spacing: 1px; }
+    background: rgba(34,124,190,0.1); padding: 8px 14px; border-radius: 10px; letter-spacing: 1px; }
   .link-btn { background: none; border: none; color: var(--textDim); text-decoration: underline;
     font-size: 13.5px; padding: 0; }
 </style>
@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "39";
+const APP_VERSION = "41";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1087,7 +1087,7 @@ function renderFoodResultsHTML() {
       : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> perso</span>`
       : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>`
       : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>`
-      : food.source === "recipe" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;background:rgba(169,116,74,0.18);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> recette</span>`
+      : food.source === "recipe" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;background:rgba(34,124,190,0.18);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> recette</span>`
       : "";
     const subtitle = food.source === "recipe" ? `${food.kcalTotal} kcal (portion)` : `${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}`;
     html += `<button class="day-card" data-select-food="${i}">
@@ -1995,7 +1995,7 @@ function renderCoachScreen() {
             ${ov ? `<span style="font-size:11.5px;color:var(--textDim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg> ${ov.sessionsThisWeek}/${ov.trainingDaysTotal}</span>` : ""}
             ${ov ? (ov.checkinSubmittedThisWeek
               ? `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(140,170,126,0.18);color:var(--olive);">✓ Bilan reçu</span>`
-              : `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(169,116,74,0.12);color:var(--accentDim);">Bilan en attente</span>`) : ""}
+              : `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(210,69,42,0.12);color:var(--accentDim);">Bilan en attente</span>`) : ""}
             ${ov && ov.warning ? `<span style="font-size:11.5px;color:var(--danger);font-weight:700;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3 2 20h20L12 3Z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg></span>` : ""}
           </div>
         </div>
@@ -2206,7 +2206,7 @@ function renderCoachBilan(c) {
     <div class="h1" style="font-size:24px;margin-top:10px;">BILAN</div>
     <div class="subtitle" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       ${esc(c.name)}
-      <span style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:${submittedThisWeek ? "rgba(140,170,126,0.18)" : "rgba(169,116,74,0.12)"};color:${submittedThisWeek ? "var(--olive)" : "var(--accentDim)"};text-transform:none;">${submittedThisWeek ? "✓ Bilan reçu cette semaine" : "Pas encore reçu cette semaine"}</span>
+      <span style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:${submittedThisWeek ? "rgba(140,170,126,0.18)" : "rgba(210,69,42,0.12)"};color:${submittedThisWeek ? "var(--olive)" : "var(--accentDim)"};text-transform:none;">${submittedThisWeek ? "✓ Bilan reçu cette semaine" : "Pas encore reçu cette semaine"}</span>
     </div>`;
 
   if (checkins.length === 0) {
@@ -4406,7 +4406,7 @@ function downloadProgramPDF() {
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.setTextColor(169, 116, 74);
+  doc.setTextColor(210, 69, 42);
   doc.text("MATTHEOPHYSIC", marginX, y);
   doc.setTextColor(0, 0, 0);
   y += 8;
@@ -4414,7 +4414,7 @@ function downloadProgramPDF() {
   doc.setFontSize(11);
   doc.text(`Programme de ${state.client.name}`, marginX, y);
   y += 4;
-  doc.setDrawColor(169, 116, 74);
+  doc.setDrawColor(210, 69, 42);
   doc.line(marginX, y, 192, y);
   y += 10;
 
@@ -4422,7 +4422,7 @@ function downloadProgramPDF() {
     ensureSpace(14);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13.5);
-    doc.setTextColor(169, 116, 74);
+    doc.setTextColor(210, 69, 42);
     doc.text(`${day.day}${day.name ? " — " + day.name : ""}`, marginX, y);
     doc.setTextColor(0, 0, 0);
     y += 7;
