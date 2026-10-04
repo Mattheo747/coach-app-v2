@@ -21,10 +21,10 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
-    --bg: #12181f; --card: #1c232c; --border: #2c3642;
-    --text: #eef2f5; --textDim: #8d9aa6;
+    --bg: #0D2436; --card: #163B52; --border: #24506B;
+    --text: #F3EADC; --textDim: #87A3B8;
     --accent: #D2452A; --accentDim: #a83722;
-    --danger: #ff6b6b; --orange: #227CBE; --accentText: #f9f4ea;
+    --danger: #ff6b6b; --orange: #F3EADC; --accentText: #F3EADC;
     --taupe: #a3947f; --olive: #97a06e; --gold: #d4a84b; --clay: #c07a5c;
     --shadow-card: 0 1px 2px rgba(0,0,0,0.35), 0 8px 20px rgba(0,0,0,0.28);
     --mono: 'Inter', -apple-system, sans-serif;
@@ -32,10 +32,10 @@
     --display: 'Playfair Display', Georgia, serif;
   }
   body.light {
-    --bg: #F3EADC; --card: #fffcf7; --border: #d6cec2;
-    --text: #1a1815; --textDim: #7a6f63;
+    --bg: #15476A; --card: #1F5C84; --border: #2D6F9C;
+    --text: #F3EADC; --textDim: #B9D3E3;
     --accent: #D2452A; --accentDim: #a83722;
-    --orange: #227CBE; --accentText: #fdf8f0;
+    --orange: #F3EADC; --accentText: #F3EADC;
     --taupe: #7d6f5a; --olive: #74804a; --gold: #b8863a; --clay: #a15a3d;
     --shadow-card: 0 1px 3px rgba(60,40,20,0.10), 0 8px 20px rgba(60,40,20,0.10);
   }
@@ -75,10 +75,10 @@
     color: var(--textDim); }
   .h1 { font-family: var(--body); font-weight: 900; font-size: 30px; line-height: 1.1; letter-spacing: -0.5px; margin: 20px 0 4px; }
   .subtitle { color: var(--textDim); margin-bottom: 16px; }
-  .info-box { background: rgba(34,124,190,0.12); border: 1px solid rgba(34,124,190,0.3);
+  .info-box { background: rgba(243,234,220,0.12); border: 1px solid rgba(243,234,220,0.3);
     border-radius: 14px; padding: 16px; margin-bottom: 22px; font-size: 14.5px; line-height: 1.5;
     color: #e8d3ba; }
-  body.light .info-box { color: #5c3a1f; background: rgba(34,124,190,0.12); }
+  body.light .info-box { color: #F3EADC; background: rgba(243,234,220,0.12); }
   .section-label { color: var(--textDim); font-size: 12px; font-weight: 700; margin-bottom: 10px;
     text-transform: uppercase; letter-spacing: 1.1px; }
   .day-card { background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 16px;
@@ -86,7 +86,7 @@
     width: 100%; text-align: left; margin-bottom: 12px; }
   .day-card.rest { border-style: dashed; border-color: var(--border); box-shadow: none; opacity: 0.6; }
   .day-left { display: flex; align-items: center; gap: 12px; }
-  .day-num { width: 34px; height: 34px; border-radius: 10px; background: rgba(34,124,190,0.15);
+  .day-num { width: 34px; height: 34px; border-radius: 10px; background: rgba(243,234,220,0.15);
     display: flex; align-items: center; justify-content: center; font-family: var(--mono);
     font-weight: 800; font-size: 14px; color: var(--accentDim); flex-shrink: 0; }
   .day-num.rest { background: var(--border); color: var(--textDim); }
@@ -114,9 +114,9 @@
   .last-perf { display: flex; align-items: center; gap: 6px; color: var(--accentDim); font-size: 13px;
     margin-bottom: 6px; }
   .chip-lastweek { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accentDim);
-    background: rgba(34,124,190,0.1); padding: 4px 10px; border-radius: 999px; }
-  .objective { display: flex; align-items: center; gap: 8px; background: rgba(34,124,190,0.14);
-    border: 1px solid rgba(34,124,190,0.3); border-radius: 10px; padding: 8px 12px; margin-top: 10px;
+    background: rgba(243,234,220,0.1); padding: 4px 10px; border-radius: 999px; }
+  .objective { display: flex; align-items: center; gap: 8px; background: rgba(243,234,220,0.14);
+    border: 1px solid rgba(243,234,220,0.3); border-radius: 10px; padding: 8px 12px; margin-top: 10px;
     font-size: 13.5px; color: var(--accent); font-weight: 600; }
   body.light .objective { color: var(--accentDim); }
   .note-input { border: none; border-top: 1px solid var(--border); border-radius: 0;
@@ -134,7 +134,7 @@
     margin-bottom: 10px; padding-left: 4px; }
   .superset-connector { display: flex; justify-content: center; margin: -4px 0 10px; }
   .connector-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--orange);
-    display: flex; align-items: center; justify-content: center; color: #f5ede0; font-weight: 900; }
+    display: flex; align-items: center; justify-content: center; color: #163B52; font-weight: 900; }
   .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg);
     border-top: 1px solid var(--border); z-index: 40; }
   .bottom-nav-inner { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-around;
@@ -160,7 +160,7 @@
   .empty-state { text-align: center; padding: 40px 0; color: var(--textDim); }
   .center-screen { min-height: 70vh; display: flex; flex-direction: column; justify-content: center; }
   .access-code-chip { font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--accent);
-    background: rgba(34,124,190,0.1); padding: 8px 14px; border-radius: 10px; letter-spacing: 1px; }
+    background: rgba(243,234,220,0.1); padding: 8px 14px; border-radius: 10px; letter-spacing: 1px; }
   .link-btn { background: none; border: none; color: var(--textDim); text-decoration: underline;
     font-size: 13.5px; padding: 0; }
 </style>
@@ -229,7 +229,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "41";
+const APP_VERSION = "42";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1087,7 +1087,7 @@ function renderFoodResultsHTML() {
       : food.source === "custom" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> perso</span>`
       : food.source === "scanned" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> scanné</span>`
       : food.source === "fastfood" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 10h16"/><path d="M4 14h16"/><path d="M5 10a7 3 0 0 1 14 0Z"/><path d="M4 14a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 14"/></svg> fast food</span>`
-      : food.source === "recipe" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;background:rgba(34,124,190,0.18);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> recette</span>`
+      : food.source === "recipe" ? ` <span class="pill" style="font-size:10px;padding:2px 8px;background:rgba(243,234,220,0.18);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> recette</span>`
       : "";
     const subtitle = food.source === "recipe" ? `${food.kcalTotal} kcal (portion)` : `${food.kcalPer100} kcal / 100g${food.brand ? " · " + esc(food.brand) : ""}`;
     html += `<button class="day-card" data-select-food="${i}">
