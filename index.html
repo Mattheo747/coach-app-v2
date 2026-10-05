@@ -233,7 +233,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "47";
+const APP_VERSION = "48";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1489,6 +1489,8 @@ let state = {
   checkinOpen: false,
   checkinView: "current",
   checkinExisting: null,
+  myVideoSubmissions: null,
+  videoFeedbackDraft: { exerciseId: "", note: "" },
   checkinDraft: null,
   checkinSubmittedThisWeek: null,
   showIcsForm: false,
@@ -1518,6 +1520,62 @@ function showToast(msg) {
 
 function esc(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Builds "Jour : Nom" for a program day, without duplicating the day name
+// if it was already (accidentally) typed at the start of the session name
+// — fixes cases like "Lundi : Lundi : Upper A" from older/manual program edits.
+function dayLabel(d, upper) {
+  const dayStr = String(d.day || "").trim();
+  if (d.isRest) return upper ? dayStr.toUpperCase() : dayStr;
+  let name = String(d.name || "").trim();
+  if (dayStr) {
+    const escaped = dayStr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp("^" + escaped + "\\s*[:\\-]?\\s*", "i");
+    name = name.replace(re, "").trim();
+  }
+  const label = dayStr + (name ? " : " + name : "");
+  return upper ? label.toUpperCase() : label;
+}
+
+// Analyse la progression d'un client exercice par exercice, à partir de tout son
+// historique de séances : compare la charge max des 3 dernières fois qu'il a fait
+// chaque exercice pour détecter s'il progresse, stagne, ou régresse sur sa charge.
+function computeExercisePerformance(logs, program) {
+  const exerciseInfo = {};
+  (program || []).forEach(d => (d.exercises || []).forEach(e => {
+    exerciseInfo[e.id] = { name: e.name, muscle: e.muscle || "" };
+  }));
+
+  const byExercise = {};
+  logs.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).forEach(log => {
+    Object.entries(log.entries || {}).forEach(([exId, sets]) => {
+      if (!sets || !sets.length) return;
+      const nums = sets.map(s => toNum(s.kg)).filter(v => v != null && v > 0);
+      if (!nums.length) return;
+      if (!byExercise[exId]) byExercise[exId] = [];
+      byExercise[exId].push({ date: log.date, maxKg: Math.max(...nums) });
+    });
+  });
+
+  const results = [];
+  Object.entries(byExercise).forEach(([exId, points]) => {
+    if (points.length < 3) return; // pas assez de séances pour juger d'une tendance fiable
+    const info = exerciseInfo[exId] || { name: "Exercice supprimé du programme", muscle: "" };
+    const last3 = points.slice(-3);
+    const firstKg = last3[0].maxKg, lastKg = last3[last3.length - 1].maxKg;
+    const deltaPct = firstKg > 0 ? Math.round(((lastKg - firstKg) / firstKg) * 100) : 0;
+    let trend = "stagnation";
+    if (deltaPct >= 3) trend = "progression";
+    else if (deltaPct <= -3) trend = "regression";
+    results.push({
+      exId, name: info.name, muscle: info.muscle, trend, deltaPct, lastKg, firstKg,
+      sessionsCount: points.length, recentPoints: points.slice(-6),
+    });
+  });
+  const order = { regression: 0, stagnation: 1, progression: 2 };
+  results.sort((a, b) => order[a.trend] - order[b.trend] || a.name.localeCompare(b.name));
+  return results;
 }
 
 function getExerciseHistory(exId) {
@@ -1624,6 +1682,7 @@ async function boot() {
   const previousVersion = localStorage.getItem(APP_VERSION_KEY);
   localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
   loadActiveRunFromStorage();
+  loadSessionDraftFromStorage();
 
   const saved = localStorage.getItem(ACCESS_KEY);
   if (saved) {
@@ -1671,6 +1730,7 @@ function render() {
       const dc = state.coachClients.find(c => c.id === state.coachDetailClientId);
       if (!dc) { state.coachDetailView = null; app.innerHTML = renderCoachScreen(); }
       else if (state.coachDetailView === "schedule") app.innerHTML = renderCoachSchedule(dc);
+      else if (state.coachDetailView === "performance") app.innerHTML = renderCoachPerformance(dc);
       else if (state.coachDetailView === "videos") app.innerHTML = renderCoachVideos(dc);
       else if (state.coachDetailView === "bilan") app.innerHTML = renderCoachBilan(dc);
       else if (state.coachDetailView === "json") app.innerHTML = renderCoachJson(dc);
@@ -1699,6 +1759,9 @@ function render() {
     app.innerHTML = state.historyOpenLogId ? renderHistoriqueDetail(state.historyOpenLogId) : renderHistorique();
   } else if (state.tab === "metabolisme") {
     app.innerHTML = renderMetabolismeCalculator();
+  } else if (state.tab === "videofeedback") {
+    if (state.myVideoSubmissions === null) loadMyVideoSubmissions();
+    app.innerHTML = renderVideoFeedback();
   } else if (state.tab === "course") {
     app.innerHTML = state.courseView === "tracking" ? renderCourseTracking()
       : state.courseView === "summary" ? renderCourseSummary()
@@ -2027,20 +2090,28 @@ function renderCoachScreen() {
           </button>
         </div>
 
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
           <button data-view-schedule="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             Séances
           </button>
-          <button data-edit-videos="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>
-            Vidéos
-          </button>
-          <button data-edit-program="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            JSON
+          <button data-view-performance="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+            Performance
           </button>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button data-edit-videos="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>
+            Démos vidéo
+          </button>
+          <button data-view-video-feedback="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;position:relative;">
+            ${ov && ov.pendingVideoCount ? `<span style="position:absolute;top:4px;right:18%;background:var(--accent);color:var(--accentText);font-size:9px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">${ov.pendingVideoCount}</span>` : ""}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+            Retours vidéo
+          </button>
+        </div>
+        <button data-edit-program="${c.id}" style="width:100%;background:none;border:none;color:var(--textDim);font-size:11.5px;padding:4px 0 10px;text-decoration:underline;">Éditer le JSON du programme</button>
         <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer ce client et toutes ses données</button>
       </div>`;
     }
@@ -2156,7 +2227,7 @@ function renderCoachSchedule(c) {
     else { status = "À venir"; color = "var(--textDim)"; }
     html += `<div class="day-card" style="cursor:default;${log ? "flex-direction:column;align-items:stretch;" : ""}">
       <div class="day-left" style="width:100%;justify-content:space-between;display:flex;">
-        <div><div class="day-title">${esc(d.day)}${d.isRest ? "" : " : " + esc(d.name)}</div><div class="day-sub">${formatDateFR(dayStr)}</div></div>
+        <div><div class="day-title">${esc(dayLabel(d))}</div><div class="day-sub">${formatDateFR(dayStr)}</div></div>
         <div style="color:${color};font-weight:700;font-size:13.5px;flex-shrink:0;">${status}</div>
       </div>
       ${log && (log.rpe || log.session_comment) ? `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);width:100%;">
@@ -2168,6 +2239,71 @@ function renderCoachSchedule(c) {
   return html;
 }
 
+function renderCoachPerformance(c) {
+  const program = c.program_json || DEFAULT_PROGRAM;
+  const logs = c.allLogs || [];
+  let html = coachDetailBackBtn() + `
+    <div class="h1" style="font-size:24px;margin-top:10px;">PERFORMANCE</div>
+    <div class="subtitle">${esc(c.name)}</div>`;
+
+  if (logs.length === 0) {
+    html += `<div class="info-box" style="margin-top:14px;">Pas encore de séance enregistrée pour ce client.</div>`;
+    return html;
+  }
+
+  const perf = computeExercisePerformance(logs, program);
+  if (perf.length === 0) {
+    html += `<div class="info-box" style="margin-top:14px;">Pas encore assez de séances sur un même exercice pour dégager une tendance (il en faut au moins 3).</div>`;
+    return html;
+  }
+
+  const trendMeta = {
+    regression: { label: "Régression", color: "var(--danger)", bg: "rgba(255,107,107,0.12)",
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 7 10 14 14 10 21 17"/><polyline points="15 17 21 17 21 11"/></svg>` },
+    stagnation: { label: "Stagnation", color: "var(--gold)", bg: "rgba(212,168,75,0.14)",
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><line x1="4" y1="12" x2="20" y2="12"/></svg>` },
+    progression: { label: "Progression", color: "var(--olive)", bg: "rgba(140,170,126,0.14)",
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 17 10 10 14 14 21 7"/><polyline points="15 7 21 7 21 13"/></svg>` },
+  };
+
+  const counts = { regression: 0, stagnation: 0, progression: 0 };
+  perf.forEach(p => counts[p.trend]++);
+  html += `<div style="display:flex;gap:8px;margin:14px 0 18px;">
+    ${["regression", "stagnation", "progression"].map(t => `
+      <div style="flex:1;background:${trendMeta[t].bg};border-radius:12px;padding:10px;text-align:center;">
+        <div style="color:${trendMeta[t].color};font-weight:800;font-size:18px;">${counts[t]}</div>
+        <div style="font-size:10.5px;color:${trendMeta[t].color};font-weight:700;">${trendMeta[t].label}${counts[t] > 1 ? "s" : ""}</div>
+      </div>`).join("")}
+  </div>`;
+
+  perf.forEach(p => {
+    const tm = trendMeta[p.trend];
+    const sparkline = p.recentPoints.map(pt => pt.maxKg);
+    const maxSpark = Math.max(...sparkline, 1), minSpark = Math.min(...sparkline, 0);
+    const range = maxSpark - minSpark || 1;
+    html += `<div class="ex-card" style="margin-bottom:10px;"><div class="ex-body" style="padding-top:14px;padding-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+        <div>
+          <div style="font-weight:700;font-size:14px;">${esc(p.name)}</div>
+          ${p.muscle ? `<div style="font-size:11.5px;color:var(--textDim);">${esc(p.muscle)}</div>` : ""}
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;color:${tm.color};background:${tm.bg};padding:5px 10px;border-radius:999px;font-size:11.5px;font-weight:700;flex-shrink:0;white-space:nowrap;">
+          ${tm.icon} ${tm.label}
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:36px;margin:12px 0 8px;">
+        ${sparkline.map((v, i) => `<div style="flex:1;background:${i === sparkline.length - 1 ? tm.color : "var(--border)"};border-radius:3px 3px 0 0;height:${Math.max(8, Math.round(((v - minSpark) / range) * 36))}px;" title="${v}kg"></div>`).join("")}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--textDim);">
+        <span>Sur les 3 dernières fois : ${p.firstKg}kg → ${p.lastKg}kg</span>
+        <span style="color:${tm.color};font-weight:700;">${p.deltaPct > 0 ? "+" : ""}${p.deltaPct}%</span>
+      </div>
+    </div></div>`;
+  });
+
+  return html;
+}
+
 function renderCoachVideos(c) {
   const program = c.program_json || DEFAULT_PROGRAM;
   let html = coachDetailBackBtn() + `
@@ -2175,7 +2311,7 @@ function renderCoachVideos(c) {
     <div class="subtitle">${esc(c.name)}</div>`;
   html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
     ${program.filter(d => !d.isRest).map(d => `
-      <div class="section-label" style="margin-top:14px;">${esc(d.day)} : ${esc(d.name)}</div>
+      <div class="section-label" style="margin-top:14px;">${esc(dayLabel(d))}</div>
       ${d.exercises.map(e => `
         <div style="margin-bottom:10px;">
           <div style="font-size:13px;color:var(--textDim);margin-bottom:4px;">${esc(e.name)}</div>
@@ -2934,6 +3070,18 @@ async function attachCoachHandlers() {
     render();
   });
 
+  document.querySelectorAll("[data-view-performance]").forEach(b => b.onclick = async () => {
+    const clientId = b.dataset.viewPerformance;
+    const c = state.coachClients.find(c => c.id === clientId);
+    const { data, error } = await sb.from("session_logs").select("day_id, log_date, entries").eq("client_id", clientId).order("log_date", { ascending: true });
+    if (error) { showToast("Erreur de chargement."); return; }
+    // computeExercisePerformance attend un champ "date" par séance (pas log_date).
+    c.allLogs = (data || []).map(l => ({ date: l.log_date, dayId: l.day_id, entries: l.entries }));
+    state.coachDetailClientId = clientId;
+    state.coachDetailView = "performance";
+    render();
+  });
+
   const backCoachDetail = document.querySelector("[data-back-coach-detail]");
   if (backCoachDetail) backCoachDetail.onclick = () => { state.coachDetailView = null; render(); };
 
@@ -3102,7 +3250,7 @@ function renderHome() {
         <button class="day-card" data-open-day="${day.id}">
           <div class="day-left">
             <div class="day-num">${day.num}</div>
-            <div><div class="day-title">${esc(day.day)} : ${esc(day.name)}</div><div class="day-sub">${day.exercises.length} exercices</div></div>
+            <div><div class="day-title">${esc(dayLabel(day))}</div><div class="day-sub">${day.exercises.length} exercices</div></div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
             ${doneThisWeek ? `<span style="color:var(--accentDim);font-size:12px;font-weight:700;">✓ fait</span>` : ""}
@@ -3191,7 +3339,7 @@ function renderSession(day) {
     <div style="margin:20px 0 4px;">
       <button class="back-btn" data-back="1">← Retour</button>
     </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(day.day).toUpperCase()} : ${esc(day.name).toUpperCase()}</div>
+    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(dayLabel(day, true))}</div>
     <div class="subtitle">${day.exercises.length} exercices · ${formatDateFR(todayISO())}</div>
   `;
 
@@ -3241,7 +3389,7 @@ function renderRecap(logId) {
     <div style="padding-top:24px;text-align:center;">
       <div style="font-size:40px;margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 2l2.7 6.6L21 10l-5 4.5L17.5 21 12 17.5 6.5 21 8 14.5 3 10l6.3-1.4Z"/></svg></div>
       <div class="h1" style="font-size:26px;">SÉANCE VALIDÉE</div>
-      <div class="subtitle">${esc(day.day)} : ${esc(day.name)} · ${formatDateFR(log.date)}</div>
+      <div class="subtitle">${esc(dayLabel(day))} · ${formatDateFR(log.date)}</div>
     </div>
     ${state.recapPRs && state.recapPRs.length > 0 ? `
     <div class="info-box" style="text-align:center;">
@@ -3629,6 +3777,44 @@ function loadActiveRunFromStorage() {
     const w = localStorage.getItem(RUNNER_WEIGHT_KEY);
     if (w) state.runnerWeight = toNum(w);
   } catch (e) {}
+}
+
+// Sauvegarde locale de la séance en train d'être loggée (poids/reps saisis, jour en cours).
+// Sans ça, fermer l'appli ou la mettre en arrière-plan quelques minutes entre deux séries
+// (très fréquent en pratique — le temps de repos, un appel, l'écran qui se verrouille…)
+// fait perdre toute la saisie en cours, puisqu'elle ne vivait qu'en mémoire JS.
+const SESSION_DRAFT_KEY = "mattheophysic_session_draft";
+
+function saveSessionDraftToStorage() {
+  try {
+    if (state.openDayId && state.sessionInputs && Object.keys(state.sessionInputs).length) {
+      localStorage.setItem(SESSION_DRAFT_KEY, JSON.stringify({
+        dayId: state.openDayId, inputs: state.sessionInputs, savedAt: Date.now(),
+      }));
+    } else {
+      localStorage.removeItem(SESSION_DRAFT_KEY);
+    }
+  } catch (e) { /* stockage indisponible : tant pis, la saisie en cours continue */ }
+}
+
+function loadSessionDraftFromStorage() {
+  try {
+    const raw = localStorage.getItem(SESSION_DRAFT_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    // Un brouillon "oublié" depuis plus de 24h est abandonné plutôt que réutilisé tel quel
+    // (probablement une séance d'un autre jour, pas une simple pause de quelques minutes).
+    if (d && d.dayId && d.savedAt && Date.now() - d.savedAt < 24 * 3600 * 1000) {
+      state.openDayId = d.dayId;
+      state.sessionInputs = d.inputs || {};
+    } else {
+      localStorage.removeItem(SESSION_DRAFT_KEY);
+    }
+  } catch (e) { /* rien à restaurer */ }
+}
+
+function clearSessionDraftFromStorage() {
+  try { localStorage.removeItem(SESSION_DRAFT_KEY); } catch (e) {}
 }
 
 function getActiveRunElapsedSeconds() {
@@ -4219,7 +4405,7 @@ function renderHistorique() {
     html += `<button class="day-card" data-open-log="${log.id}">
       <div class="day-left">
         <div class="day-num">${day.num}</div>
-        <div><div class="day-title">${esc(day.day)} : ${esc(day.name)}</div><div class="day-sub">${formatDateFR(log.date)} · ${Math.round(tonnage).toLocaleString("fr-FR")}kg · ${sets} séries${log.rpe ? ` · RPE ${log.rpe}/10` : ""}</div></div>
+        <div><div class="day-title">${esc(dayLabel(day))}</div><div class="day-sub">${formatDateFR(log.date)} · ${Math.round(tonnage).toLocaleString("fr-FR")}kg · ${sets} séries${log.rpe ? ` · RPE ${log.rpe}/10` : ""}</div></div>
       </div>
       <span style="color:var(--textDim);">›</span>
     </button>`;
@@ -4237,7 +4423,7 @@ function renderHistoriqueDetail(logId) {
     <div style="margin:20px 0 4px;">
       <button class="back-btn" data-back-history="1">← Retour</button>
     </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(day.day).toUpperCase()} : ${esc(day.name).toUpperCase()}</div>
+    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(dayLabel(day, true))}</div>
     <div class="subtitle">${formatDateFR(log.date)} — corrige si besoin</div>
   `;
   day.exercises.forEach(e => {
@@ -4622,6 +4808,12 @@ function renderProfil() {
       </div>
       <span style="color:var(--textDim);">›</span>
     </button>
+    <button class="day-card" data-goto-tab="videofeedback">
+      <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></div>
+        <div><div class="day-title">Retour vidéo</div><div class="day-sub">Envoie une vidéo d'exercice à corriger par ton coach</div></div>
+      </div>
+      <span style="color:var(--textDim);">›</span>
+    </button>
     <div class="section-label" style="margin-top:20px;">Compte</div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;">
       <div style="color:var(--textDim);font-size:14px;margin-bottom:14px;">Tes données sont sauvegardées en ligne, liées à ton code d'accès personnel.</div>
@@ -4669,36 +4861,74 @@ function renderCheckinCurrent() {
     `;
   }
 
-  let html = `<div class="subtitle">À rendre chaque ${esc(deadline)} — semaine du ${formatDateFR(todayISO())}</div>`;
+  // Indicateur de progression — donne un côté sérieux/pro et motive à finir le bilan.
+  const trackedFields = ["feeling", "water_3l", "pain_other", "sleep_quality", "stress_level",
+    "nutrition_respect", "motivation", "missed_sessions", "bodyweight", "arm_left", "arm_right",
+    "leg_left", "leg_right", "shoulders", "waist"];
+  const filledCount = trackedFields.filter(k => d[k] !== undefined && d[k] !== null && d[k] !== "").length;
+  const photoCount = ["photo_front_url", "photo_back_url", "photo_side_url", "steps_screenshot_url"]
+    .filter(k => state.checkinExisting?.[k] || state["checkin_" + k]).length;
+  const totalFields = trackedFields.length + 4;
+  const doneFields = filledCount + photoCount;
+  const pct = Math.round((doneFields / totalFields) * 100);
 
-  const scaleRow = (id, label) => `
-    <div style="margin-bottom:16px;">
-      <div style="font-size:14px;margin-bottom:8px;">${label}</div>
-      <div style="display:flex;gap:6px;">
-        ${[1, 2, 3, 4, 5].map(n => `<button data-scale="${id}" data-value="${n}" style="flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${d[id] == n ? "var(--accent)" : "transparent"};color:${d[id] == n ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">${n}</button>`).join("")}
+  let html = `
+    <div class="ex-card" style="margin-bottom:18px;">
+      <div class="ex-body" style="padding-top:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div style="font-weight:700;font-size:14px;">Avancement de ton bilan</div>
+          <div style="font-size:13px;color:var(--accentDim);font-weight:700;">${pct}%</div>
+        </div>
+        <div style="background:var(--border);border-radius:999px;height:8px;overflow:hidden;">
+          <div style="background:linear-gradient(90deg, var(--orange), var(--accent));height:100%;width:${pct}%;transition:width .3s;"></div>
+        </div>
+        <div style="font-size:12.5px;color:var(--textDim);margin-top:8px;">À rendre chaque ${esc(deadline)} — semaine du ${formatDateFR(todayISO())}</div>
       </div>
+    </div>`;
+
+  const scaleRow = (id, label, lowWord, highWord) => `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:14px;margin-bottom:9px;font-weight:600;">${label}</div>
+      <div style="display:flex;gap:6px;">
+        ${[1, 2, 3, 4, 5].map(n => `<button data-scale="${id}" data-value="${n}" style="flex:1;padding:11px 0;border-radius:10px;border:1px solid ${d[id] == n ? "transparent" : "var(--border)"};background:${d[id] == n ? "linear-gradient(135deg, var(--orange), var(--accent))" : "transparent"};color:${d[id] == n ? "var(--accentText)" : "var(--textDim)"};font-weight:700;transition:all .15s;">${n}</button>`).join("")}
+      </div>
+      ${lowWord ? `<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--textDim);margin-top:5px;"><span>${lowWord}</span><span>${highWord}</span></div>` : ""}
     </div>`;
 
   const yesNo = (id, label) => `
-    <div style="margin-bottom:16px;">
-      <div style="font-size:14px;margin-bottom:8px;">${label}</div>
+    <div style="margin-bottom:18px;">
+      <div style="font-size:14px;margin-bottom:9px;font-weight:600;">${label}</div>
       <div style="display:flex;gap:8px;">
-        <button data-bool="${id}" data-value="true" style="flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${d[id] === true ? "var(--accent)" : "transparent"};color:${d[id] === true ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">Oui</button>
-        <button data-bool="${id}" data-value="false" style="flex:1;padding:10px 0;border-radius:10px;border:1px solid var(--border);background:${d[id] === false ? "var(--accent)" : "transparent"};color:${d[id] === false ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">Non</button>
+        <button data-bool="${id}" data-value="true" style="flex:1;padding:11px 0;border-radius:10px;border:1px solid ${d[id] === true ? "transparent" : "var(--border)"};background:${d[id] === true ? "linear-gradient(135deg, var(--orange), var(--accent))" : "transparent"};color:${d[id] === true ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">Oui</button>
+        <button data-bool="${id}" data-value="false" style="flex:1;padding:11px 0;border-radius:10px;border:1px solid ${d[id] === false ? "transparent" : "var(--border)"};background:${d[id] === false ? "linear-gradient(135deg, var(--orange), var(--accent))" : "transparent"};color:${d[id] === false ? "var(--accentText)" : "var(--textDim)"};font-weight:700;">Non</button>
       </div>
     </div>`;
 
-  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">`;
-  html += scaleRow("feeling", "Ressenti global de la semaine (1 = épuisé, 5 = en pleine forme)");
+  const sectionHead = (iconSvg, title, subtitle) => `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+      <div class="day-num" style="background:linear-gradient(135deg, var(--orange), var(--accent));color:var(--accentText);flex-shrink:0;">${iconSvg}</div>
+      <div><div style="font-weight:800;font-size:15.5px;">${title}</div>${subtitle ? `<div style="font-size:12px;color:var(--textDim);">${subtitle}</div>` : ""}</div>
+    </div>`;
+
+  html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
+  html += sectionHead(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>`,
+    "Ton ressenti", "Comment s'est passée ta semaine");
+  html += scaleRow("feeling", "Ressenti global de la semaine", "Épuisé", "En pleine forme");
+  html += scaleRow("sleep_quality", "Qualité de ton sommeil", "Mauvais", "Excellent");
+  html += scaleRow("stress_level", "Niveau de stress de la semaine", "Faible", "Élevé");
+  html += scaleRow("motivation", "Motivation à poursuivre le programme", "Faible", "Au top");
+  html += `</div></div>`;
+
+  html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
+  html += sectionHead(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 2.5c2.5 3.5 6 7.5 6 11.5a6 6 0 0 1-12 0c0-4 3.5-8 6-11.5Z"/></svg>`,
+    "Habitudes de la semaine", "Hydratation, nutrition, assiduité");
   html += yesNo("water_3l", "As-tu bu 3L d'eau par jour ?");
   html += yesNo("pain_other", "Des douleurs autres que des courbatures ?");
   if (d.pain_other === true) {
-    html += `<textarea id="painDetail" placeholder="Détaille où et depuis quand…" rows="2" style="margin-bottom:16px;">${esc(d.pain_detail || "")}</textarea>`;
+    html += `<textarea id="painDetail" placeholder="Détaille où et depuis quand…" rows="2" style="margin-bottom:18px;">${esc(d.pain_detail || "")}</textarea>`;
   }
-  html += scaleRow("sleep_quality", "Qualité de ton sommeil (1 = mauvais, 5 = excellent)");
-  html += scaleRow("stress_level", "Niveau de stress de la semaine (1 = faible, 5 = élevé)");
-  html += `<div style="margin-bottom:16px;">
-    <div style="font-size:14px;margin-bottom:8px;">As-tu respecté ton plan nutritionnel ?</div>
+  html += `<div style="margin-bottom:18px;">
+    <div style="font-size:14px;margin-bottom:9px;font-weight:600;">As-tu respecté ton plan nutritionnel ?</div>
     <select id="nutritionRespect">
       <option value="">—</option>
       <option value="oui" ${d.nutrition_respect === "oui" ? "selected" : ""}>Oui</option>
@@ -4706,29 +4936,30 @@ function renderCheckinCurrent() {
       <option value="non" ${d.nutrition_respect === "non" ? "selected" : ""}>Non</option>
     </select>
   </div>`;
-  html += scaleRow("motivation", "Motivation à poursuivre le programme (1 = faible, 5 = au top)");
   html += yesNo("missed_sessions", "As-tu manqué des séances cette semaine ?");
   if (d.missed_sessions === true) {
     html += `<textarea id="missedReason" placeholder="Pourquoi ?" rows="2" style="margin-bottom:6px;">${esc(d.missed_reason || "")}</textarea>`;
   }
   html += `</div></div>`;
 
-  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="3" y="8" width="18" height="8" rx="1"/><line x1="7" y1="8" x2="7" y2="11"/><line x1="11" y1="8" x2="11" y2="11"/><line x1="15" y1="8" x2="15" y2="11"/></svg> Mensurations</div>
-    <div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">Poids actuel (à jeun)</div>
+  html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
+  html += sectionHead(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="8" width="18" height="8" rx="1"/><line x1="7" y1="8" x2="7" y2="11"/><line x1="11" y1="8" x2="11" y2="11"/><line x1="15" y1="8" x2="15" y2="11"/></svg>`,
+    "Mensurations", "À jeun, au réveil, dans les mêmes conditions");
+  html += `<div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">Poids actuel (à jeun)</div>
     <input id="bodyweight" placeholder="kg" value="${d.bodyweight ?? ""}" style="margin-bottom:12px;" />
     <div class="row"><input id="armLeft" placeholder="Bras gauche contracté (cm)" value="${d.arm_left ?? ""}" /><input id="armRight" placeholder="Bras droit contracté (cm)" value="${d.arm_right ?? ""}" /></div>
     <div class="row"><input id="legLeft" placeholder="Jambe gauche contractée (cm)" value="${d.leg_left ?? ""}" /><input id="legRight" placeholder="Jambe droite contractée (cm)" value="${d.leg_right ?? ""}" /></div>
-    <div class="row"><input id="shoulders" placeholder="Tour d'épaules (cm)" value="${d.shoulders ?? ""}" /><input id="waist" placeholder="Tour de taille (cm)" value="${d.waist ?? ""}" /></div>
-  </div></div>`;
+    <div class="row"><input id="shoulders" placeholder="Tour d'épaules (cm)" value="${d.shoulders ?? ""}" /><input id="waist" placeholder="Tour de taille (cm)" value="${d.waist ?? ""}" /></div>`;
+  html += `</div></div>`;
 
-  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-weight:700;margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg> Photos & pas</div>
-    ${photoField("photoFront", "Photo de face", state.checkinExisting?.photo_front_url)}
+  html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
+  html += sectionHead(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="3.5"/></svg>`,
+    "Photos & pas", "Toujours au même endroit, même éclairage");
+  html += `${photoField("photoFront", "Photo de face", state.checkinExisting?.photo_front_url)}
     ${photoField("photoBack", "Photo de dos", state.checkinExisting?.photo_back_url)}
     ${photoField("photoSide", "Photo de profil", state.checkinExisting?.photo_side_url)}
-    ${photoField("stepsScreenshot", "Capture d'écran de tes pas de la semaine", state.checkinExisting?.steps_screenshot_url)}
-  </div></div>`;
+    ${photoField("stepsScreenshot", "Capture d'écran de tes pas de la semaine", state.checkinExisting?.steps_screenshot_url)}`;
+  html += `</div></div>`;
 
   html += `<button class="validate-btn" id="submitCheckinBtn">✓ Envoyer mon bilan</button>`;
   return html;
@@ -4785,9 +5016,28 @@ function attachHandlers() {
   const app = document.getElementById("app");
 
   app.querySelectorAll("[data-open-day]").forEach(b => b.onclick = () => {
-    state.openDayId = b.dataset.openDay;
-    state.sessionInputs = {};
-    state.openEx = {};
+    const targetDayId = b.dataset.openDay;
+    // Si on rouvre un jour déjà en cours de saisie (retour en arrière, changement d'onglet
+    // puis re-tap, etc.), on récupère les poids/reps déjà notés plutôt que de les effacer —
+    // en mémoire s'ils y sont encore, sinon depuis le brouillon sauvegardé localement.
+    if (state.openDayId === targetDayId) {
+      // déjà en mémoire, rien à faire
+    } else {
+      let restored = false;
+      try {
+        const raw = localStorage.getItem(SESSION_DRAFT_KEY);
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (d && d.dayId === targetDayId && d.savedAt && Date.now() - d.savedAt < 24 * 3600 * 1000) {
+            state.sessionInputs = d.inputs || {};
+            restored = true;
+          }
+        }
+      } catch (e) {}
+      if (!restored) state.sessionInputs = {};
+      state.openEx = {};
+    }
+    state.openDayId = targetDayId;
     render();
   });
 
@@ -4809,6 +5059,7 @@ function attachHandlers() {
       if (!state.sessionInputs[exId]) state.sessionInputs[exId] = rows.map(r => ({ reps: r, kg: "" }));
       state.sessionInputs[exId][idx][field] = inp.value;
       updateCountersOnly();
+      saveSessionDraftToStorage();
     };
   });
 
@@ -4848,6 +5099,7 @@ function attachHandlers() {
     state.sessionLogs.push({ id: data.id, dayId, date: dateStr, entries });
     state.openDayId = null;
     state.sessionInputs = {};
+    clearSessionDraftFromStorage();
     state.recapLogId = data.id;
     state.recapRpe = null;
     state.recapComment = "";
@@ -5466,6 +5718,12 @@ document.getElementById("manualBarcodeInput").onkeydown = (e) => {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && scannerInstance) {
     closeScanner();
+  }
+  // L'OS libère automatiquement le verrou d'écran dès que l'appli passe en arrière-plan ;
+  // on le redemande au retour si une course est toujours en cours, sinon l'écran peut
+  // s'éteindre en plein milieu d'une sortie après un simple passage d'appli.
+  if (!document.hidden && state.activeRun && state.activeRun.status === "running") {
+    acquireWakeLock();
   }
 });
 
