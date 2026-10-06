@@ -247,7 +247,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "50";
+const APP_VERSION = "51";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -4588,8 +4588,15 @@ function updateNotifBadge() {
 
 function renderVideoFeedback() {
   const program = state.program || DEFAULT_PROGRAM;
+  const seenNames = new Set();
   const allExercises = [];
-  program.forEach(d => (d.exercises || []).forEach(e => allExercises.push({ id: e.id, name: e.name, day: d.day })));
+  program.forEach(d => (d.exercises || []).forEach(e => {
+    const key = (e.name || "").trim().toLowerCase();
+    if (!key || seenNames.has(key)) return;
+    seenNames.add(key);
+    allExercises.push({ id: e.id, name: e.name });
+  }));
+  allExercises.sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
   let html = `
     <div style="margin:20px 0 4px;">
@@ -4603,12 +4610,12 @@ function renderVideoFeedback() {
     <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Quel exercice ?</div>
     <select id="videoFeedbackExercise" style="margin-bottom:14px;">
       <option value="">Choisis un exercice de ton programme…</option>
-      ${allExercises.map(e => `<option value="${esc(e.name)}">${esc(e.day)} — ${esc(e.name)}</option>`).join("")}
+      ${allExercises.map(e => `<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("")}
     </select>
     <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Un détail à préciser ? (optionnel)</div>
     <textarea id="videoFeedbackNote" placeholder="Ex : j'ai une gêne à la descente, est-ce que ma position est bonne ?" rows="2" style="margin-bottom:14px;"></textarea>
     <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Ta vidéo</div>
-    <input id="videoFeedbackFile" type="file" accept="video/*" capture="environment" style="margin-bottom:16px;" />
+    <input id="videoFeedbackFile" type="file" accept="video/*" style="margin-bottom:16px;" />
     <button class="validate-btn" style="margin-top:0;" id="sendVideoFeedbackBtn">✓ Envoyer à mon coach</button>
   </div></div>`;
 
