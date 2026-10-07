@@ -171,10 +171,14 @@
     color: var(--textDim); pointer-events: none; padding: 0 10px; text-align: center; }
   .photo-tile .photo-tile-placeholder span { font-size: 11.5px; }
   .photo-tile img.photo-tile-preview { position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: cover; pointer-events: none; }
+    object-fit: cover; pointer-events: none; z-index: 1; }
+  .photo-tile input[type="file"] { z-index: 2; }
   .photo-tile .photo-tile-check { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px;
     border-radius: 50%; background: var(--olive); color: #fff; display: flex; align-items: center;
-    justify-content: center; pointer-events: none; }
+    justify-content: center; pointer-events: none; z-index: 1; }
+  .photo-tile-remove { position: absolute; top: 8px; left: 8px; width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); color: #fff; display: flex; align-items: center; justify-content: center;
+    z-index: 3; border: none; }
   .stat-card { flex: 1; background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 18px;
     padding: 18px; }
   .stat-value { font-family: var(--body); font-weight: 900; font-size: 24px; letter-spacing: -0.3px; }
@@ -262,7 +266,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "54";
+const APP_VERSION = "55";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -4594,13 +4598,23 @@ async function loadCheckinsHistory() {
 // vidéo trop longue avant même de tenter l'upload (évite l'échec sur les vidéos lourdes).
 function getVideoDuration(file) {
   return new Promise((resolve, reject) => {
+    // Un élément vidéo non attaché au DOM peut, sur certains navigateurs mobiles (notamment
+    // iOS en PWA), ne jamais déclencher "loadedmetadata" — on l'attache donc (caché) et on
+    // ajoute un filet de sécurité par timeout pour ne JAMAIS rester bloqué indéfiniment ici.
     const videoEl = document.createElement("video");
     videoEl.preload = "metadata";
-    videoEl.onloadedmetadata = () => {
-      URL.revokeObjectURL(videoEl.src);
-      resolve(videoEl.duration);
+    videoEl.muted = true;
+    videoEl.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;";
+    let done = false;
+    const cleanup = () => {
+      if (videoEl.src) URL.revokeObjectURL(videoEl.src);
+      if (videoEl.parentNode) videoEl.parentNode.removeChild(videoEl);
     };
-    videoEl.onerror = () => { URL.revokeObjectURL(videoEl.src); reject(new Error("Lecture impossible")); };
+    const finish = (fn, val) => { if (done) return; done = true; cleanup(); fn(val); };
+    videoEl.onloadedmetadata = () => finish(resolve, videoEl.duration);
+    videoEl.onerror = () => finish(reject, new Error("Lecture impossible"));
+    setTimeout(() => finish(resolve, null), 5000); // on laisse passer plutôt que de bloquer l'envoi
+    document.body.appendChild(videoEl);
     videoEl.src = URL.createObjectURL(file);
   });
 }
@@ -5047,31 +5061,51 @@ async function openCheckin() {
 function photoField(id, label, existingUrl) {
   return `<div class="photo-tile-wrap">
     <div class="photo-tile-label">${esc(label)}</div>
-    <label class="photo-tile" for="${id}">
-      <input id="${id}" type="file" accept="image/*" onchange="previewPhotoTile(this)" />
-      <div class="photo-tile-placeholder" id="${id}-placeholder" style="${existingUrl ? "display:none;" : ""}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-        <span>Choisir une photo</span>
-      </div>
-      ${existingUrl ? `<img class="photo-tile-preview" id="${id}-preview" src="${esc(existingUrl)}" />
-      <div class="photo-tile-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg></div>` : `<img class="photo-tile-preview" id="${id}-preview" style="display:none;" />`}
-    </label>
+    <div style="position:relative;">
+      <label class="photo-tile" for="${id}">
+        <input id="${id}" type="file" accept="image/*" onchange="previewPhotoTile(this)" />
+        <div class="photo-tile-placeholder" id="${id}-placeholder" style="${existingUrl ? "display:none;" : ""}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span>Choisir une photo</span>
+        </div>
+        ${existingUrl ? `<img class="photo-tile-preview" id="${id}-preview" src="${esc(existingUrl)}" />
+        <div class="photo-tile-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg></div>` : `<img class="photo-tile-preview" id="${id}-preview" style="display:none;" />`}
+      </label>
+      <button type="button" class="photo-tile-remove" id="${id}-remove" style="${existingUrl ? "" : "display:none;"}" onclick="clearPhotoTile(event, '${id}')" aria-label="Retirer la photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
   </div>`;
 }
 
 // Affiche un aperçu de la photo dès qu'elle est choisie, directement dans la case carrée.
 function previewPhotoTile(input) {
   const file = input.files[0];
-  if (!file) return;
   const preview = document.getElementById(input.id + "-preview");
   const placeholder = document.getElementById(input.id + "-placeholder");
+  const removeBtn = document.getElementById(input.id + "-remove");
+  if (!file) return;
   const reader = new FileReader();
   reader.onload = (e) => {
     preview.src = e.target.result;
     preview.style.display = "block";
     if (placeholder) placeholder.style.display = "none";
+    if (removeBtn) removeBtn.style.display = "flex";
   };
   reader.readAsDataURL(file);
+}
+
+// Retire la photo choisie par erreur — remet la case dans son état vide, sans toucher
+// aux autres champs du bilan déjà remplis.
+function clearPhotoTile(evt, id) {
+  evt.preventDefault();
+  evt.stopPropagation();
+  const input = document.getElementById(id);
+  const preview = document.getElementById(id + "-preview");
+  const placeholder = document.getElementById(id + "-placeholder");
+  const removeBtn = document.getElementById(id + "-remove");
+  if (input) input.value = "";
+  if (preview) { preview.style.display = "none"; preview.src = ""; }
+  if (placeholder) placeholder.style.display = "flex";
+  if (removeBtn) removeBtn.style.display = "none";
 }
 
 function renderCheckinCurrent() {
@@ -5178,11 +5212,30 @@ function renderCheckinCurrent() {
   html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
   html += sectionHead(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="8" width="18" height="8" rx="1"/><line x1="7" y1="8" x2="7" y2="11"/><line x1="11" y1="8" x2="11" y2="11"/><line x1="15" y1="8" x2="15" y2="11"/></svg>`,
     "Mensurations", "À jeun, au réveil, dans les mêmes conditions");
-  html += `<div style="font-size:13px;color:var(--textDim);margin-bottom:6px;">Poids actuel (à jeun)</div>
-    <input id="bodyweight" placeholder="kg" value="${d.bodyweight ?? ""}" style="margin-bottom:12px;" />
-    <div class="row"><input id="armLeft" placeholder="Bras gauche contracté (cm)" value="${d.arm_left ?? ""}" /><input id="armRight" placeholder="Bras droit contracté (cm)" value="${d.arm_right ?? ""}" /></div>
-    <div class="row"><input id="legLeft" placeholder="Jambe gauche contractée (cm)" value="${d.leg_left ?? ""}" /><input id="legRight" placeholder="Jambe droite contractée (cm)" value="${d.leg_right ?? ""}" /></div>
-    <div class="row"><input id="shoulders" placeholder="Tour d'épaules (cm)" value="${d.shoulders ?? ""}" /><input id="waist" placeholder="Tour de taille (cm)" value="${d.waist ?? ""}" /></div>`;
+  const measureField = (id, label, value, unit) => `
+    <div style="flex:1;">
+      <div style="font-size:10.5px;color:var(--textDim);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">${label}</div>
+      <div style="position:relative;">
+        <input id="${id}" type="number" step="0.1" inputmode="decimal" value="${value ?? ""}" style="padding-right:34px;" />
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--textDim);font-weight:700;pointer-events:none;">${unit}</span>
+      </div>
+    </div>`;
+  const measureGroup = (title, fieldsHtml) => `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">${title}</div>
+      <div style="display:flex;gap:10px;">${fieldsHtml}</div>
+    </div>`;
+  html += `
+    <div style="background:var(--bg);border-radius:14px;padding:18px;margin-bottom:18px;text-align:center;">
+      <div style="font-size:10.5px;color:var(--textDim);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.3px;font-weight:700;">Poids actuel (à jeun)</div>
+      <div style="display:flex;align-items:baseline;justify-content:center;gap:5px;">
+        <input id="bodyweight" type="number" step="0.1" inputmode="decimal" value="${d.bodyweight ?? ""}" placeholder="—" style="text-align:right;font-size:30px;font-weight:800;border:none;background:none;width:110px;padding:0;color:var(--accent);" />
+        <span style="font-size:16px;color:var(--textDim);font-weight:700;">kg</span>
+      </div>
+    </div>`;
+  html += measureGroup("Bras contractés", measureField("armLeft", "Gauche", d.arm_left, "cm") + measureField("armRight", "Droit", d.arm_right, "cm"));
+  html += measureGroup("Jambes contractées", measureField("legLeft", "Gauche", d.leg_left, "cm") + measureField("legRight", "Droite", d.leg_right, "cm"));
+  html += measureGroup("Buste", measureField("shoulders", "Épaules", d.shoulders, "cm") + measureField("waist", "Taille", d.waist, "cm"));
   html += `</div></div>`;
 
   html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
@@ -6086,3 +6139,5 @@ boot();
 </script>
 </body>
 </html>
+
+ 
