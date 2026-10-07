@@ -247,7 +247,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "52";
+const APP_VERSION = "53";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -340,6 +340,22 @@ function buildSuggestion(lastEntry, targetRows) {
 
 let uidN = 1;
 const uid = (p) => `${p}-${uidN++}`;
+// Cherche si un exercice de ce nom a déjà une vidéo renseignée chez un autre client —
+// évite au coach de retaper le lien à chaque fois qu'il ajoute le même exercice ailleurs.
+function findKnownVideoForExercise(name) {
+  const key = (name || "").trim().toLowerCase();
+  if (!key) return null;
+  for (const c of state.coachClients) {
+    const program = c.program_json || [];
+    for (const d of program) {
+      for (const e of (d.exercises || [])) {
+        if (e.video && (e.name || "").trim().toLowerCase() === key) return e.video;
+      }
+    }
+  }
+  return null;
+}
+
 function ex(name, muscle, sets, rest, superset, video) {
   return { id: uid("ex"), name, muscle, sets, rest, superset: superset || null, video: video || null };
 }
@@ -2446,7 +2462,6 @@ function renderCoachBilan(c) {
       ${feelAnswer("Ressenti global", ck.feeling)}
       ${feelAnswer("Sommeil", ck.sleep_quality)}
       ${feelAnswer("Stress", ck.stress_level)}
-      ${feelAnswer("Motivation", ck.motivation)}
     </div></div>`;
 
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -2474,6 +2489,12 @@ function renderCoachBilan(c) {
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
       <div style="font-weight:800;margin-bottom:12px;font-size:14.5px;">💬 Autres réponses</div>
       ${ckRow("Douleurs (hors courbatures)", ck.pain_other === true ? `Oui — ${esc(ck.pain_detail || "")}` : ck.pain_other === false ? "Non" : "—")}
+      ${ckRow("Séances manquées", ck.missed_sessions === true ? `Oui — ${esc(ck.missed_reason || "")}` : ck.missed_sessions === false ? "Non" : "—")}
+      ${feelAnswer("Nutrition — précisions", ck.nutrition_respect_detail)}
+      ${feelAnswer("Ce qui ne convient pas dans la diététique", ck.diet_dislikes)}
+      ${feelAnswer("À l'aise avec les exercices ?", ck.exercises_comfort)}
+      ${feelAnswer("Remarque personnelle", ck.personal_note)}
+      ${feelAnswer("Idées d'ajustements sur la routine", ck.routine_adjustments)}
     </div></div>`;
 
     html += `</div>`; // fin .bilan-grid
@@ -2830,15 +2851,18 @@ async function attachCoachHandlers() {
   document.querySelectorAll("[data-add-from-library]").forEach(b => b.onclick = () => {
     const [name, muscle] = b.dataset.addFromLibrary.split("|");
     const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const knownVideo = findKnownVideoForExercise(name);
     if (state.libraryReplaceIdx !== null) {
       const target = day.exercises[state.libraryReplaceIdx];
       target.name = name;
       target.muscle = muscle;
+      if (knownVideo && !target.video) target.video = knownVideo;
     } else {
-      day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+      day.exercises.push(ex(name, muscle, "3x10-12", "90s", null, knownVideo || null));
     }
     state.libraryOpenForDay = null;
     state.libraryReplaceIdx = null;
+    if (knownVideo) showToast("Vidéo déjà connue pour cet exercice, ajoutée automatiquement.");
     render();
   });
 
@@ -2847,16 +2871,19 @@ async function attachCoachHandlers() {
     const name = prompt("Nom de l'exercice :");
     if (!name) return;
     const day = state.programBuilderDraft.find(d => d.id === state.programBuilderDayId);
+    const knownVideo = findKnownVideoForExercise(name);
     if (state.libraryReplaceIdx !== null) {
       const target = day.exercises[state.libraryReplaceIdx];
       target.name = name;
       target.muscle = prompt("Groupe musculaire :") || target.muscle;
+      if (knownVideo && !target.video) target.video = knownVideo;
     } else {
       const muscle = prompt("Groupe musculaire :") || "Muscle";
-      day.exercises.push(ex(name, muscle, "3x10-12", "90s"));
+      day.exercises.push(ex(name, muscle, "3x10-12", "90s", null, knownVideo || null));
     }
     state.libraryOpenForDay = null;
     state.libraryReplaceIdx = null;
+    if (knownVideo) showToast("Vidéo déjà connue pour cet exercice, ajoutée automatiquement.");
     render();
   };
 
@@ -4548,6 +4575,21 @@ async function loadCheckinsHistory() {
 }
 
 /* ---------------- Retour vidéo (le client envoie une vidéo, le coach corrige) ---------------- */
+// Lit la durée d'un fichier vidéo côté appareil, sans l'envoyer — permet de refuser une
+// vidéo trop longue avant même de tenter l'upload (évite l'échec sur les vidéos lourdes).
+function getVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const videoEl = document.createElement("video");
+    videoEl.preload = "metadata";
+    videoEl.onloadedmetadata = () => {
+      URL.revokeObjectURL(videoEl.src);
+      resolve(videoEl.duration);
+    };
+    videoEl.onerror = () => { URL.revokeObjectURL(videoEl.src); reject(new Error("Lecture impossible")); };
+    videoEl.src = URL.createObjectURL(file);
+  });
+}
+
 async function loadMyVideoSubmissions() {
   const { data } = await sb.from("exercise_video_submissions").select("*").eq("client_id", state.client.id).order("created_at", { ascending: false });
   state.myVideoSubmissions = data || [];
@@ -4593,7 +4635,8 @@ function renderVideoFeedback() {
     <input id="videoFeedbackExercise" type="text" placeholder="Ex : Développé couché" style="margin-bottom:14px;" />
     <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Un détail à préciser ? (optionnel)</div>
     <textarea id="videoFeedbackNote" placeholder="Ex : j'ai une gêne à la descente, est-ce que ma position est bonne ?" rows="2" style="margin-bottom:14px;"></textarea>
-    <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Ta vidéo</div>
+    <div style="font-size:14px;margin-bottom:4px;font-weight:600;">Ta vidéo</div>
+    <div style="font-size:11.5px;color:var(--textDim);margin-bottom:8px;">30 secondes maximum</div>
     <input id="videoFeedbackFile" type="file" accept="video/*" style="margin-bottom:16px;" />
     <button class="validate-btn" style="margin-top:0;" id="sendVideoFeedbackBtn">✓ Envoyer à mon coach</button>
   </div></div>`;
@@ -5059,7 +5102,6 @@ function renderCheckinCurrent() {
   html += textRow("feeling", "Ressenti global de la semaine");
   html += textRow("sleep_quality", "Qualité de ton sommeil");
   html += textRow("stress_level", "Niveau de stress de la semaine");
-  html += textRow("motivation", "Motivation à poursuivre le programme");
   html += `</div></div>`;
 
   html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
@@ -5070,7 +5112,7 @@ function renderCheckinCurrent() {
   if (d.pain_other === true) {
     html += `<textarea id="painDetail" placeholder="Détaille où et depuis quand…" rows="2" style="margin-bottom:18px;">${esc(d.pain_detail || "")}</textarea>`;
   }
-  html += `<div style="margin-bottom:18px;">
+  html += `<div style="margin-bottom:10px;">
     <div style="font-size:14px;margin-bottom:9px;font-weight:600;">As-tu respecté ton plan nutritionnel ?</div>
     <select id="nutritionRespect">
       <option value="">—</option>
@@ -5079,10 +5121,20 @@ function renderCheckinCurrent() {
       <option value="non" ${d.nutrition_respect === "non" ? "selected" : ""}>Non</option>
     </select>
   </div>`;
+  html += `<textarea id="nutritionRespectDetail" placeholder="Précise si besoin (quels écarts, pourquoi…)" rows="2" style="margin-bottom:18px;">${esc(d.nutrition_respect_detail || "")}</textarea>`;
+  html += textRow("diet_dislikes", "Y'a-t-il des choses qui ne te conviennent pas dans la diététique, ou que tu as du mal à manger ?");
   html += yesNo("missed_sessions", "As-tu manqué des séances cette semaine ?");
   if (d.missed_sessions === true) {
-    html += `<textarea id="missedReason" placeholder="Pourquoi ?" rows="2" style="margin-bottom:6px;">${esc(d.missed_reason || "")}</textarea>`;
+    html += `<textarea id="missedReason" placeholder="Pourquoi ?" rows="2" style="margin-bottom:18px;">${esc(d.missed_reason || "")}</textarea>`;
   }
+  html += textRow("exercises_comfort", "Es-tu à l'aise avec les exercices de la semaine ? Si non, lesquels ?");
+  html += `</div></div>`;
+
+  html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
+  html += sectionHead(`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+    "Tes remarques", "Pour qu'on ajuste ensemble");
+  html += textRow("personal_note", "Remarque personnelle (chose à améliorer)");
+  html += textRow("routine_adjustments", "Si t'as une idée d'ajustements qui pourrait t'arranger sur ta routine");
   html += `</div></div>`;
 
   html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:18px;">`;
@@ -5714,7 +5766,7 @@ function attachHandlers() {
   const gotoCheckinBtn = app.querySelector("[data-goto-checkin]");
   if (gotoCheckinBtn) gotoCheckinBtn.onclick = () => { state.tab = "profil"; openCheckin(); };
 
-  ["feeling", "sleep_quality", "stress_level", "motivation"].forEach(id => {
+  ["feeling", "sleep_quality", "stress_level", "diet_dislikes", "exercises_comfort", "personal_note", "routine_adjustments"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.oninput = () => {
       if (!state.checkinDraft) state.checkinDraft = {};
@@ -5767,7 +5819,11 @@ function attachHandlers() {
       sleep_quality: document.getElementById("sleep_quality")?.value || null,
       stress_level: document.getElementById("stress_level")?.value || null,
       nutrition_respect: document.getElementById("nutritionRespect")?.value || null,
-      motivation: document.getElementById("motivation")?.value || null,
+      nutrition_respect_detail: document.getElementById("nutritionRespectDetail")?.value || null,
+      diet_dislikes: document.getElementById("diet_dislikes")?.value || null,
+      exercises_comfort: document.getElementById("exercises_comfort")?.value || null,
+      personal_note: document.getElementById("personal_note")?.value || null,
+      routine_adjustments: document.getElementById("routine_adjustments")?.value || null,
       missed_sessions: d.missed_sessions ?? null,
       missed_reason: document.getElementById("missedReason")?.value || null,
       bodyweight: num("bodyweight"),
@@ -5800,6 +5856,15 @@ function attachHandlers() {
     if (!file) { showToast("Choisis une vidéo à envoyer."); return; }
     if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour envoyer ta vidéo."); return; }
     sendVideoFeedbackBtn.disabled = true;
+    sendVideoFeedbackBtn.textContent = "Vérification de la vidéo…";
+    let duration = null;
+    try { duration = await getVideoDuration(file); } catch (e) { /* on laisse passer si la durée n'a pas pu être lue */ }
+    if (duration != null && duration > 31) {
+      showToast(`Ta vidéo fait ${Math.round(duration)}s — 30 secondes maximum. Raccourcis-la et réessaie.`);
+      sendVideoFeedbackBtn.disabled = false;
+      sendVideoFeedbackBtn.textContent = "✓ Envoyer à mon coach";
+      return;
+    }
     sendVideoFeedbackBtn.textContent = "Envoi de la vidéo…";
     const path = `${state.client.id}-${Date.now()}-${file.name}`;
     const { error: upErr } = await sb.storage.from("exercise-videos").upload(path, file);
@@ -5829,7 +5894,8 @@ function attachHandlers() {
 
 function computeCheckinPct(d) {
   const trackedFields = ["feeling", "water_3l", "pain_other", "sleep_quality", "stress_level",
-    "nutrition_respect", "motivation", "missed_sessions", "bodyweight", "arm_left", "arm_right",
+    "nutrition_respect", "diet_dislikes", "exercises_comfort", "missed_sessions",
+    "personal_note", "routine_adjustments", "bodyweight", "arm_left", "arm_right",
     "leg_left", "leg_right", "shoulders", "waist"];
   const filledCount = trackedFields.filter(k => d[k] !== undefined && d[k] !== null && d[k] !== "").length;
   const photoCount = ["photo_front_url", "photo_back_url", "photo_side_url", "steps_screenshot_url"]
@@ -5845,7 +5911,7 @@ function updateCheckinProgressOnly() {
   const barEl = document.getElementById("checkinPctBar");
   if (!pctEl || !barEl) return;
   const d = state.checkinDraft || {};
-  ["feeling", "sleep_quality", "stress_level", "motivation"].forEach(id => {
+  ["feeling", "sleep_quality", "stress_level", "diet_dislikes", "exercises_comfort", "personal_note", "routine_adjustments"].forEach(id => {
     const el = document.getElementById(id);
     if (el) d[id] = el.value;
   });
