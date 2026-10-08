@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "59";
+const APP_VERSION = "60";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1563,7 +1563,7 @@ let state = {
   isOffline: false,
   coachViewingCheckinsId: null,
   coachViewingScheduleId: null,
-  coachTab: "clients",
+  coachTab: "todo",
   coachExpandedClientId: null,
   coachDetailView: null, // null | "schedule" | "videos" | "checkins" | "followup" | "json"
   coachDetailClientId: null,
@@ -2081,6 +2081,92 @@ function renderProgramBuilder() {
   return html;
 }
 
+// ---------- Espace coach : page "À faire" ----------
+function getCoachSeenCheckins() {
+  try { return new Set(JSON.parse(localStorage.getItem("mattheophysic_coach_seen_checkins") || "[]")); } catch (e) { return new Set(); }
+}
+function markCoachCheckinSeen(id) {
+  if (!id) return;
+  const s = getCoachSeenCheckins(); s.add(id);
+  try { localStorage.setItem("mattheophysic_coach_seen_checkins", JSON.stringify([...s].slice(-300))); } catch (e) {}
+}
+function daysSinceISO(d) {
+  return Math.floor((new Date(todayISO() + "T12:00:00") - new Date(d + "T12:00:00")) / 86400000);
+}
+function computeCoachTodo() {
+  const seen = getCoachSeenCheckins();
+  const t = { videos: state.coachPendingVideos.slice(), bilanToRead: [], bilanMissing: [], inactive: [], noProgram: [] };
+  state.coachClients.forEach(c => {
+    if (!c.program_json) t.noProgram.push(c);
+    const ov = c.overview;
+    if (!ov) return;
+    if (ov.checkinSubmittedThisWeek) { if (ov.latestCheckinId && !seen.has(ov.latestCheckinId)) t.bilanToRead.push(c); }
+    else t.bilanMissing.push(c);
+    const days = ov.lastSessionDate ? daysSinceISO(ov.lastSessionDate) : null;
+    if (c.program_json && (ov.warning || days === null || days >= 5)) {
+      t.inactive.push({ c, reason: days === null ? "Aucune séance enregistrée" : days >= 5 ? `Dernière séance il y a ${days} jours` : ov.warning.replace(/<svg[\s\S]*?<\/svg>\s*/, "") });
+    }
+  });
+  t.count = t.videos.length + t.bilanToRead.length + t.inactive.length + t.noProgram.length;
+  return t;
+}
+function coachClientFlagCount(c, t) {
+  return (t.videos.some(v => v.client_id === c.id) ? 1 : 0) + (t.bilanToRead.includes(c) ? 1 : 0)
+    + (t.inactive.some(x => x.c === c) ? 1 : 0) + (t.noProgram.includes(c) ? 1 : 0);
+}
+function renderCoachTodo() {
+  const t = computeCoachTodo();
+  const loaded = state.coachClients.some(c => c.overview) || state.coachClients.length === 0;
+  const total = state.coachClients.length;
+  const doneWeek = state.coachClients.filter(c => c.overview && c.overview.checkinSubmittedThisWeek).length;
+  const sessWeek = state.coachClients.reduce((a, c) => a + (c.overview ? c.overview.sessionsThisWeek : 0), 0);
+  const row = (attr, title, sub, color) => `<button ${attr} style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;background:none;border:none;border-top:1px solid var(--border);padding:11px 0;color:inherit;font:inherit;text-align:left;">
+      <span style="min-width:0;"><b style="font-size:14px;">${title}</b><br/><span style="font-size:12.5px;color:${color || "var(--textDim)"};">${sub}</span></span>
+      <span style="color:var(--accent);font-size:20px;">›</span></button>`;
+  const section = (icon, title, n, body) => `<div class="ex-card" style="margin-bottom:12px;"><div class="ex-body" style="padding-top:14px;padding-bottom:6px;">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:6px;">${icon} ${title} <span style="background:var(--accent);color:var(--accentText);font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px;margin-left:4px;">${n}</span></div>${body}</div></div>`;
+  let html = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+    <div class="ex-card" style="padding:12px 8px;text-align:center;"><div style="font-size:22px;font-weight:800;">${total}</div><div style="font-size:11px;color:var(--textDim);">clients</div></div>
+    <div class="ex-card" style="padding:12px 8px;text-align:center;"><div style="font-size:22px;font-weight:800;">${loaded ? sessWeek : "…"}</div><div style="font-size:11px;color:var(--textDim);">séances / sem.</div></div>
+    <div class="ex-card" style="padding:12px 8px;text-align:center;"><div style="font-size:22px;font-weight:800;">${loaded ? doneWeek + "/" + total : "…"}</div><div style="font-size:11px;color:var(--textDim);">bilans reçus</div></div>
+  </div>`;
+  if (!loaded) return html + `<div class="info-box">Chargement de tes clients…</div>`;
+  if (t.count === 0) {
+    html += `<div class="ex-card" style="margin-bottom:16px;"><div class="ex-body" style="padding:22px 16px;text-align:center;">
+      <div style="font-size:30px;">✓</div><div style="font-weight:800;margin-top:6px;color:var(--olive);">Tout est à jour</div>
+      <div style="font-size:13px;color:var(--textDim);margin-top:4px;">Aucune vidéo, aucun bilan ni client à relancer.</div></div></div>`;
+  } else {
+    html += `<div class="section-label">À FAIRE · ${t.count}</div>`;
+  }
+  if (t.videos.length) {
+    const byClient = {};
+    t.videos.forEach(v => { (byClient[v.client_id] = byClient[v.client_id] || []).push(v); });
+    html += section("🎥", "Vidéos à corriger", t.videos.length, Object.keys(byClient).map(cid => {
+      const cl = state.coachClients.find(x => x.id === cid);
+      return row(`data-coach-pending-open="${esc(cid)}"`, esc(cl ? cl.name : "Client"), byClient[cid].map(v => esc(v.exercise_name) + " · " + timeAgoFR(v.created_at)).join(" — "));
+    }).join(""));
+  }
+  if (t.bilanToRead.length) {
+    html += section("📋", "Bilans reçus à lire", t.bilanToRead.length, t.bilanToRead.map(c =>
+      row(`data-open-bilan="${c.id}"`, esc(c.name), "Bilan de la semaine reçu", "var(--olive)")).join(""));
+  }
+  if (t.inactive.length) {
+    html += section("⚠️", "Clients à relancer", t.inactive.length, t.inactive.map(x =>
+      row(`data-view-schedule="${x.c.id}"`, esc(x.c.name), esc(x.reason), "var(--danger)")).join(""));
+  }
+  if (t.noProgram.length) {
+    html += section("🛠", "Programme à construire", t.noProgram.length, t.noProgram.map(c =>
+      row(`data-open-builder="${c.id}"`, esc(c.name), "Aucun programme pour l'instant")).join(""));
+  }
+  if (t.bilanMissing.length) {
+    html += `<div class="ex-card" style="margin-bottom:12px;"><div class="ex-body" style="padding-top:14px;">
+      <div style="font-weight:800;font-size:14px;margin-bottom:4px;color:var(--textDim);">Bilans pas encore rendus cette semaine (${t.bilanMissing.length})</div>
+      <div style="font-size:13px;color:var(--textDim);line-height:1.6;">${t.bilanMissing.map(c => esc(c.name)).join(", ")}</div></div></div>`;
+  }
+  html += `<button class="validate-btn" data-new-client="1" style="margin:8px 0 20px;">+ Nouveau client</button>`;
+  return html;
+}
+
 function renderCoachScreen() {
   if (!state.coachAuthed) {
     return `
@@ -2104,41 +2190,24 @@ function renderCoachScreen() {
     </div>
     <div class="subtitle">Gère tes clients et leurs programmes</div>
     <div class="day-tabs">
-      <button class="day-tab ${state.coachTab !== "documents" && state.coachTab !== "recipes" ? "active" : ""}" data-coach-tab="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.2c2.4.4 4.5 2.2 4.5 5.3"/></svg> Clients</button>
+      <button class="day-tab ${state.coachTab === "todo" ? "active" : ""}" data-coach-tab="todo">✓ À faire${(() => { const n = computeCoachTodo().count; return n ? ` <span style="background:var(--accent);color:var(--accentText);font-size:10px;font-weight:800;border-radius:999px;padding:1px 6px;margin-left:3px;">${n}</span>` : ""; })()}</button>
+      <button class="day-tab ${state.coachTab === "clients" ? "active" : ""}" data-coach-tab="clients">Clients</button>
       <button class="day-tab ${state.coachTab === "documents" ? "active" : ""}" data-coach-tab="documents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Documents</button>
       <button class="day-tab ${state.coachTab === "recipes" ? "active" : ""}" data-coach-tab="recipes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg> Recettes</button>
     </div>
   `;
 
-  if (state.coachTab !== "documents" && state.coachTab !== "recipes") {
-  const withOverview = state.coachClients.filter(c => c.overview);
-  if (withOverview.length > 0) {
-    const received = withOverview.filter(c => c.overview.checkinSubmittedThisWeek);
-    const pending = withOverview.filter(c => !c.overview.checkinSubmittedThisWeek);
-    html += `<div class="ex-card" style="margin-bottom:16px;"><div class="ex-body" style="padding-top:16px;">
-      <div style="font-weight:800;margin-bottom:10px;font-size:14.5px;">Bilans de la semaine : ${received.length}/${withOverview.length} reçus</div>
-      ${pending.length > 0 ? `<div style="font-size:13px;color:var(--textDim);">En attente : ${pending.map(c => esc(c.name)).join(", ")}</div>` : `<div style="font-size:13px;color:var(--olive);font-weight:700;">Tout le monde a rendu son bilan ✓</div>`}
-    </div></div>`;
-  }
-  if (state.coachPendingVideos.length > 0) {
-    const byClient = {};
-    state.coachPendingVideos.forEach(v => { (byClient[v.client_id] = byClient[v.client_id] || []).push(v); });
-    html += `<div class="ex-card" style="margin-bottom:16px;border-color:var(--accent);"><div class="ex-body" style="padding-top:16px;">
-      <div style="font-weight:800;margin-bottom:10px;font-size:14.5px;color:var(--accent);">🎥 Vidéos à corriger (${state.coachPendingVideos.length})</div>
-      ${Object.keys(byClient).map(cid => {
-        const cl = state.coachClients.find(x => x.id === cid);
-        const vs = byClient[cid];
-        return `<button data-coach-pending-open="${esc(cid)}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;border:none;border-top:1px solid var(--border);padding:10px 0;color:inherit;font:inherit;text-align:left;">
-          <span><b>${esc(cl ? cl.name : "Client")}</b><br/><span style="font-size:12.5px;color:var(--textDim);">${vs.map(v => esc(v.exercise_name)).join(", ")}</span></span>
-          <span style="color:var(--accent);font-size:20px;">›</span></button>`;
-      }).join("")}
-    </div></div>`;
-  }
-  html += `<button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
+  if (state.coachTab === "todo") html += renderCoachTodo();
+  if (state.coachTab === "clients") {
+  const todoData = computeCoachTodo();
+  html += `<button class="validate-btn" data-new-client="1" style="margin-bottom:12px;">+ Nouveau client</button>
+    <input id="coachClientSearch" type="search" placeholder="🔍 Rechercher un client (nom ou code)…" style="margin-bottom:16px;" />
   `;
 
-  state.coachClients.forEach(c => {
+  const sortedClients = state.coachClients.slice().sort((a, b) => coachClientFlagCount(b, todoData) - coachClientFlagCount(a, todoData) || a.name.localeCompare(b.name));
+  sortedClients.forEach(c => {
     const ov = c.overview;
+    html += `<div data-client-row="1" data-search="${esc((c.name + " " + c.access_code).toLowerCase())}">`;
     const isExpanded = state.coachExpandedClientId === c.id;
     html += `<button class="day-card" data-toggle-client="${c.id}" style="margin-bottom:${isExpanded ? "0" : "12px"};border-radius:${isExpanded ? "16px 16px 0 0" : "16px"};">
       <div class="day-left" style="flex:1;">
@@ -2200,6 +2269,7 @@ function renderCoachScreen() {
         <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer ce client et toutes ses données</button>
       </div>`;
     }
+    html += `</div>`;
   });
   }
 
@@ -2623,9 +2693,10 @@ async function loadCoachOverview() {
     const trainingDaysTotal = program.filter(d => !d.isRest).length;
 
     const { data: logs } = await sb.from("session_logs").select("log_date").eq("client_id", c.id);
+    const lastSessionDate = (logs || []).reduce((m, l) => (!m || l.log_date > m) ? l.log_date : m, null);
     const sessionsThisWeek = (logs || []).filter(l => isoWeekKey(l.log_date) === week).length;
 
-    const { data: checkins } = await sb.from("weekly_checkins").select("week_key,bodyweight,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
+    const { data: checkins } = await sb.from("weekly_checkins").select("id,week_key,bodyweight,created_at").eq("client_id", c.id).order("created_at", { ascending: false }).limit(2);
     const latest = (checkins || [])[0];
     const previous = (checkins || [])[1];
 
@@ -2638,7 +2709,8 @@ async function loadCoachOverview() {
     }
 
     c.overview = {
-      sessionsThisWeek, trainingDaysTotal, warning,
+      sessionsThisWeek, trainingDaysTotal, warning, lastSessionDate,
+      latestCheckinId: latest ? latest.id : null,
       checkinSubmittedThisWeek: latest ? latest.week_key === week : false,
       weightDelta: (latest && previous && latest.bodyweight != null && previous.bodyweight != null)
         ? Math.round((latest.bodyweight - previous.bodyweight) * 10) / 10 : null,
@@ -2667,6 +2739,12 @@ async function attachCoachHandlers() {
     state.coachTab = b.dataset.coachTab;
     render();
   });
+
+  const clientSearch = document.getElementById("coachClientSearch");
+  if (clientSearch) clientSearch.oninput = () => {
+    const q = clientSearch.value.trim().toLowerCase();
+    document.querySelectorAll("[data-client-row]").forEach(r => { r.style.display = (!q || r.dataset.search.includes(q)) ? "" : "none"; });
+  };
 
   document.querySelectorAll("[data-toggle-client]").forEach(b => b.onclick = () => {
     state.coachExpandedClientId = state.coachExpandedClientId === b.dataset.toggleClient ? null : b.dataset.toggleClient;
@@ -3164,6 +3242,7 @@ async function attachCoachHandlers() {
       sb.from("session_logs").select("log_date").eq("client_id", clientId),
     ]);
     c.checkins = checkins || [];
+    if (c.overview && c.overview.latestCheckinId) markCoachCheckinSeen(c.overview.latestCheckinId);
     c.nutrition = n || {};
     c.steps = s ? s.daily_steps : "";
     c.water = s ? s.water_liters : "";
@@ -4894,7 +4973,11 @@ function renderNotifPanel() {
   } else {
     title = "Notifications";
     const seen = getSeenVideoIds(), legacy = getLegacySeenTs();
-    const subs = (state.myVideoSubmissions || []).slice(0, 15).map(s => ({ s, unseen: s.status === "reviewed" && !isVideoCorrectionSeen(s, seen, legacy) }));
+    // Une correction déjà ouverte disparaît de la cloche (la liste ne grossit pas).
+    const subs = (state.myVideoSubmissions || [])
+      .map(s => ({ s, unseen: s.status === "reviewed" && !isVideoCorrectionSeen(s, seen, legacy) }))
+      .filter(x => x.s.status !== "reviewed" || x.unseen)
+      .slice(0, 15);
     subs.sort((a, b) => (b.unseen ? 1 : 0) - (a.unseen ? 1 : 0));
     items = subs.map(({ s, unseen }) => s.status === "reviewed"
       ? `<button class="notif-item" data-notif-video="${esc(s.id)}">
@@ -4923,6 +5006,7 @@ function closeNotifPanel() { state.notifPanelOpen = false; renderNotifPanel(); }
 
 // CLIENT : ouvre la correction d'une vidéo précise (et la marque comme vue).
 function openVideoCorrection(id) {
+  markVideoCorrectionSeen(id);
   closeNotifPanel();
   state.tab = "videofeedback";
   state.videoDetailId = id;
