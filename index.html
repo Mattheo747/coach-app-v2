@@ -266,7 +266,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "56";
+const APP_VERSION = "57";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -4665,7 +4665,7 @@ function renderVideoFeedback() {
     <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Un détail à préciser ? (optionnel)</div>
     <textarea id="videoFeedbackNote" placeholder="Ex : j'ai une gêne à la descente, est-ce que ma position est bonne ?" rows="2" style="margin-bottom:14px;"></textarea>
     <div style="font-size:14px;margin-bottom:4px;font-weight:600;">Ta vidéo</div>
-    <div style="font-size:11.5px;color:var(--textDim);margin-bottom:8px;">30 secondes maximum</div>
+    <div style="font-size:11.5px;color:var(--textDim);margin-bottom:8px;line-height:1.45;">30 secondes maximum, 50 Mo maximum. Si ta vidéo est trop lourde : Réglages iPhone → Appareil photo → Enregistrer une vidéo → 1080p HD à 30 i/s.</div>
     <input id="videoFeedbackFile" type="file" accept="video/*" style="margin-bottom:16px;" />
     <button class="validate-btn" style="margin-top:0;" id="sendVideoFeedbackBtn">✓ Envoyer à mon coach</button>
     <div id="videoFeedbackError" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(255,107,107,0.12);border:1px solid var(--danger);color:var(--danger);font-size:13px;line-height:1.5;"></div>
@@ -5953,6 +5953,14 @@ function attachHandlers() {
     const showErr = (msg) => { if (errBox) { errBox.textContent = msg; errBox.style.display = "block"; errBox.scrollIntoView({ behavior: "smooth", block: "center" }); } };
     const hideErr = () => { if (errBox) errBox.style.display = "none"; };
     hideErr();
+    // Supabase (offre gratuite) refuse tout fichier de plus de 50 Mo. On le détecte AVANT
+    // l'envoi pour expliquer clairement quoi faire, au lieu d'un message d'erreur technique.
+    const MAX_VIDEO_MB = 50;
+    const sizeMb = file.size / (1024 * 1024);
+    if (sizeMb > MAX_VIDEO_MB) {
+      showErr(`Ta vidéo pèse ${Math.round(sizeMb)} Mo — la limite est de ${MAX_VIDEO_MB} Mo. Filme-la en qualité plus basse : Réglages iPhone → Appareil photo → Enregistrer une vidéo → "1080p HD à 30 i/s" (ou 720p), puis refais ta vidéo de 30 secondes max.`);
+      return;
+    }
     sendVideoFeedbackBtn.disabled = true;
     sendVideoFeedbackBtn.textContent = "Préparation…";
     const resetBtn = () => { sendVideoFeedbackBtn.disabled = false; sendVideoFeedbackBtn.textContent = "✓ Envoyer à mon coach"; };
