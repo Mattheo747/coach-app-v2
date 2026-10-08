@@ -266,7 +266,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "57";
+const APP_VERSION = "58";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -4619,6 +4619,162 @@ function getVideoDuration(file) {
   });
 }
 
+/* ---------- Préparation vidéo : compression + envoi en arrière-plan ----------
+   Le temps d'envoi vient surtout du poids du fichier (une vidéo iPhone de 25 s pèse 30-40 Mo).
+   On la ré-encode donc en 720p / 2 Mbps (≈ 6-8 Mo pour 30 s, largement suffisant pour
+   juger une technique) puis on l'envoie, le tout DÈS le choix du fichier, pendant que
+   le client remplit le nom de l'exercice. Si la compression n'est pas possible sur
+   l'appareil, on envoie le fichier d'origine : rien ne bloque jamais. */
+let videoPrep = null; // { file, promise, path, url, sizeMb }
+const MAX_VIDEO_MB = 50;
+
+function setVideoProgress(label, pct) {
+  const box = document.getElementById("videoFeedbackStatus");
+  const txt = document.getElementById("videoFeedbackStatusText");
+  const bar = document.getElementById("videoFeedbackBar");
+  if (!box || !txt || !bar) return;
+  if (label === null) { box.style.display = "none"; return; }
+  box.style.display = "block";
+  txt.textContent = label;
+  bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
+}
+
+function pickRecorderMime() {
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return null;
+  const candidates = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  return candidates.find(t => MediaRecorder.isTypeSupported(t)) || null;
+}
+
+// Ré-encode la vidéo en 720p ~2 Mbps (sans le son, inutile pour corriger un mouvement).
+// Renvoie un Blob, ou null si impossible/échec (l'appelant utilise alors le fichier d'origine).
+function compressVideo(file, onProgress) {
+  const mime = pickRecorderMime();
+  if (!mime || !HTMLCanvasElement.prototype.captureStream) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.preload = "auto";
+    v.setAttribute("playsinline", "");
+    v.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;";
+    const chunks = [];
+    let recorder = null, finished = false, timer = null;
+    const cleanup = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      try { v.pause(); } catch (e) {}
+      v.removeAttribute("src");
+      try { v.load(); } catch (e) {}
+      if (v.parentNode) v.parentNode.removeChild(v);
+    };
+    const fail = () => {
+      if (finished) return; finished = true;
+      if (recorder) { recorder.onstop = null; try { if (recorder.state !== "inactive") recorder.stop(); } catch (e) {} }
+      cleanup(); resolve(null);
+    };
+    const succeed = () => {
+      if (finished) return; finished = true;
+      recorder.onstop = () => { cleanup(); resolve(new Blob(chunks, { type: mime.split(";")[0] })); };
+      try { recorder.stop(); } catch (e) { cleanup(); resolve(null); }
+    };
+    timer = setTimeout(fail, 10000); // la vidéo doit se charger en 10 s, sinon on abandonne
+    v.onerror = fail;
+    v.onloadedmetadata = () => {
+      try {
+        const vw = v.videoWidth, vh = v.videoHeight, dur = v.duration;
+        if (!vw || !vh || !isFinite(dur) || dur <= 0) return fail();
+        const scale = Math.min(1, 720 / Math.min(vw, vh));
+        const w = Math.round(vw * scale / 2) * 2, h = Math.round(vh * scale / 2) * 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: mime, videoBitsPerSecond: 2000000 });
+        recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+        clearTimeout(timer);
+        timer = setTimeout(fail, dur * 1000 * 1.6 + 15000); // filet de sécurité
+        const draw = () => {
+          if (finished) return;
+          try { ctx.drawImage(v, 0, 0, w, h); } catch (e) {}
+          if (onProgress) onProgress(Math.min(0.99, v.currentTime / dur));
+          if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(draw); else requestAnimationFrame(draw);
+        };
+        v.onended = succeed;
+        recorder.start(1000);
+        const p = v.play();
+        if (p && p.catch) p.catch(fail);
+        draw();
+      } catch (e) { fail(); }
+    };
+    document.body.appendChild(v);
+    v.src = url;
+  });
+}
+
+// Envoi vers le stockage Supabase avec vraie barre de progression (XHR, contrairement à supabase-js).
+function uploadWithProgress(bucket, path, blob, contentType, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`);
+    xhr.setRequestHeader("Authorization", "Bearer " + SUPABASE_ANON_KEY);
+    xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      let msg = xhr.responseText;
+      try { msg = JSON.parse(msg).message || msg; } catch (e) {}
+      reject(new Error(msg || ("Erreur " + xhr.status)));
+    };
+    xhr.onerror = () => reject(new Error("Connexion perdue pendant l'envoi — réessaie avec une meilleure connexion."));
+    xhr.ontimeout = () => reject(new Error("L'envoi a pris trop de temps — réessaie."));
+    xhr.send(blob);
+  });
+}
+
+// Lance (en arrière-plan) compression + envoi dès que le client choisit sa vidéo.
+function startVideoPrep(file) {
+  if (videoPrep && videoPrep.path) {
+    // l'ancienne vidéo avait déjà été envoyée mais n'a pas été validée : on la supprime
+    sb.storage.from("exercise-videos").remove([videoPrep.path]).catch(() => {});
+  }
+  if (!file) { videoPrep = null; setVideoProgress(null); return; }
+  const prep = { file, path: null, url: null, sizeMb: null };
+  prep.promise = (async () => {
+    let blob = file;
+    let contentType = file.type || "video/mp4";
+    const m = /\.([a-zA-Z0-9]{2,5})$/.exec(file.name || "");
+    let ext = m ? m[1].toLowerCase() : "mp4";
+    const isCurrent = () => videoPrep === prep;
+    if (file.size > 6 * 1024 * 1024) {
+      setVideoProgress("Optimisation de ta vidéo… 0%", 0);
+      const small = await compressVideo(file, (p) => { if (isCurrent()) setVideoProgress("Optimisation de ta vidéo… " + Math.round(p * 100) + "%", p * 100); });
+      if (small && small.size > 0 && small.size < file.size) {
+        blob = small; contentType = small.type || contentType;
+        ext = contentType.includes("webm") ? "webm" : "mp4";
+      }
+    }
+    if (blob.size > MAX_VIDEO_MB * 1024 * 1024) {
+      throw new Error(`Ta vidéo pèse ${Math.round(blob.size / 1048576)} Mo — la limite est de ${MAX_VIDEO_MB} Mo. Filme-la en qualité plus basse (Réglages iPhone → Appareil photo → Enregistrer une vidéo → 1080p HD à 30 i/s) et réessaie.`);
+    }
+    const path = `${state.client.id}-${Date.now()}.${ext}`;
+    setVideoProgress("Envoi de ta vidéo… 0%", 0);
+    await uploadWithProgress("exercise-videos", path, blob, contentType, (p) => { if (isCurrent()) setVideoProgress("Envoi de ta vidéo… " + Math.round(p * 100) + "%", p * 100); });
+    prep.path = path;
+    prep.url = sb.storage.from("exercise-videos").getPublicUrl(path).data.publicUrl;
+    prep.sizeMb = Math.round(blob.size / 104857.6) / 10;
+    if (isCurrent()) setVideoProgress(`Vidéo prête ✓ (${prep.sizeMb} Mo)`, 100);
+    return prep;
+  })();
+  prep.promise.catch((e) => {
+    if (videoPrep === prep) {
+      const errBox = document.getElementById("videoFeedbackError");
+      if (errBox) { errBox.textContent = e.message; errBox.style.display = "block"; }
+      setVideoProgress(null);
+    }
+  });
+  videoPrep = prep;
+}
+
 async function loadMyVideoSubmissions() {
   const { data } = await sb.from("exercise_video_submissions").select("*").eq("client_id", state.client.id).order("created_at", { ascending: false });
   state.myVideoSubmissions = data || [];
@@ -4660,13 +4816,19 @@ function renderVideoFeedback() {
   `;
 
   html += `<div class="ex-card" style="margin-bottom:16px;"><div class="ex-body" style="padding-top:16px;">
-    <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Quel exercice ?</div>
+    <div style="font-size:14px;margin-bottom:4px;font-weight:600;">1. Ta vidéo</div>
+    <div style="font-size:11.5px;color:var(--textDim);margin-bottom:8px;line-height:1.45;">30 secondes maximum. Dès que tu la choisis, elle est préparée et envoyée en arrière-plan pendant que tu remplis la suite.</div>
+    <input id="videoFeedbackFile" type="file" accept="video/*" style="margin-bottom:10px;" />
+    <div id="videoFeedbackStatus" style="display:none;margin-bottom:16px;">
+      <div id="videoFeedbackStatusText" style="font-size:12.5px;color:var(--textDim);margin-bottom:6px;"></div>
+      <div style="background:var(--border);border-radius:999px;height:7px;overflow:hidden;">
+        <div id="videoFeedbackBar" style="background:linear-gradient(90deg, var(--orange), var(--accent));height:100%;width:0%;transition:width .25s;"></div>
+      </div>
+    </div>
+    <div style="font-size:14px;margin-bottom:8px;font-weight:600;">2. Quel exercice ?</div>
     <input id="videoFeedbackExercise" type="text" placeholder="Ex : Développé couché" style="margin-bottom:14px;" />
-    <div style="font-size:14px;margin-bottom:8px;font-weight:600;">Un détail à préciser ? (optionnel)</div>
+    <div style="font-size:14px;margin-bottom:8px;font-weight:600;">3. Un détail à préciser ? (optionnel)</div>
     <textarea id="videoFeedbackNote" placeholder="Ex : j'ai une gêne à la descente, est-ce que ma position est bonne ?" rows="2" style="margin-bottom:14px;"></textarea>
-    <div style="font-size:14px;margin-bottom:4px;font-weight:600;">Ta vidéo</div>
-    <div style="font-size:11.5px;color:var(--textDim);margin-bottom:8px;line-height:1.45;">30 secondes maximum, 50 Mo maximum. Si ta vidéo est trop lourde : Réglages iPhone → Appareil photo → Enregistrer une vidéo → 1080p HD à 30 i/s.</div>
-    <input id="videoFeedbackFile" type="file" accept="video/*" style="margin-bottom:16px;" />
     <button class="validate-btn" style="margin-top:0;" id="sendVideoFeedbackBtn">✓ Envoyer à mon coach</button>
     <div id="videoFeedbackError" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;background:rgba(255,107,107,0.12);border:1px solid var(--danger);color:var(--danger);font-size:13px;line-height:1.5;"></div>
   </div></div>`;
@@ -5938,70 +6100,50 @@ function attachHandlers() {
     render();
   };
 
+  // Dès que le client choisit sa vidéo : compression + envoi en arrière-plan.
+  const videoFileInput = app.querySelector("#videoFeedbackFile");
+  if (videoFileInput) videoFileInput.onchange = () => {
+    const errBox = document.getElementById("videoFeedbackError");
+    if (errBox) errBox.style.display = "none";
+    if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour envoyer ta vidéo."); return; }
+    startVideoPrep(videoFileInput.files[0] || null);
+  };
+
   const sendVideoFeedbackBtn = app.querySelector("#sendVideoFeedbackBtn");
   if (sendVideoFeedbackBtn) sendVideoFeedbackBtn.onclick = async () => {
     if (sendVideoFeedbackBtn.disabled) return;
-    const exSelect = document.getElementById("videoFeedbackExercise");
+    const exInput = document.getElementById("videoFeedbackExercise");
     const noteInput = document.getElementById("videoFeedbackNote");
     const fileInput = document.getElementById("videoFeedbackFile");
-    const exerciseName = exSelect ? exSelect.value.trim() : "";
+    const exerciseName = exInput ? exInput.value.trim() : "";
     const file = fileInput && fileInput.files[0];
-    if (!exerciseName) { showToast("Indique d'abord quel exercice est concerné."); return; }
-    if (!file) { showToast("Choisis une vidéo à envoyer."); return; }
+    if (!file) { showToast("Choisis d'abord ta vidéo."); return; }
+    if (!exerciseName) { showToast("Indique quel exercice est concerné."); return; }
     if (!navigator.onLine) { showToast("Tu es hors ligne — reconnecte-toi pour envoyer ta vidéo."); return; }
     const errBox = document.getElementById("videoFeedbackError");
     const showErr = (msg) => { if (errBox) { errBox.textContent = msg; errBox.style.display = "block"; errBox.scrollIntoView({ behavior: "smooth", block: "center" }); } };
-    const hideErr = () => { if (errBox) errBox.style.display = "none"; };
-    hideErr();
-    // Supabase (offre gratuite) refuse tout fichier de plus de 50 Mo. On le détecte AVANT
-    // l'envoi pour expliquer clairement quoi faire, au lieu d'un message d'erreur technique.
-    const MAX_VIDEO_MB = 50;
-    const sizeMb = file.size / (1024 * 1024);
-    if (sizeMb > MAX_VIDEO_MB) {
-      showErr(`Ta vidéo pèse ${Math.round(sizeMb)} Mo — la limite est de ${MAX_VIDEO_MB} Mo. Filme-la en qualité plus basse : Réglages iPhone → Appareil photo → Enregistrer une vidéo → "1080p HD à 30 i/s" (ou 720p), puis refais ta vidéo de 30 secondes max.`);
-      return;
-    }
+    if (errBox) errBox.style.display = "none";
     sendVideoFeedbackBtn.disabled = true;
-    sendVideoFeedbackBtn.textContent = "Préparation…";
+    sendVideoFeedbackBtn.textContent = "Finalisation…";
     const resetBtn = () => { sendVideoFeedbackBtn.disabled = false; sendVideoFeedbackBtn.textContent = "✓ Envoyer à mon coach"; };
     try {
-      // Vérification de durée désactivée du chemin critique : elle avait pu, sur certains
-      // appareils, empêcher l'envoi de démarrer. On la retente en tâche de fond uniquement ;
-      // si elle échoue ou traîne, l'envoi continue quand même.
-      getVideoDuration(file).then(d => {
-        if (d != null && d > 31) showErr(`Remarque : cette vidéo fait ${Math.round(d)}s — essaie de rester sous 30s la prochaine fois pour un envoi plus rapide.`);
-      }).catch(() => {});
-
-      sendVideoFeedbackBtn.textContent = "Envoi de la vidéo… (1/2)";
-      // Les noms de fichiers vidéo venant du téléphone contiennent souvent des espaces, accents
-      // ou parenthèses ("Vidéo du 12 mars (1).mov") qui font échouer le chemin de stockage —
-      // on ne garde que l'extension et on génère un nom propre.
-      const extMatch = /\.([a-zA-Z0-9]{2,5})$/.exec(file.name || "");
-      const ext = extMatch ? extMatch[1].toLowerCase() : "mp4";
-      const path = `${state.client.id}-${Date.now()}.${ext}`;
-      console.log("Envoi vidéo — début upload", { path, size: file.size, type: file.type });
-      const { error: upErr } = await sb.storage.from("exercise-videos").upload(path, file, {
-        contentType: file.type || "video/mp4",
-      });
-      console.log("Envoi vidéo — réponse upload", upErr || "OK");
-      if (upErr) {
-        showErr("Erreur à l'envoi de la vidéo : " + upErr.message + " (bucket : exercise-videos)");
-        resetBtn();
-        return;
-      }
-      sendVideoFeedbackBtn.textContent = "Enregistrement… (2/2)";
-      const { data: urlData } = sb.storage.from("exercise-videos").getPublicUrl(path);
+      // La préparation a normalement déjà démarré (ou fini) dès le choix du fichier.
+      if (!videoPrep || videoPrep.file !== file) startVideoPrep(file);
+      const prep = videoPrep;
+      let ready;
+      try { ready = await prep.promise; }
+      catch (e) { videoPrep = null; showErr(e && e.message ? e.message : String(e)); resetBtn(); return; }
       const { data, error } = await sb.from("exercise_video_submissions").insert({
         client_id: state.client.id, exercise_name: exerciseName,
         note: noteInput ? noteInput.value.trim() || null : null,
-        video_url: urlData.publicUrl, status: "pending",
+        video_url: ready.url, status: "pending",
       }).select().single();
-      console.log("Envoi vidéo — réponse insertion", error || "OK");
       if (error) {
         showErr("Erreur à l'enregistrement : " + error.message + " (table : exercise_video_submissions)");
         resetBtn();
         return;
       }
+      videoPrep = null; // la vidéo est validée : on ne la supprimera plus
       if (state.myVideoSubmissions) state.myVideoSubmissions.unshift(data);
       showToast("Vidéo envoyée à ton coach !");
       render();
