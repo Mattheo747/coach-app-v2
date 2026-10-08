@@ -159,7 +159,7 @@
   .tool-title { font-weight: 800; font-size: 14px; margin-bottom: 3px; color: var(--text); }
   .tool-sub { font-size: 11px; color: var(--textDim); line-height: 1.35; }
   .tool-dot { position: absolute; top: 14px; right: 14px; width: 9px; height: 9px; border-radius: 50%;
-    background: var(--accent); box-shadow: 0 0 0 2px var(--card); }
+    background:#E5484D; box-shadow: 0 0 0 2px var(--card); }
   .photo-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
   .photo-tile-wrap { flex: 1 1 calc(50% - 6px); min-width: calc(50% - 6px); }
   .photo-tile-label { font-size: 13px; font-weight: 600; margin-bottom: 7px; color: var(--text); }
@@ -196,6 +196,19 @@
     background: rgba(232,99,46,0.1); padding: 8px 14px; border-radius: 10px; letter-spacing: 1px; }
   .link-btn { background: none; border: none; color: var(--textDim); text-decoration: underline;
     font-size: 13.5px; padding: 0; }
+  .notif-backdrop { position: fixed; inset: 0; z-index: 190; background: transparent; }
+  .notif-panel { position: fixed; z-index: 200; top: calc(env(safe-area-inset-top, 0px) + 78px); left: 12px; right: 12px;
+    max-width: 440px; margin: 0 auto; background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.22); max-height: 65vh; overflow-y: auto; padding: 6px 0; }
+  .notif-title { font-weight: 800; font-size: 14px; padding: 12px 16px 8px; }
+  .notif-item { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; background: none;
+    border: none; border-top: 1px solid var(--border); padding: 13px 16px; color: var(--text); }
+  .notif-item.static { cursor: default; }
+  .notif-dot { width: 9px; height: 9px; border-radius: 50%; background: #E5484D; flex-shrink: 0; margin-top: 5px; }
+  .notif-dot.empty { background: transparent; }
+  .notif-name { font-weight: 700; font-size: 13.5px; }
+  .notif-sub { font-size: 12px; margin-top: 2px; line-height: 1.4; }
+  .notif-empty { padding: 18px 16px 20px; font-size: 13px; color: var(--textDim); text-align: center; }
 </style>
 </head>
 <body class="light">
@@ -205,7 +218,7 @@
     <div style="display:flex;gap:10px;align-items:center;">
       <button id="notifBell" class="icon-btn" style="display:none;position:relative;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
-        <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--card);"></span>
+        <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;width:9px;height:9px;border-radius:50%;background:#E5484D;box-shadow:0 0 0 2px var(--card);"></span>
       </button>
       <button id="themeToggle" class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4" y1="12" x2="2" y2="12"/><line x1="22" y1="12" x2="20" y2="12"/><line x1="5" y1="5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19" y2="19"/><line x1="5" y1="19" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19" y2="5"/></svg></button>
     </div>
@@ -266,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "58";
+const APP_VERSION = "59";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1539,6 +1552,10 @@ let state = {
   checkinView: "current",
   checkinExisting: null,
   myVideoSubmissions: null,
+  videoDetailId: null,
+  coachPendingVideos: [],
+  coachPendingLoaded: false,
+  notifPanelOpen: false,
   videoFeedbackDraft: { exerciseId: "", note: "" },
   checkinDraft: null,
   checkinSubmittedThisWeek: null,
@@ -1755,6 +1772,8 @@ async function boot() {
 /* ---------------- Render dispatcher ---------------- */
 function render() {
   const app = document.getElementById("app");
+  if (state.tab !== "videofeedback") state.videoDetailId = null;
+  setTimeout(updateNotifBadge, 0);
   const nav = document.querySelector(".bottom-nav");
   const offlineBanner = document.getElementById("offlineBanner");
   if (offlineBanner) offlineBanner.style.display = (state.isOffline || !navigator.onLine) ? "block" : "none";
@@ -1812,7 +1831,6 @@ function render() {
     app.innerHTML = renderMetabolismeCalculator();
   } else if (state.tab === "videofeedback") {
     if (state.myVideoSubmissions === null) loadMyVideoSubmissions();
-    markVideoFeedbackSeen();
     app.innerHTML = renderVideoFeedback();
   } else if (state.tab === "course") {
     app.innerHTML = state.courseView === "tracking" ? renderCourseTracking()
@@ -2102,6 +2120,20 @@ function renderCoachScreen() {
       ${pending.length > 0 ? `<div style="font-size:13px;color:var(--textDim);">En attente : ${pending.map(c => esc(c.name)).join(", ")}</div>` : `<div style="font-size:13px;color:var(--olive);font-weight:700;">Tout le monde a rendu son bilan ✓</div>`}
     </div></div>`;
   }
+  if (state.coachPendingVideos.length > 0) {
+    const byClient = {};
+    state.coachPendingVideos.forEach(v => { (byClient[v.client_id] = byClient[v.client_id] || []).push(v); });
+    html += `<div class="ex-card" style="margin-bottom:16px;border-color:var(--accent);"><div class="ex-body" style="padding-top:16px;">
+      <div style="font-weight:800;margin-bottom:10px;font-size:14.5px;color:var(--accent);">🎥 Vidéos à corriger (${state.coachPendingVideos.length})</div>
+      ${Object.keys(byClient).map(cid => {
+        const cl = state.coachClients.find(x => x.id === cid);
+        const vs = byClient[cid];
+        return `<button data-coach-pending-open="${esc(cid)}" style="width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;border:none;border-top:1px solid var(--border);padding:10px 0;color:inherit;font:inherit;text-align:left;">
+          <span><b>${esc(cl ? cl.name : "Client")}</b><br/><span style="font-size:12.5px;color:var(--textDim);">${vs.map(v => esc(v.exercise_name)).join(", ")}</span></span>
+          <span style="color:var(--accent);font-size:20px;">›</span></button>`;
+      }).join("")}
+    </div></div>`;
+  }
   html += `<button class="validate-btn" data-new-client="1" style="margin-bottom:20px;">+ Nouveau client</button>
   `;
 
@@ -2111,7 +2143,7 @@ function renderCoachScreen() {
     html += `<button class="day-card" data-toggle-client="${c.id}" style="margin-bottom:${isExpanded ? "0" : "12px"};border-radius:${isExpanded ? "16px 16px 0 0" : "16px"};">
       <div class="day-left" style="flex:1;">
         <div style="flex:1;">
-          <div class="day-title">${esc(c.name)}</div>
+          <div class="day-title">${esc(c.name)}${state.coachPendingVideos.some(v => v.client_id === c.id) ? ` <span style="background:var(--accent);color:var(--accentText);font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:2px;">🎥 ${state.coachPendingVideos.filter(v => v.client_id === c.id).length}</span>` : ""}</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;">
             <span class="access-code-chip" style="font-size:11px;padding:4px 10px;">${esc(c.access_code)}</span>
             ${ov ? `<span style="font-size:11.5px;color:var(--textDim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg> ${ov.sessionsThisWeek}/${ov.trainingDaysTotal}</span>` : ""}
@@ -2159,7 +2191,7 @@ function renderCoachScreen() {
             Démos vidéo
           </button>
           <button data-view-video-feedback="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;position:relative;">
-            ${ov && ov.pendingVideoCount ? `<span style="position:absolute;top:4px;right:18%;background:var(--accent);color:var(--accentText);font-size:9px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">${ov.pendingVideoCount}</span>` : ""}
+            ${state.coachPendingVideos.some(v => v.client_id === c.id) ? `<span style="position:absolute;top:4px;right:18%;background:var(--accent);color:var(--accentText);font-size:9px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">${state.coachPendingVideos.filter(v => v.client_id === c.id).length}</span>` : ""}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
             Retours vidéo
           </button>
@@ -2377,7 +2409,7 @@ function renderCoachVideoFeedback(c) {
         <div><div style="font-weight:700;font-size:13.5px;">${esc(s.exercise_name)}</div><div style="font-size:11.5px;color:var(--textDim);">${formatDateFR(s.created_at.slice(0, 10))}</div></div>
         ${s.status === "reviewed" ? `<div style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(140,170,126,0.18);color:var(--olive);white-space:nowrap;">✓ Corrigée</div>` : `<div style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(232,99,46,0.12);color:var(--accentDim);white-space:nowrap;">En attente</div>`}
       </div>
-      <video src="${esc(s.video_url)}" controls style="width:100%;border-radius:10px;margin-bottom:10px;background:#000;"></video>
+      <video src="${esc(s.video_url)}" controls preload="metadata" style="width:100%;border-radius:10px;margin-bottom:10px;background:#000;"></video>
       ${s.note ? `<div style="font-size:12.5px;color:var(--textDim);font-style:italic;margin-bottom:10px;">"${esc(s.note)}"</div>` : ""}
       <textarea data-video-feedback-input="${s.id}" placeholder="Ta correction / ton retour…" rows="2" style="margin-bottom:8px;">${esc(s.coach_feedback || "")}</textarea>
       <button class="validate-btn" style="margin-top:0;" data-send-video-correction="${s.id}">${s.status === "reviewed" ? "Mettre à jour la correction" : "✓ Envoyer la correction"}</button>
@@ -2624,6 +2656,7 @@ async function loadCoachData() {
   state.coachDocuments = docsData || [];
   const { data: recipesData } = await sb.from("recipes").select("*").order("category", { ascending: true }).order("title", { ascending: true });
   state.coachRecipes = recipesData || [];
+  await loadCoachPendingVideos();
   render();
   await loadCoachOverview();
   render();
@@ -3025,7 +3058,7 @@ async function attachCoachHandlers() {
   };
 
   const logoutCoach = document.querySelector("[data-logout-coach]");
-  if (logoutCoach) logoutCoach.onclick = () => { state.screen = "access"; state.coachAuthed = false; render(); };
+  if (logoutCoach) logoutCoach.onclick = () => { state.screen = "access"; state.coachAuthed = false; state.coachPendingVideos = []; state.coachPendingLoaded = false; closeNotifPanel(); render(); };
 
   const docUploadBtn = document.getElementById("docUploadBtn");
   if (docUploadBtn) docUploadBtn.onclick = async () => {
@@ -3175,16 +3208,8 @@ async function attachCoachHandlers() {
     render();
   });
 
-  document.querySelectorAll("[data-view-video-feedback]").forEach(b => b.onclick = async () => {
-    const clientId = b.dataset.viewVideoFeedback;
-    const c = state.coachClients.find(c => c.id === clientId);
-    const { data, error } = await sb.from("exercise_video_submissions").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
-    if (error) { showToast("Erreur de chargement."); return; }
-    c.videoSubmissions = data || [];
-    state.coachDetailClientId = clientId;
-    state.coachDetailView = "videofeedback";
-    render();
-  });
+  document.querySelectorAll("[data-view-video-feedback]").forEach(b => b.onclick = () => openCoachVideoFeedback(b.dataset.viewVideoFeedback));
+  document.querySelectorAll("[data-coach-pending-open]").forEach(b => b.onclick = () => openCoachVideoFeedback(b.dataset.coachPendingOpen));
 
   document.querySelectorAll("[data-send-video-correction]").forEach(b => b.onclick = async () => {
     if (b.disabled) return;
@@ -3204,6 +3229,8 @@ async function attachCoachHandlers() {
       const sub = dc.videoSubmissions.find(s => s.id === subId);
       if (sub) { sub.coach_feedback = feedback; sub.status = "reviewed"; }
     }
+    state.coachPendingVideos = state.coachPendingVideos.filter(v => v.id !== subId);
+    updateNotifBadge();
     showToast("Correction envoyée au client !");
     render();
   });
@@ -4782,31 +4809,194 @@ async function loadMyVideoSubmissions() {
   render();
 }
 
-// Cloche de notification — prévient le client quand son coach a corrigé une vidéo qu'il
-// n'a pas encore vue. "Vu" = dernier passage sur l'onglet Retour vidéo, suivi en local.
-function getVideoFeedbackSeenKey() {
-  return `mattheophysic_vf_seen_${state.client ? state.client.id : "x"}`;
+// ---------- Cloche de notifications ----------
+// CLIENT : une ligne par vidéo envoyée. "En attente de correction" tant que le coach n'a pas
+// répondu ; une fois corrigée, point rouge jusqu'à ce que le client ouvre CETTE correction
+// (suivi "vu" par vidéo, en local).
+// COACH : une ligne par vidéo reçue à corriger, qui ouvre directement le client concerné.
+function getVideoSeenKey() {
+  return `mattheophysic_vf_seen_ids_${state.client ? state.client.id : "x"}`;
+}
+function getSeenVideoIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(getVideoSeenKey()) || "[]")); } catch (e) { return new Set(); }
+}
+function getLegacySeenTs() {
+  try { return parseInt(localStorage.getItem(`mattheophysic_vf_seen_${state.client ? state.client.id : "x"}`) || "0", 10) || 0; } catch (e) { return 0; }
+}
+function isVideoCorrectionSeen(s, seenSet, legacyTs) {
+  if (seenSet.has(s.id)) return true;
+  return !!(legacyTs && s.coach_feedback_at && new Date(s.coach_feedback_at).getTime() <= legacyTs);
 }
 function getUnseenVideoFeedbackCount() {
   if (!state.myVideoSubmissions) return 0;
-  let lastSeen = 0;
-  try { lastSeen = parseInt(localStorage.getItem(getVideoFeedbackSeenKey()) || "0", 10); } catch (e) {}
-  return state.myVideoSubmissions.filter(s => s.status === "reviewed" && s.coach_feedback_at && new Date(s.coach_feedback_at).getTime() > lastSeen).length;
+  const seen = getSeenVideoIds(), legacy = getLegacySeenTs();
+  return state.myVideoSubmissions.filter(s => s.status === "reviewed" && !isVideoCorrectionSeen(s, seen, legacy)).length;
 }
-function markVideoFeedbackSeen() {
-  try { localStorage.setItem(getVideoFeedbackSeenKey(), String(Date.now())); } catch (e) {}
+function markVideoCorrectionSeen(id) {
+  const seen = getSeenVideoIds();
+  if (seen.has(id)) return;
+  seen.add(id);
+  try { localStorage.setItem(getVideoSeenKey(), JSON.stringify([...seen])); } catch (e) {}
   updateNotifBadge();
 }
+function isCoachView() { return state.screen === "coach" && !!state.coachAuthed; }
 function updateNotifBadge() {
   const bell = document.getElementById("notifBell");
   const badge = document.getElementById("notifBadge");
   if (!bell || !badge) return;
-  if (!state.client) { bell.style.display = "none"; return; }
-  bell.style.display = "inline-flex";
-  badge.style.display = getUnseenVideoFeedbackCount() > 0 ? "block" : "none";
+  let show = false, dot = false;
+  if (isCoachView()) { show = true; dot = state.coachPendingVideos.length > 0; }
+  else if (state.screen === "app" && state.client) { show = true; dot = getUnseenVideoFeedbackCount() > 0; }
+  bell.style.display = show ? "inline-flex" : "none";
+  badge.style.display = dot ? "block" : "none";
+  if (!show && state.notifPanelOpen) closeNotifPanel();
+}
+function timeAgoFR(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "à l'instant";
+  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
+  return `il y a ${Math.floor(s / 86400)} j`;
+}
+
+function renderNotifPanel() {
+  let panel = document.getElementById("notifPanel");
+  let backdrop = document.getElementById("notifBackdrop");
+  if (!state.notifPanelOpen) {
+    if (panel) panel.remove();
+    if (backdrop) backdrop.remove();
+    return;
+  }
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "notifBackdrop"; backdrop.className = "notif-backdrop";
+    backdrop.onclick = () => closeNotifPanel();
+    document.body.appendChild(backdrop);
+  }
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "notifPanel"; panel.className = "notif-panel";
+    document.body.appendChild(panel);
+  }
+  let title, items = "";
+  if (isCoachView()) {
+    title = "Vidéos à corriger";
+    const pend = state.coachPendingVideos.slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
+    items = pend.map(v => {
+      const cl = state.coachClients.find(x => x.id === v.client_id);
+      return `<button class="notif-item" data-notif-coach-client="${esc(v.client_id)}">
+        <span class="notif-dot"></span>
+        <span><div class="notif-name">${esc(cl ? cl.name : "Client")} — ${esc(v.exercise_name)}</div>
+        <div class="notif-sub">Vidéo reçue ${timeAgoFR(v.created_at)} · appuie pour la corriger</div></span>
+      </button>`;
+    }).join("");
+    if (!pend.length) items = `<div class="notif-empty">Aucune vidéo en attente de correction ✓</div>`;
+  } else {
+    title = "Notifications";
+    const seen = getSeenVideoIds(), legacy = getLegacySeenTs();
+    const subs = (state.myVideoSubmissions || []).slice(0, 15).map(s => ({ s, unseen: s.status === "reviewed" && !isVideoCorrectionSeen(s, seen, legacy) }));
+    subs.sort((a, b) => (b.unseen ? 1 : 0) - (a.unseen ? 1 : 0));
+    items = subs.map(({ s, unseen }) => s.status === "reviewed"
+      ? `<button class="notif-item" data-notif-video="${esc(s.id)}">
+          <span class="notif-dot ${unseen ? "" : "empty"}"></span>
+          <span><div class="notif-name">${esc(s.exercise_name)}</div>
+          <div class="notif-sub" style="color:var(--olive);font-weight:700;">Corrigée par ton coach · appuie pour voir</div></span>
+        </button>`
+      : `<div class="notif-item static">
+          <span class="notif-dot empty"></span>
+          <span><div class="notif-name">${esc(s.exercise_name)}</div>
+          <div class="notif-sub" style="color:var(--accent);font-weight:700;">En attente de correction</div></span>
+        </div>`).join("");
+    if (!subs.length) items = `<div class="notif-empty">Aucune notification pour le moment.</div>`;
+  }
+  panel.innerHTML = `<div class="notif-title">${title}</div>${items}`;
+  panel.querySelectorAll("[data-notif-video]").forEach(b => b.onclick = () => openVideoCorrection(b.dataset.notifVideo));
+  panel.querySelectorAll("[data-notif-coach-client]").forEach(b => b.onclick = () => openCoachVideoFeedback(b.dataset.notifCoachClient));
+}
+function toggleNotifPanel() {
+  state.notifPanelOpen = !state.notifPanelOpen;
+  renderNotifPanel();
+  if (state.notifPanelOpen && isCoachView()) loadCoachPendingVideos();
+  if (state.notifPanelOpen && !isCoachView() && state.client && state.myVideoSubmissions === null) loadMyVideoSubmissions();
+}
+function closeNotifPanel() { state.notifPanelOpen = false; renderNotifPanel(); }
+
+// CLIENT : ouvre la correction d'une vidéo précise (et la marque comme vue).
+function openVideoCorrection(id) {
+  closeNotifPanel();
+  state.tab = "videofeedback";
+  state.videoDetailId = id;
+  markVideoCorrectionSeen(id);
+  render();
+  window.scrollTo(0, 0);
+}
+
+// COACH : ouvre la liste des vidéos d'un client (bouton de la fiche ET cloche).
+async function openCoachVideoFeedback(clientId) {
+  closeNotifPanel();
+  if (state.programBuilderOpen) { showToast("Termine d'abord le programme en cours, puis rouvre la cloche."); return; }
+  const c = state.coachClients.find(x => x.id === clientId);
+  if (!c) return;
+  const { data, error } = await sb.from("exercise_video_submissions").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+  if (error) { showToast("Erreur de chargement."); return; }
+  c.videoSubmissions = data || [];
+  state.coachDetailClientId = clientId;
+  state.coachDetailView = "videofeedback";
+  render();
+  window.scrollTo(0, 0);
+}
+
+// COACH : vidéos en attente de correction, tous clients confondus. true si nouvelles vidéos.
+async function loadCoachPendingVideos() {
+  const { data, error } = await sb.from("exercise_video_submissions").select("id, client_id, exercise_name, created_at").eq("status", "pending").order("created_at", { ascending: true });
+  if (error) return false;
+  const known = new Set(state.coachPendingVideos.map(v => v.id));
+  const fresh = (data || []).filter(v => !known.has(v.id));
+  state.coachPendingVideos = data || [];
+  if (state.coachPendingLoaded && fresh.length) {
+    const last = fresh[fresh.length - 1];
+    const cl = state.coachClients.find(x => x.id === last.client_id);
+    showToast(`Nouvelle vidéo à corriger${cl ? " — " + cl.name : ""}`);
+  }
+  state.coachPendingLoaded = true;
+  updateNotifBadge();
+  renderNotifPanel();
+  return fresh.length > 0;
+}
+// Rafraîchissement auto côté coach (45 s + retour sur l'appli). On ne redessine que sur la liste
+// des clients et sans saisie en cours, pour ne jamais effacer une correction en train d'être écrite.
+async function refreshCoachPendingVideos() {
+  if (!isCoachView() || document.hidden || !navigator.onLine) return;
+  const changed = await loadCoachPendingVideos();
+  const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  if (changed && !state.programBuilderOpen && !state.coachDetailView && !typing) render();
+}
+setInterval(refreshCoachPendingVideos, 45000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshCoachPendingVideos(); });
+
+function renderVideoCorrectionDetail(s) {
+  return `
+    <div style="margin:20px 0 4px;">
+      <button class="back-btn" data-video-detail-back="1">← Mes envois</button>
+    </div>
+    <div class="h1" style="font-size:26px;margin-top:10px;">CORRECTION</div>
+    <div class="subtitle">${esc(s.exercise_name)} · envoyée le ${formatDateFR(s.created_at.slice(0, 10))}</div>
+    ${s.note ? `<div class="ex-card" style="margin-bottom:12px;"><div class="ex-body" style="padding-top:14px;">
+      <div style="font-size:11.5px;font-weight:700;color:var(--textDim);margin-bottom:4px;">TON MESSAGE</div>
+      <div style="font-size:13.5px;font-style:italic;line-height:1.5;">"${esc(s.note)}"</div></div></div>` : ""}
+    <div class="ex-card"><div class="ex-body" style="padding-top:14px;">
+      <div style="font-size:11.5px;font-weight:700;color:var(--accent);margin-bottom:6px;">RETOUR DE TON COACH${s.coach_feedback_at ? " · " + formatDateFR(s.coach_feedback_at.slice(0, 10)) : ""}</div>
+      <div style="font-size:14.5px;line-height:1.6;white-space:pre-wrap;">${esc(s.coach_feedback || "")}</div>
+    </div></div>`;
 }
 
 function renderVideoFeedback() {
+  if (state.videoDetailId) {
+    const ds = (state.myVideoSubmissions || []).find(x => x.id === state.videoDetailId);
+    if (ds) return renderVideoCorrectionDetail(ds);
+    if (state.myVideoSubmissions !== null) state.videoDetailId = null;
+    else return `<div class="info-box" style="margin-top:20px;">Chargement…</div>`;
+  }
   let html = `
     <div style="margin:20px 0 4px;">
       <button class="back-btn" data-back-to-profil="1">← Retour</button>
@@ -4838,17 +5028,20 @@ function renderVideoFeedback() {
     html += `<div class="info-box">Chargement de tes vidéos envoyées…</div>`;
   } else if (subs.length) {
     html += `<div class="section-label">Tes envois</div>`;
+    const seenSet = getSeenVideoIds(), legacyTs = getLegacySeenTs();
     subs.forEach(s => {
       const reviewed = s.status === "reviewed";
-      html += `<div class="ex-card" style="margin-bottom:10px;"><div class="ex-body" style="padding-top:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-          <div><div style="font-weight:700;font-size:13.5px;">${esc(s.exercise_name)}</div><div style="font-size:11.5px;color:var(--textDim);">${formatDateFR(s.created_at.slice(0, 10))}</div></div>
-          <div style="font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:${reviewed ? "rgba(140,170,126,0.18)" : "rgba(232,99,46,0.12)"};color:${reviewed ? "var(--olive)" : "var(--accentDim)"};white-space:nowrap;">${reviewed ? "✓ Corrigée" : "En attente"}</div>
+      const unseen = reviewed && !isVideoCorrectionSeen(s, seenSet, legacyTs);
+      const inner = `<div style="flex:1;min-width:0;text-align:left;">
+          <div style="font-weight:700;font-size:14px;">${esc(s.exercise_name)}</div>
+          <div style="font-size:12.5px;font-weight:700;margin-top:3px;color:${reviewed ? "var(--olive)" : "var(--accent)"};">${reviewed ? "✓ Corrigée · appuie pour voir la correction" : "● En attente de correction"}</div>
+          <div style="font-size:11.5px;color:var(--textDim);margin-top:2px;">Envoyée le ${formatDateFR(s.created_at.slice(0, 10))}</div>
         </div>
-        <video src="${esc(s.video_url)}" controls style="width:100%;border-radius:10px;margin-bottom:${s.note || reviewed ? "10px" : "0"};background:#000;"></video>
-        ${s.note ? `<div style="font-size:12.5px;color:var(--textDim);font-style:italic;margin-bottom:${reviewed ? "10px" : "0"};">"${esc(s.note)}"</div>` : ""}
-        ${reviewed ? `<div style="background:var(--bg);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;"><b style="color:var(--accentDim);">Retour de ton coach :</b><br/>${esc(s.coach_feedback || "")}</div>` : ""}
-      </div></div>`;
+        ${unseen ? `<span class="notif-dot"></span>` : ""}
+        ${reviewed ? `<span style="color:var(--textDim);font-size:18px;">›</span>` : ""}`;
+      html += reviewed
+        ? `<button class="ex-card" data-open-video-correction="${esc(s.id)}" style="width:100%;margin-bottom:10px;display:flex;align-items:center;gap:10px;padding:14px 16px;text-align:left;color:inherit;font:inherit;">${inner}</button>`
+        : `<div class="ex-card" style="margin-bottom:10px;display:flex;align-items:center;gap:10px;padding:14px 16px;">${inner}</div>`;
     });
   } else {
     html += `<div class="info-box">Tu n'as pas encore envoyé de vidéo. Choisis un exercice ci-dessus pour commencer.</div>`;
@@ -5182,7 +5375,7 @@ function renderProfil() {
         ${getUnseenVideoFeedbackCount() > 0 ? `<div class="tool-dot"></div>` : ""}
         <div class="tool-icon" style="background:rgba(232,99,46,0.14);color:var(--accent);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></div>
         <div class="tool-title">Retour vidéo</div>
-        <div class="tool-sub">${state.myVideoSubmissions && state.myVideoSubmissions.length ? `${state.myVideoSubmissions.filter(s => s.status === "reviewed").length} corrigée${state.myVideoSubmissions.filter(s => s.status === "reviewed").length > 1 ? "s" : ""}` : "Envoie une vidéo à ton coach"}</div>
+        <div class="tool-sub">${getUnseenVideoFeedbackCount() > 0 ? `${getUnseenVideoFeedbackCount()} correction${getUnseenVideoFeedbackCount() > 1 ? "s" : ""} à voir` : "Envoie une vidéo à ton coach"}</div>
       </button>
     </div>
 
@@ -5688,6 +5881,9 @@ function attachHandlers() {
   const backToAccueil = app.querySelector("[data-back-to-accueil]");
   if (backToAccueil) backToAccueil.onclick = () => { state.tab = "accueil"; render(); };
 
+  app.querySelectorAll("[data-open-video-correction]").forEach(b => b.onclick = () => openVideoCorrection(b.dataset.openVideoCorrection));
+  const videoDetailBack = app.querySelector("[data-video-detail-back]");
+  if (videoDetailBack) videoDetailBack.onclick = () => { state.videoDetailId = null; render(); window.scrollTo(0, 0); };
   const backToProfil = app.querySelector("[data-back-to-profil]");
   if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; state.checkinOpen = false; render(); };
 
@@ -6222,11 +6418,7 @@ document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
   render();
 });
 
-document.getElementById("notifBell").onclick = () => {
-  state.tab = "videofeedback";
-  markVideoFeedbackSeen();
-  render();
-};
+document.getElementById("notifBell").onclick = () => toggleNotifPanel();
 
 document.getElementById("themeToggle").onclick = () => {
   state.dark = !state.dark;
