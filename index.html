@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "64";
+const APP_VERSION = "65";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1527,7 +1527,7 @@ let state = {
   waterTarget: null,
   coachMessage: null,
   nutritionTargets: null,
-  nutritionView: "track", planDay: null, planShowShop: false, planCache: null,
+  nutritionView: "track", planDay: null, planShowShop: false, planCache: null, planPick: null,
   foodLogsToday: null,
   foodSearchResults: [],
   foodSearchQuery: "",
@@ -3835,41 +3835,84 @@ function planFitMeal(dish, targetKcal, extra) {
   const items = [...scal.map(it => ({ ...it, g: planRound(it.g * f) })), ...fixed].map(it => ({ ...it, g: it.fixed && !it.extra ? it.g : it.g }));
   return { dish, items, clamped, ...planTotals(items) };
 }
-function planBuildWeek(targets, dayTypes, seed) {
-  const rnd = planRng(seed);
-  const used = {};
+function planSum(meals) { return meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 }); }
+function planRecalc(m) { Object.assign(m, planTotals(m.items)); return m; }
+function planTargetsFor(targets, type) {
+  const on = type === "on";
+  return { kcal: Number(on ? targets.kcal_on : targets.kcal_off) || 0, p: Number(on ? targets.protein_on : targets.protein_off) || 0,
+    c: Number(on ? targets.carbs_on : targets.carbs_off) || 0, f: Number(on ? targets.fat_on : targets.fat_off) || 0 };
+}
+// Choisit 4 plats pour une journée (recherche aléatoire pondérée par la proximité aux macros + variété)
+function planChooseDay(T, used, rnd) {
   const pools = {};
   ["pdj", "repas", "encas"].forEach(s => pools[s] = PLAN_DISHES.filter(d => d.slots.includes(s)));
+  let best = null;
+  for (let i = 0; i < 120; i++) {
+    const pick = (slot, avoid) => { let d, tries = 0; do { d = pools[slot][Math.floor(rnd() * pools[slot].length)]; tries++; } while (avoid.includes(d.id) && tries < 12); return d; };
+    const pdj = pick("pdj", []), midi = pick("repas", []), encas = pick("encas", [pdj.id]), soir = pick("repas", [midi.id]);
+    const dishes = [pdj, midi, encas, soir];
+    const meals = dishes.map((d, idx) => planFitMeal(d, T.kcal * PLAN_MEALS[idx].share));
+    const tot = planSum(meals);
+    let score = Math.abs(tot.p - T.p) / (T.p || 1) * 3 + Math.abs(tot.c - T.c) / (T.c || 1) + Math.abs(tot.f - T.f) / (T.f || 1) * 1.2;
+    dishes.forEach(d => { score += (used[d.id] || 0) * 0.35; });
+    meals.forEach(m => { if (m.clamped) score += 0.4; });
+    if (!best || score < best.score) best = { score, dishes };
+  }
+  return best.dishes;
+}
+// Calibrage final : amène le total de la journée EXACTEMENT sur la cible kcal (±1 kcal)
+function planCalibrate(meals, T) {
+  const scalable = [];
+  meals.forEach((m, mi) => m.items.forEach(it => { if (!it.fixed) scalable.push({ m, it, base: it.g }); }));
+  if (!scalable.length || !T.kcal) return;
+  // 1) correction proportionnelle (écart > 10 kcal)
+  let res = T.kcal - planSum(meals).kcal;
+  if (Math.abs(res) > 10) {
+    const kScal = scalable.reduce((a, s) => a + PLAN_ING[s.it.key].k * s.it.g / 100, 0) || 1;
+    const fac = 1 + res / kScal;
+    scalable.forEach(s => { s.it.g = Math.max(5, Math.round(s.it.g * fac)); });
+    meals.forEach(planRecalc);
+  }
+  // 2) réglage fin au gramme près, sur les ingrédients les moins caloriques (pas de saut brutal)
+  const cands = scalable.slice().sort((a, b) => PLAN_ING[a.it.key].k - PLAN_ING[b.it.key].k);
+  for (let n = 0; n < 400; n++) {
+    res = T.kcal - planSum(meals).kcal;
+    if (Math.abs(res) <= 0.6) break;
+    const dir = res > 0 ? 1 : -1;
+    let moved = false;
+    for (const s of cands) {
+      const kg = PLAN_ING[s.it.key].k / 100;
+      const step = Math.max(1, Math.min(10, Math.floor(Math.abs(res) / kg / 2)));
+      if (Math.abs(res - dir * kg * step) < Math.abs(res) && s.it.g + dir * step >= 5 && s.it.g + dir * step <= s.base * 2.6) {
+        s.it.g += dir * step; planRecalc(s.m); moved = true; break;
+      }
+    }
+    if (!moved) break;
+  }
+}
+function planFinishDay(dishes, T) {
+  let meals = dishes.map((d, idx) => planFitMeal(d, T.kcal * PLAN_MEALS[idx].share));
+  let tot = planSum(meals);
+  const deficit = T.p - tot.p;
+  if (T.p && deficit > 12 && dishes[2].id !== "wheypdj") {
+    const g = Math.min(40, Math.max(15, Math.round(deficit / 0.8 / 5) * 5));
+    meals[2] = { ...planFitMeal(dishes[2], T.kcal * PLAN_MEALS[2].share, [{ key: "whey", g }]), bonus: true };
+  }
+  planCalibrate(meals, T);
+  return { meals, total: planSum(meals) };
+}
+function planBuildWeek(targets, dayTypes, seed, lock) {
+  const rnd = planRng(seed);
+  const used = {}, byId = {};
+  PLAN_DISHES.forEach(d => byId[d.id] = d);
   const days = [];
   PLAN_DAYS.forEach(dayName => {
     const type = dayTypes[dayName] || "on";
-    const T = { kcal: Number(type === "on" ? targets.kcal_on : targets.kcal_off) || 0, p: Number(type === "on" ? targets.protein_on : targets.protein_off) || 0,
-      c: Number(type === "on" ? targets.carbs_on : targets.carbs_off) || 0, f: Number(type === "on" ? targets.fat_on : targets.fat_off) || 0 };
-    let best = null;
-    for (let i = 0; i < 90; i++) {
-      const pick = (slot, avoid) => { let d; let tries = 0; do { d = pools[slot][Math.floor(rnd() * pools[slot].length)]; tries++; } while (avoid.includes(d.id) && tries < 12); return d; };
-      const pdj = pick("pdj", []), midi = pick("repas", []), encas = pick("encas", [pdj.id]), soir = pick("repas", [midi.id]);
-      const dishes = [pdj, midi, encas, soir];
-      const meals = dishes.map((d, idx) => planFitMeal(d, T.kcal * PLAN_MEALS[idx].share));
-      const tot = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 });
-      let score = Math.abs(tot.p - T.p) / (T.p || 1) * 3 + Math.abs(tot.c - T.c) / (T.c || 1) + Math.abs(tot.f - T.f) / (T.f || 1) * 1.2
-        + Math.abs(tot.kcal - T.kcal) / (T.kcal || 1) * 2;
-      dishes.forEach(d => { score += (used[d.id] || 0) * 0.35; });
-      meals.forEach(m => { if (m.clamped) score += 0.4; });
-      if (!best || score < best.score) best = { score, dishes, meals };
-    }
-    // Complément protéiné si le jour est trop bas en protéines (whey ajoutée à l'encas)
-    let meals = best.meals;
-    let tot = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 });
-    const deficit = T.p - tot.p;
-    if (T.p && deficit > 12 && best.dishes[2].id !== "wheypdj") {
-      const g = Math.min(40, Math.max(15, Math.round(deficit / 0.8 / 5) * 5));
-      meals = meals.slice();
-      meals[2] = { ...planFitMeal(best.dishes[2], T.kcal * PLAN_MEALS[2].share, [{ key: "whey", g }]), bonus: true };
-      tot = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 });
-    }
-    best.dishes.forEach(d => { used[d.id] = (used[d.id] || 0) + 1; });
-    days.push({ day: dayName, type, target: T, meals, total: tot });
+    const T = planTargetsFor(targets, type);
+    let dishes = lock && lock[dayName] && lock[dayName].length === 4 && lock[dayName].every(id => byId[id]) ? lock[dayName].map(id => byId[id]) : planChooseDay(T, used, rnd);
+    dishes.forEach(d => { used[d.id] = (used[d.id] || 0) + 1; });
+    const fin = planFinishDay(dishes, T);
+    days.push({ day: dayName, type, target: T, ...fin });
   });
   return days;
 }
@@ -3880,24 +3923,64 @@ function planWeekDates() {
   PLAN_DAYS.forEach((d, i) => { const x = new Date(monday); x.setDate(monday.getDate() + i); out[d] = x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); });
   return out;
 }
-function planVariantKey() { return `mattheophysic_plan_variant_${state.client.id}_${isoWeekKey(todayISO())}`; }
+function planPrefsKey() { return `mattheophysic_plan_prefs_${state.client.id}_${isoWeekKey(todayISO())}`; }
+function planGetPrefs() {
+  try { const p = JSON.parse(localStorage.getItem(planPrefsKey()) || "null"); if (p && typeof p === "object") return { v: p.v || 0, lock: p.lock || {} }; } catch (e) {}
+  return { v: 0, lock: {} };
+}
+function planSavePrefs(p) { try { localStorage.setItem(planPrefsKey(), JSON.stringify(p)); } catch (e) {} state.planCache = null; }
+function planDayTypes() {
+  const dayTypes = {};
+  PLAN_DAYS.forEach(d => { const pd = (state.program || []).find(x => x.day === d); dayTypes[d] = pd ? (pd.isRest ? "off" : "on") : "on"; });
+  return dayTypes;
+}
 function getCoachPlan() {
   const t = state.nutritionTargets;
   if (!t || !t.kcal_on) return null;
-  let variant = 0;
-  try { variant = parseInt(localStorage.getItem(planVariantKey()) || "0", 10) || 0; } catch (e) {}
-  const dayTypes = {};
-  PLAN_DAYS.forEach(d => { const pd = (state.program || []).find(x => x.day === d); dayTypes[d] = pd ? (pd.isRest ? "off" : "on") : "on"; });
-  const key = JSON.stringify([state.client.id, isoWeekKey(todayISO()), variant, t, dayTypes]);
+  const prefs = planGetPrefs();
+  const dayTypes = planDayTypes();
+  const key = JSON.stringify([state.client.id, isoWeekKey(todayISO()), prefs, t, dayTypes]);
   if (state.planCache && state.planCache.key === key) return state.planCache.days;
-  const days = planBuildWeek(t, dayTypes, `${state.client.id}|${isoWeekKey(todayISO())}|${variant}`);
+  const days = planBuildWeek(t, dayTypes, `${state.client.id}|${isoWeekKey(todayISO())}|${prefs.v}`, prefs.lock);
   state.planCache = { key, days };
   return days;
+}
+// Fige la semaine affichée (les autres jours ne bougent plus quand on modifie un jour)
+function planLockWeek() {
+  const prefs = planGetPrefs();
+  const days = getCoachPlan();
+  PLAN_DAYS.forEach(d => { if (!prefs.lock[d]) prefs.lock[d] = days.find(x => x.day === d).meals.map(m => m.dish.id); });
+  return prefs;
+}
+function planSetDish(dayName, idx, dishId) {
+  const prefs = planLockWeek();
+  prefs.lock[dayName] = prefs.lock[dayName].slice(); prefs.lock[dayName][idx] = dishId;
+  planSavePrefs(prefs);
+}
+function planRegenDay(dayName) {
+  const prefs = planLockWeek();
+  const t = state.nutritionTargets, type = planDayTypes()[dayName];
+  const T = planTargetsFor(t, type);
+  const used = {};
+  PLAN_DAYS.forEach(d => { if (d !== dayName) prefs.lock[d].forEach(id => { used[id] = (used[id] || 0) + 1; }); });
+  prefs.rg = (prefs.rg || 0) + 1;
+  const dishes = planChooseDay(T, used, planRng(`${state.client.id}|${dayName}|${Date.now()}`));
+  prefs.lock[dayName] = dishes.map(d => d.id);
+  planSavePrefs(prefs);
 }
 function planNutriToggle() {
   const v = state.nutritionView === "plan" ? "plan" : "track";
   const b = (id, label) => `<button data-nutri-view="${id}" style="flex:1;border-radius:999px;padding:9px;font-size:13px;font-weight:700;border:1px solid ${v === id ? "var(--accent)" : "var(--border)"};background:${v === id ? "var(--accent)" : "none"};color:${v === id ? "var(--accentText)" : "var(--textDim)"};">${label}</button>`;
   return `<div style="display:flex;gap:6px;margin-bottom:14px;">${b("track", "Suivi du jour")}${b("plan", "Plan coach")}</div>`;
+}
+function planPickerHtml(day, idx) {
+  const slot = PLAN_MEALS[idx].slot;
+  const opts = PLAN_DISHES.filter(d => d.slots.includes(slot) && d.id !== day.meals[idx].dish.id);
+  const kc = day.target.kcal * PLAN_MEALS[idx].share;
+  return `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px;"><div style="font-size:12px;color:var(--textDim);margin-bottom:6px;">Choisis un autre plat (les quantités et les kcal du jour sont recalculés) :</div>
+    ${opts.map(d => { const m = planFitMeal(d, kc); return `<button data-plan-set="${d.id}" style="width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);padding:9px 0;color:inherit;font:inherit;">
+      <div style="font-weight:700;font-size:13.5px;">${esc(d.name)}</div>
+      <div style="font-size:11.5px;color:var(--textDim);">≈ ${Math.round(m.kcal)} kcal · ${Math.round(m.p)}g prot · ${Math.round(m.c)}g gluc · ${Math.round(m.f)}g lip</div></button>`; }).join("")}</div>`;
 }
 function planIngLine(it) {
   const d = PLAN_ING[it.key];
@@ -3918,6 +4001,8 @@ function renderCoachPlan() {
   const T = day.target, tot = day.total;
   const dev = (a, b) => b ? Math.round(a - b) : 0;
   const chip = (label, a, b, unit) => { const d = dev(a, b); const ok = b ? Math.abs(d) <= Math.max(5, b * 0.06) : true; return `<div style="flex:1;text-align:center;"><div style="font-weight:800;">${Math.round(a)}${unit} <span style="font-size:11px;font-weight:600;color:${ok ? "var(--olive)" : "var(--gold)"};">/ ${Math.round(b)}${unit}</span></div><div style="font-size:11.5px;color:var(--textDim);">${label}</div></div>`; };
+  const wkT = days.reduce((a, d) => a + d.target.kcal, 0), wkG = days.reduce((a, d) => a + d.total.kcal, 0);
+  html += `<div style="font-size:12.5px;color:var(--textDim);margin-bottom:10px;">Semaine : <b style="color:var(--text);">${Math.round(wkG)} kcal</b> pour un objectif de ${Math.round(wkT)} kcal</div>`;
   html += `<div class="chart-card" style="margin-bottom:14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><b>${day.day} · jour ${day.type === "on" ? "ON (entraînement)" : "OFF (repos)"}</b><span style="font-size:12px;color:var(--textDim);">${dates[day.day].split("-").reverse().slice(0, 2).join("/")}</span></div>
     <div style="display:flex;gap:6px;">${chip("kcal", tot.kcal, T.kcal, "")}${chip("Prot.", tot.p, T.p, "g")}${chip("Gluc.", tot.c, T.c, "g")}${chip("Lip.", tot.f, T.f, "g")}</div>
@@ -3929,10 +4014,15 @@ function renderCoachPlan() {
       <div style="font-weight:800;font-size:15px;margin:3px 0 10px;">${esc(m.dish.name)}</div>
       ${m.items.map(planIngLine).join("")}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;"><span class="chip-lastweek">${Math.round(m.kcal)} kcal</span><span class="chip-lastweek">${Math.round(m.p)}g prot</span><span class="chip-lastweek">${Math.round(m.c)}g gluc</span><span class="chip-lastweek">${Math.round(m.f)}g lip</span></div>
-      <button class="validate-btn" style="margin-top:0;padding:11px;font-size:13px;" data-plan-log="${idx}">+ Ajouter à mon suivi (${day.day.toLowerCase()})</button>
+      <div style="display:flex;gap:8px;">
+        <button class="validate-btn" style="margin-top:0;padding:11px;font-size:13px;flex:2;" data-plan-log="${idx}">+ Ajouter à mon suivi</button>
+        <button data-plan-pick="${idx}" style="flex:1;border:1px solid var(--border);background:none;color:var(--text);border-radius:14px;font-size:13px;font-weight:700;">↔ Changer</button>
+      </div>
+      ${state.planPick === idx ? planPickerHtml(day, idx) : ""}
     </div></div>`;
   });
-  html += `<button class="link-btn" data-plan-variant="1" style="width:100%;margin:6px 0 14px;">🔄 Proposer une autre semaine</button>`;
+  html += `<button class="link-btn" data-plan-regen="${day.day}" style="width:100%;margin:6px 0 4px;">🔄 Autre proposition pour ${day.day.toLowerCase()}</button>
+    <button class="link-btn" data-plan-variant="1" style="width:100%;margin:0 0 14px;">🗓 Proposer une autre semaine complète</button>`;
   // Liste de courses
   const agg = {};
   days.forEach(d => d.meals.forEach(m => m.items.forEach(it => { agg[it.key] = (agg[it.key] || 0) + it.g; })));
@@ -6217,13 +6307,16 @@ function attachHandlers() {
   if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; state.checkinOpen = false; render(); };
 
   app.querySelectorAll("[data-nutri-view]").forEach(b => b.onclick = () => { state.nutritionView = b.dataset.nutriView; render(); window.scrollTo(0, 0); });
-  app.querySelectorAll("[data-plan-day]").forEach(b => b.onclick = () => { state.planDay = b.dataset.planDay; render(); });
+  app.querySelectorAll("[data-plan-day]").forEach(b => b.onclick = () => { state.planDay = b.dataset.planDay; state.planPick = null; render(); });
   app.querySelectorAll("[data-plan-log]").forEach(b => b.onclick = () => planLogMeal(parseInt(b.dataset.planLog, 10)));
   app.querySelectorAll("[data-plan-shop]").forEach(b => b.onclick = () => { state.planShowShop = !state.planShowShop; render(); });
   app.querySelectorAll("[data-plan-variant]").forEach(b => b.onclick = () => {
-    try { localStorage.setItem(planVariantKey(), String((parseInt(localStorage.getItem(planVariantKey()) || "0", 10) || 0) + 1)); } catch (e) {}
-    state.planCache = null; render(); window.scrollTo(0, 0);
+    const pr = planGetPrefs(); planSavePrefs({ v: pr.v + 1, lock: {} });
+    state.planPick = null; render(); window.scrollTo(0, 0);
   });
+  app.querySelectorAll("[data-plan-regen]").forEach(b => b.onclick = () => { planRegenDay(b.dataset.planRegen); state.planPick = null; render(); });
+  app.querySelectorAll("[data-plan-pick]").forEach(b => b.onclick = () => { const i = parseInt(b.dataset.planPick, 10); state.planPick = state.planPick === i ? null : i; render(); });
+  app.querySelectorAll("[data-plan-set]").forEach(b => b.onclick = () => { planSetDish(state.planDay, state.planPick, b.dataset.planSet); state.planPick = null; render(); });
   app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
     state.nutritionDayType = b.dataset.setDaytype;
     state.showDaytypeEdit = false;
