@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "61";
+const APP_VERSION = "64";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1527,6 +1527,7 @@ let state = {
   waterTarget: null,
   coachMessage: null,
   nutritionTargets: null,
+  nutritionView: "track", planDay: null, planShowShop: false, planCache: null,
   foodLogsToday: null,
   foodSearchResults: [],
   foodSearchQuery: "",
@@ -3721,8 +3722,245 @@ async function loadNutritionLogsForDate(dateStr) {
   render();
 }
 
+/* ======================= PLAN COACH =======================
+   Plans de repas hebdomadaires générés automatiquement à partir des plats du coach.
+   - Chaque plat = liste d'ingrédients avec grammes de base ; les macros sont CALCULÉES depuis la table PLAN_ING.
+   - Pour chaque jour, on choisit 4 repas (petit-déj, midi, encas/dessert, soir) variés, puis on ajuste
+     les quantités (féculents, viandes, etc. ; pas les légumes / huiles / sauces) pour tomber sur les kcal du jour
+     et s'approcher des macros, avec cibles ON (entraînement) / OFF (repos) du client.
+   - Poids : viandes et poissons CRUS, féculents (riz, pâtes, patate douce) CUITS. */
+const PLAN_COACH_NAMES = ["matth", "rolandia"]; // profils qui voient l'onglet (début du prénom, sans accents)
+const PLAN_ING = {
+  pain:        { n: "Pain complet", k: 250, p: 9, c: 45, f: 3.5, u: ["tranche", 35] },
+  jambon:      { n: "Jambon blanc", k: 110, p: 18, c: 1, f: 4 },
+  fromage:     { n: "Fromage (tranche)", k: 340, p: 24, c: 1, f: 27 },
+  oeuf:        { n: "Œufs", k: 145, p: 12.5, c: 1, f: 10, u: ["œuf", 60] },
+  epinards:    { n: "Épinards", k: 25, p: 3, c: 1, f: 0.4 },
+  fromagefrais:{ n: "Fromage frais", k: 110, p: 7, c: 4, f: 7 },
+  banane:      { n: "Banane", k: 89, p: 1.1, c: 23, f: 0.3 },
+  flocons:     { n: "Flocons d'avoine", k: 370, p: 13, c: 60, f: 7 },
+  miel:        { n: "Miel", k: 320, p: 0.3, c: 80, f: 0 },
+  skyr:        { n: "Skyr", k: 63, p: 11, c: 4, f: 0.2 },
+  cornflakes:  { n: "Cornflakes", k: 375, p: 7, c: 84, f: 1 },
+  lait:        { n: "Lait demi-écrémé", k: 46, p: 3.2, c: 4.8, f: 1.6 },
+  whey:        { n: "Whey", k: 390, p: 80, c: 7, f: 6 },
+  wrap:        { n: "Wrap (tortilla)", k: 300, p: 8, c: 50, f: 7 },
+  cottage:     { n: "Cottage cheese", k: 98, p: 11, c: 3.4, f: 4.3 },
+  cerises:     { n: "Tomates cerises", k: 20, p: 0.9, c: 3.5, f: 0.2 },
+  tomate:      { n: "Tomates", k: 18, p: 0.9, c: 3.9, f: 0.2 },
+  hache:       { n: "Viande hachée 5% (crue)", k: 125, p: 21, c: 0, f: 5 },
+  patatedouce: { n: "Patate douce (cuite)", k: 90, p: 1.6, c: 20, f: 0.1 },
+  huile:       { n: "Huile d'olive", k: 900, p: 0, c: 0, f: 100 },
+  haricots:    { n: "Haricots verts", k: 30, p: 2, c: 4, f: 0.2 },
+  riz:         { n: "Riz (cuit)", k: 130, p: 2.7, c: 28, f: 0.3 },
+  poulet:      { n: "Blanc de poulet (cru)", k: 110, p: 23, c: 0, f: 1.5 },
+  pates:       { n: "Pâtes (cuites)", k: 158, p: 5.8, c: 31, f: 0.9 },
+  poivron:     { n: "Poivrons rouges", k: 30, p: 1, c: 6, f: 0.3 },
+  saucetomate: { n: "Sauce tomate", k: 40, p: 1.5, c: 7, f: 0.5 },
+  hdc:         { n: "Haut de cuisse de poulet (cru)", k: 135, p: 19, c: 0, f: 6.5 },
+  carottes:    { n: "Carottes (four)", k: 41, p: 0.9, c: 9, f: 0.2 },
+  soja:        { n: "Sauce soja", k: 60, p: 6, c: 6, f: 0 },
+  concombre:   { n: "Concombre", k: 15, p: 0.7, c: 3, f: 0.1 },
+  potimarron:  { n: "Potimarron", k: 35, p: 1, c: 8, f: 0.1 },
+  saumon:      { n: "Saumon (cru)", k: 200, p: 20, c: 0, f: 13 },
+  creme:       { n: "Crème légère 5%", k: 75, p: 3, c: 4, f: 5 },
+  champignons: { n: "Champignons", k: 22, p: 3, c: 3, f: 0.3 },
+  pouletroti:  { n: "Poulet rôti (sans peau)", k: 190, p: 27, c: 0, f: 9 },
+  frites:      { n: "Frites (four)", k: 200, p: 3, c: 30, f: 8 },
+  brocolis:    { n: "Brocolis", k: 34, p: 2.8, c: 7, f: 0.4 },
+  pomme:       { n: "Pomme", k: 52, p: 0.3, c: 14, f: 0.2 },
+  poire:       { n: "Poire", k: 57, p: 0.4, c: 15, f: 0.1 },
+  laitcoco:    { n: "Lait de coco", k: 180, p: 1.8, c: 3, f: 18 },
+  chia:        { n: "Graines de chia", k: 486, p: 17, c: 42, f: 31 },
+  mangue:      { n: "Mangue", k: 60, p: 0.8, c: 15, f: 0.4 },
+  ananas:      { n: "Ananas", k: 50, p: 0.5, c: 13, f: 0.1 },
+  crepenature: { n: "Crêpes nature Dessaint", k: 193, p: 6.1, c: 26.1, f: 7, u: ["crêpe", 50] },
+};
+// ing: [clé, grammes de base, fixe?]  — "x" = quantité fixe (légumes, huile, sauces), non ajustée
+const PLAN_DISHES = [
+  // Petits-déjeuners
+  { id: "croque", name: "Croque Monsieur", slots: ["pdj"], ing: [["pain", 80], ["jambon", 50], ["fromage", 30]] },
+  { id: "tartine", name: "Tartine œuf, épinards & fromage frais", slots: ["pdj"], ing: [["pain", 70], ["oeuf", 120], ["epinards", 60, "x"], ["fromagefrais", 40]] },
+  { id: "boulettes", name: "Boulettes de banane (flocons d'avoine, miel, cannelle) + skyr", slots: ["pdj"], ing: [["banane", 120], ["flocons", 50], ["miel", 10, "x"], ["skyr", 120]] },
+  { id: "cornflakes", name: "Cornflakes + lait", slots: ["pdj"], ing: [["cornflakes", 50], ["lait", 200]] },
+  { id: "wheypdj", name: "Whey (shaker au lait)", slots: ["pdj", "encas"], ing: [["whey", 35], ["lait", 250]] },
+  { id: "wrap", name: "Wrap œufs, cottage cheese & tomates cerises", slots: ["pdj"], ing: [["wrap", 60], ["oeuf", 120], ["cottage", 80], ["cerises", 60, "x"]] },
+  // Repas
+  { id: "hache-pdt", name: "Viande hachée, patate douce & tomates cerises", slots: ["repas"], ing: [["hache", 150], ["patatedouce", 250], ["cerises", 80, "x"], ["huile", 8, "x"]] },
+  { id: "hache-riz", name: "Viande hachée, haricots verts & riz basmati", slots: ["repas"], ing: [["hache", 150], ["haricots", 150, "x"], ["riz", 200], ["huile", 8, "x"]] },
+  { id: "poulet-pates", name: "Blanc de poulet, pâtes & poivrons rouges", slots: ["repas"], ing: [["poulet", 150], ["pates", 250], ["poivron", 100, "x"], ["saucetomate", 80, "x"], ["huile", 8, "x"]] },
+  { id: "hdc-riz", name: "Haut de cuisse, carottes au four & riz", slots: ["repas"], ing: [["hdc", 180], ["carottes", 200, "x"], ["riz", 200], ["huile", 8, "x"]] },
+  { id: "riz-oeufs", name: "Riz aux œufs, sauce soja & concombres", slots: ["repas"], ing: [["riz", 250], ["oeuf", 180], ["soja", 10, "x"], ["concombre", 100, "x"], ["huile", 8, "x"]] },
+  { id: "soupe", name: "Soupe potimarron, poivrons & tomates + croque Monsieur", slots: ["repas"], ing: [["potimarron", 300, "x"], ["poivron", 80, "x"], ["tomate", 100, "x"], ["huile", 8, "x"], ["pain", 70], ["jambon", 45], ["fromage", 30]] },
+  { id: "pates-saumon", name: "Pâtes au saumon (recette Matthéo)", slots: ["repas"], ing: [["pates", 250], ["saumon", 130], ["creme", 50, "x"]] },
+  { id: "riz-poulet-champi", name: "Riz, poulet & champignons à la crème", slots: ["repas"], ing: [["riz", 200], ["poulet", 150], ["champignons", 150, "x"], ["creme", 50, "x"], ["huile", 8, "x"]] },
+  { id: "roti-frites", name: "Poulet rôti, frites & brocolis", slots: ["repas"], ing: [["pouletroti", 200], ["frites", 200], ["brocolis", 200, "x"], ["huile", 8, "x"]] },
+  // Desserts / encas
+  { id: "dessert-m", name: "Dessert Matthéo (pomme, poire…)", slots: ["encas"], ing: [["pomme", 150], ["poire", 150]] },
+  { id: "verrine", name: "Verrine lait de coco, chia, mangue & ananas", slots: ["encas"], ing: [["laitcoco", 100], ["chia", 20], ["mangue", 80], ["ananas", 80]] },
+  { id: "crepes-nature", name: "Crêpes Dessaint", slots: ["encas"], ing: [["crepenature", 100]] },
+];
+const PLAN_MEALS = [
+  { key: "petit_dejeuner", slot: "pdj", label: "Petit déjeuner", share: 0.25 },
+  { key: "midi", slot: "repas", label: "Midi", share: 0.35 },
+  { key: "encas", slot: "encas", label: "Encas / dessert (4h)", share: 0.12 },
+  { key: "soir", slot: "repas", label: "Soir", share: 0.28 },
+];
+const PLAN_DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+function planNormName(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function planEligible() {
+  if (!state.client) return false;
+  const n = planNormName(state.client.name);
+  return PLAN_COACH_NAMES.some(x => n.startsWith(x) || n.includes(" " + x));
+}
+function planRng(seedStr) {
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) { h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  let a = (h ^ (h >>> 16)) >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function planRound(g) { return g >= 40 ? Math.round(g / 5) * 5 : Math.round(g); }
+function planTotals(items) {
+  return items.reduce((a, it) => { const d = PLAN_ING[it.key]; const m = it.g / 100; a.kcal += d.k * m; a.p += d.p * m; a.c += d.c * m; a.f += d.f * m; return a; }, { kcal: 0, p: 0, c: 0, f: 0 });
+}
+// Ajuste les quantités d'un plat pour viser `targetKcal` (les ingrédients "fixes" ne bougent pas).
+function planFitMeal(dish, targetKcal, extra) {
+  const fixed = [], scal = [];
+  dish.ing.forEach(([key, g, fx]) => (fx ? fixed : scal).push({ key, g, fixed: !!fx }));
+  (extra || []).forEach(e => fixed.push({ key: e.key, g: e.g, fixed: true, extra: true }));
+  const kFixed = planTotals(fixed).kcal, kScal = planTotals(scal).kcal || 1;
+  let f = (targetKcal - kFixed) / kScal, clamped = false;
+  if (f < 0.55) { f = 0.55; clamped = true; } else if (f > 2.0) { f = 2.0; clamped = true; }
+  const items = [...scal.map(it => ({ ...it, g: planRound(it.g * f) })), ...fixed].map(it => ({ ...it, g: it.fixed && !it.extra ? it.g : it.g }));
+  return { dish, items, clamped, ...planTotals(items) };
+}
+function planBuildWeek(targets, dayTypes, seed) {
+  const rnd = planRng(seed);
+  const used = {};
+  const pools = {};
+  ["pdj", "repas", "encas"].forEach(s => pools[s] = PLAN_DISHES.filter(d => d.slots.includes(s)));
+  const days = [];
+  PLAN_DAYS.forEach(dayName => {
+    const type = dayTypes[dayName] || "on";
+    const T = { kcal: Number(type === "on" ? targets.kcal_on : targets.kcal_off) || 0, p: Number(type === "on" ? targets.protein_on : targets.protein_off) || 0,
+      c: Number(type === "on" ? targets.carbs_on : targets.carbs_off) || 0, f: Number(type === "on" ? targets.fat_on : targets.fat_off) || 0 };
+    let best = null;
+    for (let i = 0; i < 90; i++) {
+      const pick = (slot, avoid) => { let d; let tries = 0; do { d = pools[slot][Math.floor(rnd() * pools[slot].length)]; tries++; } while (avoid.includes(d.id) && tries < 12); return d; };
+      const pdj = pick("pdj", []), midi = pick("repas", []), encas = pick("encas", [pdj.id]), soir = pick("repas", [midi.id]);
+      const dishes = [pdj, midi, encas, soir];
+      const meals = dishes.map((d, idx) => planFitMeal(d, T.kcal * PLAN_MEALS[idx].share));
+      const tot = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+      let score = Math.abs(tot.p - T.p) / (T.p || 1) * 3 + Math.abs(tot.c - T.c) / (T.c || 1) + Math.abs(tot.f - T.f) / (T.f || 1) * 1.2
+        + Math.abs(tot.kcal - T.kcal) / (T.kcal || 1) * 2;
+      dishes.forEach(d => { score += (used[d.id] || 0) * 0.35; });
+      meals.forEach(m => { if (m.clamped) score += 0.4; });
+      if (!best || score < best.score) best = { score, dishes, meals };
+    }
+    // Complément protéiné si le jour est trop bas en protéines (whey ajoutée à l'encas)
+    let meals = best.meals;
+    let tot = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+    const deficit = T.p - tot.p;
+    if (T.p && deficit > 12 && best.dishes[2].id !== "wheypdj") {
+      const g = Math.min(40, Math.max(15, Math.round(deficit / 0.8 / 5) * 5));
+      meals = meals.slice();
+      meals[2] = { ...planFitMeal(best.dishes[2], T.kcal * PLAN_MEALS[2].share, [{ key: "whey", g }]), bonus: true };
+      tot = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f }), { kcal: 0, p: 0, c: 0, f: 0 });
+    }
+    best.dishes.forEach(d => { used[d.id] = (used[d.id] || 0) + 1; });
+    days.push({ day: dayName, type, target: T, meals, total: tot });
+  });
+  return days;
+}
+function planWeekDates() {
+  const now = new Date();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7), 12);
+  const out = {};
+  PLAN_DAYS.forEach((d, i) => { const x = new Date(monday); x.setDate(monday.getDate() + i); out[d] = x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); });
+  return out;
+}
+function planVariantKey() { return `mattheophysic_plan_variant_${state.client.id}_${isoWeekKey(todayISO())}`; }
+function getCoachPlan() {
+  const t = state.nutritionTargets;
+  if (!t || !t.kcal_on) return null;
+  let variant = 0;
+  try { variant = parseInt(localStorage.getItem(planVariantKey()) || "0", 10) || 0; } catch (e) {}
+  const dayTypes = {};
+  PLAN_DAYS.forEach(d => { const pd = (state.program || []).find(x => x.day === d); dayTypes[d] = pd ? (pd.isRest ? "off" : "on") : "on"; });
+  const key = JSON.stringify([state.client.id, isoWeekKey(todayISO()), variant, t, dayTypes]);
+  if (state.planCache && state.planCache.key === key) return state.planCache.days;
+  const days = planBuildWeek(t, dayTypes, `${state.client.id}|${isoWeekKey(todayISO())}|${variant}`);
+  state.planCache = { key, days };
+  return days;
+}
+function planNutriToggle() {
+  const v = state.nutritionView === "plan" ? "plan" : "track";
+  const b = (id, label) => `<button data-nutri-view="${id}" style="flex:1;border-radius:999px;padding:9px;font-size:13px;font-weight:700;border:1px solid ${v === id ? "var(--accent)" : "var(--border)"};background:${v === id ? "var(--accent)" : "none"};color:${v === id ? "var(--accentText)" : "var(--textDim)"};">${label}</button>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;">${b("track", "Suivi du jour")}${b("plan", "Plan coach")}</div>`;
+}
+function planIngLine(it) {
+  const d = PLAN_ING[it.key];
+  let extra = "";
+  if (d.u && it.g >= d.u[1] * 0.6) { const n = Math.round(it.g / d.u[1] * 2) / 2; extra = ` <span style="color:var(--textDim);">(≈ ${n} ${d.u[0]}${n > 1 && d.u[0] !== "œuf" ? "s" : n > 1 ? "s" : ""})</span>`; }
+  return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:3px 0;"><span>${esc(d.n)}${it.extra ? ` <span class="pill" style="font-size:10px;padding:1px 7px;">complément</span>` : ""}${extra}</span><b style="white-space:nowrap;">${it.g} g</b></div>`;
+}
+function renderCoachPlan() {
+  let html = `<div style="padding-top:20px;"></div>` + planNutriToggle();
+  const days = getCoachPlan();
+  if (!days) return html + `<div class="info-box">Ton coach n'a pas encore défini tes objectifs de calories et de macros. Le plan apparaîtra dès que ce sera fait.</div>`;
+  if (!PLAN_DAYS.includes(state.planDay)) { const dn = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][new Date().getDay()]; state.planDay = dn; }
+  const day = days.find(d => d.day === state.planDay) || days[0];
+  const dates = planWeekDates();
+  html += `<div class="h1" style="font-size:24px;margin:0 0 4px;">PLAN COACH</div>
+    <div class="subtitle" style="margin-bottom:12px;">Ta semaine de repas, calculée pour tes calories et macros (jours ON / OFF).</div>
+    <div class="day-tabs">${days.map(d => `<button class="day-tab ${d.day === day.day ? "active" : ""}" data-plan-day="${d.day}">${d.day.slice(0, 3)} <span style="font-size:10px;opacity:.8;">${d.type === "on" ? "ON" : "OFF"}</span></button>`).join("")}</div>`;
+  const T = day.target, tot = day.total;
+  const dev = (a, b) => b ? Math.round(a - b) : 0;
+  const chip = (label, a, b, unit) => { const d = dev(a, b); const ok = b ? Math.abs(d) <= Math.max(5, b * 0.06) : true; return `<div style="flex:1;text-align:center;"><div style="font-weight:800;">${Math.round(a)}${unit} <span style="font-size:11px;font-weight:600;color:${ok ? "var(--olive)" : "var(--gold)"};">/ ${Math.round(b)}${unit}</span></div><div style="font-size:11.5px;color:var(--textDim);">${label}</div></div>`; };
+  html += `<div class="chart-card" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><b>${day.day} · jour ${day.type === "on" ? "ON (entraînement)" : "OFF (repos)"}</b><span style="font-size:12px;color:var(--textDim);">${dates[day.day].split("-").reverse().slice(0, 2).join("/")}</span></div>
+    <div style="display:flex;gap:6px;">${chip("kcal", tot.kcal, T.kcal, "")}${chip("Prot.", tot.p, T.p, "g")}${chip("Gluc.", tot.c, T.c, "g")}${chip("Lip.", tot.f, T.f, "g")}</div>
+  </div>`;
+  day.meals.forEach((m, idx) => {
+    const meta = PLAN_MEALS[idx];
+    html += `<div class="ex-card" style="margin-bottom:12px;"><div class="ex-body" style="padding-top:14px;">
+      <div style="font-size:11.5px;font-weight:800;color:var(--accent);letter-spacing:.5px;">${meta.label.toUpperCase()}</div>
+      <div style="font-weight:800;font-size:15px;margin:3px 0 10px;">${esc(m.dish.name)}</div>
+      ${m.items.map(planIngLine).join("")}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;"><span class="chip-lastweek">${Math.round(m.kcal)} kcal</span><span class="chip-lastweek">${Math.round(m.p)}g prot</span><span class="chip-lastweek">${Math.round(m.c)}g gluc</span><span class="chip-lastweek">${Math.round(m.f)}g lip</span></div>
+      <button class="validate-btn" style="margin-top:0;padding:11px;font-size:13px;" data-plan-log="${idx}">+ Ajouter à mon suivi (${day.day.toLowerCase()})</button>
+    </div></div>`;
+  });
+  html += `<button class="link-btn" data-plan-variant="1" style="width:100%;margin:6px 0 14px;">🔄 Proposer une autre semaine</button>`;
+  // Liste de courses
+  const agg = {};
+  days.forEach(d => d.meals.forEach(m => m.items.forEach(it => { agg[it.key] = (agg[it.key] || 0) + it.g; })));
+  html += `<button class="day-card" data-plan-shop="1" style="margin-bottom:8px;"><div class="day-left"><div><div class="day-title">🛒 Liste de courses de la semaine</div><div class="day-sub">Total des quantités à prévoir</div></div></div><span style="color:var(--textDim);">${state.planShowShop ? "▾" : "›"}</span></button>`;
+  if (state.planShowShop) {
+    html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:12px;">${Object.keys(agg).sort((a, b) => PLAN_ING[a].n.localeCompare(PLAN_ING[b].n)).map(k => `<div style="display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0;"><span>${esc(PLAN_ING[k].n)}</span><b>${agg[k] >= 1000 ? (agg[k] / 1000).toFixed(2).replace(".", ",") + " kg" : Math.round(agg[k] / 10) * 10 + " g"}</b></div>`).join("")}</div></div>`;
+  }
+  html += `<div style="font-size:11.5px;color:var(--textDim);line-height:1.5;margin-bottom:20px;">Poids : viandes et poissons <b>crus</b>, riz / pâtes / patate douce <b>cuits</b>. Les légumes, huiles et sauces restent fixes ; les quantités de féculents et de protéines s'adaptent à tes objectifs.</div>`;
+  return html;
+}
+async function planLogMeal(idx) {
+  const days = getCoachPlan(); if (!days) return;
+  const day = days.find(d => d.day === state.planDay); if (!day) return;
+  const m = day.meals[idx]; const meta = PLAN_MEALS[idx];
+  const date = planWeekDates()[day.day];
+  showToast("Ajout…");
+  const entry = { client_id: state.client.id, log_date: date, food_name: m.dish.name + " (plan coach)", grams: 1,
+    kcal: Math.round(m.kcal), protein: Math.round(m.p * 10) / 10, carbs: Math.round(m.c * 10) / 10, fat: Math.round(m.f * 10) / 10, meal: meta.key };
+  const { data, error } = await sb.from("food_logs").insert(entry).select().single();
+  if (error) { showToast("Erreur lors de l'ajout."); return; }
+  if (state.nutritionLogs && state.nutritionSelectedDate === date) state.nutritionLogs.push(data);
+  if (date === todayISO() && state.foodLogsToday) state.foodLogsToday.push(data);
+  showToast("Repas ajouté à ton suivi !");
+}
+
 function renderNutrition() {
   if (state.nutritionSelectedDate === null) state.nutritionSelectedDate = todayISO();
+  if (planEligible() && state.nutritionView === "plan" && !state.nutritionActiveMeal) return renderCoachPlan();
   if (state.nutritionLogs === null) { loadNutritionLogsForDate(state.nutritionSelectedDate); }
 
   const t = state.nutritionTargets;
@@ -3740,7 +3978,7 @@ function renderNutrition() {
     return acc;
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
-  let html = `<div style="padding-top:20px;"></div>` + renderWeekBubbles() + `
+  let html = `<div style="padding-top:20px;"></div>` + (planEligible() && !state.nutritionActiveMeal ? planNutriToggle() : "") + renderWeekBubbles() + `
     <div style="display:flex;gap:6px;margin-bottom:16px;">
       <button data-set-daytype="on" style="flex:1;border-radius:999px;padding:7px;font-size:12px;font-weight:700;border:1px solid ${dayType === "on" ? "var(--accent)" : "var(--border)"};background:${dayType === "on" ? "var(--accent)" : "none"};color:${dayType === "on" ? "var(--accentText)" : "var(--textDim)"};">Jour ON (entraînement)</button>
       <button data-set-daytype="off" style="flex:1;border-radius:999px;padding:7px;font-size:12px;font-weight:700;border:1px solid ${dayType === "off" ? "var(--accent)" : "var(--border)"};background:${dayType === "off" ? "var(--accent)" : "none"};color:${dayType === "off" ? "var(--accentText)" : "var(--textDim)"};">Jour OFF (repos)</button>
@@ -5978,6 +6216,14 @@ function attachHandlers() {
   const backToProfil = app.querySelector("[data-back-to-profil]");
   if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; state.checkinOpen = false; render(); };
 
+  app.querySelectorAll("[data-nutri-view]").forEach(b => b.onclick = () => { state.nutritionView = b.dataset.nutriView; render(); window.scrollTo(0, 0); });
+  app.querySelectorAll("[data-plan-day]").forEach(b => b.onclick = () => { state.planDay = b.dataset.planDay; render(); });
+  app.querySelectorAll("[data-plan-log]").forEach(b => b.onclick = () => planLogMeal(parseInt(b.dataset.planLog, 10)));
+  app.querySelectorAll("[data-plan-shop]").forEach(b => b.onclick = () => { state.planShowShop = !state.planShowShop; render(); });
+  app.querySelectorAll("[data-plan-variant]").forEach(b => b.onclick = () => {
+    try { localStorage.setItem(planVariantKey(), String((parseInt(localStorage.getItem(planVariantKey()) || "0", 10) || 0) + 1)); } catch (e) {}
+    state.planCache = null; render(); window.scrollTo(0, 0);
+  });
   app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
     state.nutritionDayType = b.dataset.setDaytype;
     state.showDaytypeEdit = false;
