@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "65";
+const APP_VERSION = "66";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1049,6 +1049,17 @@ function matchesQuery(normalizedName, normalizedQuery) {
   const escaped = normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp("(^|[^a-z0-9])" + escaped).test(normalizedName);
 }
+// Version rapide pour la frappe : regex construite une seule fois par recherche et noms normalisés mis en cache.
+function makeQueryMatcher(normalizedQuery) {
+  if (!normalizedQuery) return () => false;
+  const re = new RegExp("(^|[^a-z0-9])" + normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return (obj, key) => {
+    const ck = key === "title" ? "_nt" : "_n";
+    let n = obj[ck];
+    if (n === undefined) { n = normalizeSearchText(obj[key] || ""); try { Object.defineProperty(obj, ck, { value: n, enumerable: false, writable: true }); } catch (e) {} }
+    return re.test(n);
+  };
+}
 
 // Distance de Levenshtein : mesure combien de lettres il faut changer pour passer d'un mot à l'autre.
 // Sert à proposer des suggestions quand l'orthographe tapée n'est pas exacte (ex: "poulet" mal orthographié).
@@ -1072,13 +1083,14 @@ function fuzzyMatchFoods(query) {
   const q = normalizeSearchText(query);
   if (q.length < 3) return [];
   const maxDist = q.length <= 5 ? 1 : q.length <= 8 ? 2 : 3;
-  const candidates = [
+  if (!fuzzyMatchFoods._cands) fuzzyMatchFoods._cands = [
     ...RAW_FOOD_LIBRARY.map(f => ({ ...f, brand: "", source: "local" })),
     ...FASTFOOD_LIBRARY.map(f => ({ ...f, brand: "", source: "fastfood" })),
   ];
+  const candidates = fuzzyMatchFoods._cands;
   const scored = [];
   candidates.forEach(food => {
-    const words = normalizeSearchText(food.name).split(/[\s,()%']+/).filter(w => w.length >= 3);
+    const words = food._w || (food._w = normalizeSearchText(food.name).split(/[\s,()%']+/).filter(w => w.length >= 3));
     let best = Infinity;
     words.forEach(w => { const d = levenshtein(q, w); if (d < best) best = d; });
     if (best <= maxDist) scored.push({ food, dist: best });
@@ -1097,18 +1109,19 @@ function fuzzyMatchFoods(query) {
 function searchLocalFoods(query) {
   const q = normalizeSearchText(query.trim());
   if (!q) return [];
-  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({ ...f, brand: "", source: "local" }));
-  const fromFastFood = FASTFOOD_LIBRARY.filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({ ...f, brand: "", source: "fastfood" }));
-  const fromCustom = (state.customFoods || []).filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({
+  const m = makeQueryMatcher(q);
+  const fromLibrary = RAW_FOOD_LIBRARY.filter(f => m(f, "name")).map(f => ({ ...f, brand: "", source: "local" }));
+  const fromFastFood = FASTFOOD_LIBRARY.filter(f => m(f, "name")).map(f => ({ ...f, brand: "", source: "fastfood" }));
+  const fromCustom = (state.customFoods || []).filter(f => m(f, "name")).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "custom",
   }));
-  const fromScanned = (state.scannedProducts || []).filter(f => matchesQuery(normalizeSearchText(f.name), q)).map(f => ({
+  const fromScanned = (state.scannedProducts || []).filter(f => m(f, "name")).map(f => ({
     name: f.name, brand: "", kcalPer100: f.kcal_per_100, proteinPer100: f.protein_per_100,
     carbsPer100: f.carbs_per_100, fatPer100: f.fat_per_100, source: "scanned",
   }));
   // Aliments bruts d'abord (locaux, perso, scannés, fast-food), les recettes toujours en dernier.
-  const fromRecipes = (state.recipes || []).filter(r => matchesQuery(normalizeSearchText(r.title), q)).map(r => ({
+  const fromRecipes = (state.recipes || []).filter(r => m(r, "title")).map(r => ({
     id: r.id, name: r.title, brand: "", kcalTotal: r.kcal, proteinTotal: r.protein,
     carbsTotal: r.carbs, fatTotal: r.fat, source: "recipe",
   }));
@@ -1143,6 +1156,9 @@ function renderFoodResultsHTML() {
     return `<div class="empty-state">Recherche en cours…</div>`;
   }
   if (state.foodSearchResults.length === 0 || state.selectedFood) {
+    if (state.foodOffPending && !state.selectedFood && state.foodSearchResults.length === 0) {
+      return `<div class="empty-state" style="padding:20px 0;">⏳ Recherche en ligne…</div>`;
+    }
     if (state.foodSearchResults.length === 0 && !state.selectedFood && state.foodSearchQuery.trim().length >= 2 && !state.foodSearchLoading) {
       const d = state.offDebug;
       const debugLine = d ? `<div style="font-size:10.5px;color:var(--textDim);margin-top:10px;opacity:0.7;">Diagnostic recherche en ligne : ${d.newApiError ? `nouvelle API en erreur (${esc(d.newApiError)})` : `nouvelle API OK, ${d.newApiHitCount ?? 0} résultat(s) bruts`}${d.legacyUsed ? `, ancienne API utilisée en repli${d.legacyError ? ` (erreur : ${esc(d.legacyError)})` : ""}` : ""}</div>` : "";
@@ -1172,6 +1188,7 @@ function renderFoodResultsHTML() {
     </button>`;
   });
   html += `</div>`;
+  if (state.foodOffPending) html += `<div style="font-size:12px;color:var(--textDim);margin:-10px 0 16px;">⏳ Recherche de produits de marque en ligne…</div>`;
   return html;
 }
 
@@ -1232,52 +1249,57 @@ function mapOffProducts(products) {
 // signalée en panne à plusieurs reprises. On utilise désormais leur API de recherche actuelle,
 // Search-a-licious (search.openfoodfacts.org), avec repli automatique sur l'ancienne API si
 // la nouvelle est temporairement indisponible.
-async function fetchOpenFoodFactsResults(query) {
+const offCache = new Map();
+let offAbortCtl = null;
+async function offFetchJson(url, signal, ms) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  const onAbort = () => ctl.abort();
+  if (signal) signal.addEventListener("abort", onAbort);
+  try {
+    const res = await fetch(url, { signal: ctl.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally { clearTimeout(timer); if (signal) signal.removeEventListener("abort", onAbort); }
+}
+async function fetchOpenFoodFactsResults(query, signal) {
   const FIELDS = "product_name,brands,nutriments";
+  const key = normalizeSearchText(query.trim()).replace(/\s+/g, " ");
+  if (offCache.has(key)) return offCache.get(key);       // même recherche déjà faite : instantané
   state.offDebug = { newApiError: null, newApiHitCount: null, legacyUsed: false, legacyError: null };
 
   async function searchNew(q) {
-    const res = await fetch(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=fr,en&page_size=24&fields=${FIELDS}`);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
+    const data = await offFetchJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(q)}&langs=fr,en&page_size=24&fields=${FIELDS}`, signal, 5000);
     const raw = data.hits || data.products || [];
     state.offDebug.newApiHitCount = raw.length;
     return mapOffProducts(raw);
   }
-  async function searchNewByField(field, q) {
-    return searchNew(`${field}:"${q}"`);
-  }
   async function searchLegacy(q) {
-    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24`);
-    return mapOffProducts((await res.json()).products);
+    const data = await offFetchJson(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24`, signal, 6000);
+    return mapOffProducts(data.products);
   }
-
-  let results = [];
-  try {
-    results = await searchNew(query);
-  } catch (e) {
-    // Nouvelle API indisponible : on retombe sur l'ancienne plutôt que de ne rien afficher.
-    state.offDebug.newApiError = e.message || String(e);
+  // Recherche principale + recherche par marque / enseigne EN PARALLÈLE (avant : l'une après l'autre).
+  const quiet = p => p.catch(e => { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; return null; });
+  const [main, byBrand, byStore] = await Promise.all([
+    quiet(searchNew(query)),
+    query.trim().length >= 3 ? quiet(searchNew(`brands:"${query}"`)) : Promise.resolve([]),
+    query.trim().length >= 3 ? quiet(searchNew(`stores:"${query}"`)) : Promise.resolve([]),
+  ]);
+  let results = main || [];
+  if (main === null) {
+    state.offDebug.newApiError = "indisponible ou lent";
     state.offDebug.legacyUsed = true;
-    try { results = await searchLegacy(query); } catch (e2) { results = []; state.offDebug.legacyError = e2.message || String(e2); }
+    try { results = await searchLegacy(query); } catch (e) { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; results = []; state.offDebug.legacyError = e.message || String(e); }
   }
-
   if (results.length === 0) {
     const simplified = stripStoreNames(query);
-    if (simplified && simplified !== query) {
-      try { results = await searchNew(simplified); } catch (e) { /* on garde résultats vides */ }
-    }
+    if (simplified && simplified !== query) { try { results = await searchNew(simplified); } catch (e) { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; } }
   }
-  // Recherche directe par marque et par enseigne, en complément — utile quand la personne tape
-  // juste "Lidl" ou "Nutella" sans rien d'autre, ce qu'une recherche en texte libre rate souvent.
-  if (results.length < 5) {
-    try {
-      const [byBrand, byStore] = await Promise.all([searchNewByField("brands", query), searchNewByField("stores", query)]);
-      const seen = new Set(results.map(r => r.name));
-      [...byBrand, ...byStore].forEach(p => {
-        if (!seen.has(p.name)) { seen.add(p.name); results.push(p); }
-      });
-    } catch (e) { /* pas grave si cette recherche complémentaire échoue */ }
+  const seen = new Set(results.map(r => r.name));
+  [...(byBrand || []), ...(byStore || [])].forEach(p => { if (!seen.has(p.name)) { seen.add(p.name); results.push(p); } });
+  if (main !== null || results.length) {
+    offCache.set(key, results);
+    if (offCache.size > 60) offCache.delete(offCache.keys().next().value);
   }
   return results;
 }
@@ -1306,21 +1328,37 @@ function updateLiveFoodResults() {
   });
 
   if (foodSearchDebounce) clearTimeout(foodSearchDebounce);
-  if (query.trim().length < 2) return;
+  if (offAbortCtl) { offAbortCtl.abort(); offAbortCtl = null; }   // on abandonne la recherche en ligne précédente
+  state.foodOffPending = false;
+  if (query.trim().length < 2) { container.innerHTML = renderFoodResultsHTML(); return; }
+  const cacheKey = normalizeSearchText(query.trim()).replace(/\s+/g, " ");
+  const apply = (offResults) => {
+    if (document.getElementById("foodSearchInput")?.value !== query) return;
+    const have = new Set(state.foodSearchResults.map(r => r.name));
+    state.foodSearchResults = [...state.foodSearchResults, ...offResults.filter(r => !have.has(r.name))];
+    state.foodOffPending = false;
+    container.innerHTML = renderFoodResultsHTML();
+    container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
+      onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)]);
+    });
+  };
+  if (offCache.has(cacheKey)) { apply(offCache.get(cacheKey)); return; }   // déjà cherché : affichage immédiat
+  state.foodOffPending = true;
+  container.innerHTML = renderFoodResultsHTML();
+  container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
+    onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)]);
+  });
   foodSearchDebounce = setTimeout(async () => {
+    const ctl = new AbortController();
+    offAbortCtl = ctl;
     try {
-      const offResults = await fetchOpenFoodFactsResults(query);
-      // Si la personne a continué à taper depuis, on ignore cette réponse devenue obsolète.
-      if (document.getElementById("foodSearchInput")?.value !== query) return;
-      state.foodSearchResults = [...state.foodSearchResults, ...offResults];
-      container.innerHTML = renderFoodResultsHTML();
-      container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
-        onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)]);
-      });
+      const offResults = await fetchOpenFoodFactsResults(query, ctl.signal);
+      if (ctl.signal.aborted) return;
+      apply(offResults);
     } catch (e) {
-      // pas grave si Open Food Facts échoue : les résultats locaux restent affichés
+      if (!ctl.signal.aborted) { state.foodOffPending = false; container.innerHTML = renderFoodResultsHTML(); container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => onSelectFoodResult(state.foodSearchResults[parseInt(b.dataset.selectFood, 10)])); }
     }
-  }, 350);
+  }, 250);
 }
 
 /* ---------------- Barcode scanner ---------------- */
@@ -1532,6 +1570,7 @@ let state = {
   foodSearchResults: [],
   foodSearchQuery: "",
   foodSearchLoading: false,
+  foodOffPending: false,
   selectedFood: null,
   nutritionDayType: null,
   nutritionSubView: "recherche", // "recherche" | "recent" | "frequent"
@@ -4144,6 +4183,8 @@ function renderNutrition() {
           html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 6.5c-1.5-1-4-1.5-6-1.5v13c2 0 4.5.5 6 1.5 1.5-1 4-1.5 6-1.5V5c-2 0-4.5.5-6 1.5Z"/><line x1="12" y1="6.5" x2="12" y2="19.5"/></svg><div>Ton coach n'a pas encore ajouté de recette.</div></div>`;
         }
       }
+    } else if (state.selectedFood) {
+      html += renderSelectedFoodCard();
     } else {
       html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
         <input id="foodSearchInput" placeholder="🔍 Cherche un aliment…" value="${esc(state.foodSearchQuery)}" autocomplete="off" autocorrect="off" style="margin-bottom:10px;font-size:15px;" />
@@ -4205,7 +4246,15 @@ function renderNutrition() {
       html += `</div>`;
     }
 
-  if (state.selectedFood) {
+  } else {
+    html += renderMealSections();
+  }
+
+  return html;
+}
+
+function renderSelectedFoodCard() {
+  let html = "";
     const f = state.selectedFood;
     const initGrams = toNum(f.defaultGrams) || 100;
     html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">
@@ -4224,11 +4273,6 @@ function renderNutrition() {
         <button data-cancel-food="1" style="border:1px solid var(--border);background:none;color:var(--textDim);border-radius:14px;padding:0 16px;">Annuler</button>
       </div>
     </div></div>`;
-  }
-  } else {
-    html += renderMealSections();
-  }
-
   return html;
 }
 
@@ -6473,7 +6517,14 @@ function attachHandlers() {
   if (foodSearchInputEl) foodSearchInputEl.oninput = () => { updateLiveFoodResults(); };
 
   const foodGramsInputEl = app.querySelector("#foodGramsInput");
-  if (foodGramsInputEl) foodGramsInputEl.oninput = () => { updateFoodGramsPreview(); };
+  if (foodGramsInputEl) {
+    foodGramsInputEl.oninput = () => { updateFoodGramsPreview(); };
+    if (state._focusedFood !== state.selectedFood) {
+      state._focusedFood = state.selectedFood;
+      window.scrollTo(0, 0);
+      setTimeout(() => { try { foodGramsInputEl.focus({ preventScroll: true }); foodGramsInputEl.select(); } catch (e) {} }, 60);
+    }
+  } else { state._focusedFood = null; }
 
   const foodSearchBtn = app.querySelector("#foodSearchBtn");
   if (foodSearchBtn) foodSearchBtn.onclick = async () => {
