@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "67";
+const APP_VERSION = "68";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1899,6 +1899,7 @@ function render() {
     } else if (state.coachDetailView) {
       const dc = state.coachClients.find(c => c.id === state.coachDetailClientId);
       if (!dc) { state.coachDetailView = null; app.innerHTML = renderCoachScreen(); }
+      else if (state.coachDetailView === "fiche") app.innerHTML = renderCoachFiche(dc);
       else if (state.coachDetailView === "schedule") app.innerHTML = renderCoachSchedule(dc);
       else if (state.coachDetailView === "performance") app.innerHTML = renderCoachPerformance(dc);
       else if (state.coachDetailView === "videos") app.innerHTML = renderCoachVideos(dc);
@@ -2268,6 +2269,66 @@ function renderCoachTodo() {
   return html;
 }
 
+// ---------- Fiche client (page dédiée) ----------
+function coachClientBadges(c, t) {
+  const pill = (txt, bg, col) => `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:${bg};color:${col};">${txt}</span>`;
+  const out = [];
+  const nv = t.videos.filter(v => v.client_id === c.id).length;
+  if (nv) out.push(pill(`🎥 ${nv} vidéo${nv > 1 ? "s" : ""} à corriger`, "var(--accent)", "var(--accentText)"));
+  if (t.bilanToRead.includes(c)) out.push(pill("📋 Bilan à lire", "rgba(140,170,126,0.22)", "var(--olive)"));
+  else if (c.overview && !c.overview.checkinSubmittedThisWeek) out.push(pill("Bilan en attente", "rgba(232,99,46,0.12)", "var(--accentDim)"));
+  if (t.inactive.some(x => x.c === c)) out.push(pill("⚠️ À relancer", "rgba(220,80,70,0.14)", "var(--danger)"));
+  if (t.noProgram.includes(c)) out.push(pill("🛠 Sans programme", "rgba(232,99,46,0.12)", "var(--accentDim)"));
+  return out.join("");
+}
+function renderCoachFiche(c) {
+  const t = computeCoachTodo();
+  const ov = c.overview;
+  const days = ov && ov.lastSessionDate ? daysSinceISO(ov.lastSessionDate) : null;
+  const nv = t.videos.filter(v => v.client_id === c.id).length;
+  const tile = (val, label) => `<div class="ex-card" style="padding:12px 6px;text-align:center;"><div style="font-size:19px;font-weight:800;">${val}</div><div style="font-size:11px;color:var(--textDim);margin-top:2px;">${label}</div></div>`;
+  const row = (attr, icon, title, subtitle, badge) => `<button ${attr} style="width:100%;display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 14px;margin-bottom:8px;color:inherit;font:inherit;text-align:left;">
+      <span style="font-size:22px;width:30px;text-align:center;">${icon}</span>
+      <span style="flex:1;min-width:0;"><b style="font-size:14.5px;">${title}</b><br/><span style="font-size:12px;color:var(--textDim);">${subtitle}</span></span>
+      ${badge ? `<span style="background:var(--accent);color:var(--accentText);font-size:11px;font-weight:800;border-radius:999px;padding:2px 8px;">${badge}</span>` : ""}
+      <span style="color:var(--textDim);font-size:18px;">›</span></button>`;
+  const warn = ov && ov.warning ? String(ov.warning).replace(/<svg[\s\S]*?<\/svg>\s*/g, "").trim() : "";
+  let html = `<div style="margin:20px 0 4px;"><button class="back-btn" data-back-coach-list="1">← Mes clients</button></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;">
+      <div class="h1" style="font-size:26px;margin:0;">${esc(c.name)}</div>
+      <span class="access-code-chip" style="font-size:12px;padding:5px 12px;">${esc(c.access_code)}</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 14px;">${coachClientBadges(c, t) || `<span style="font-size:12px;color:var(--olive);font-weight:700;">✓ Rien à traiter</span>`}</div>`;
+  if (ov) {
+    html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
+      ${tile(`${ov.sessionsThisWeek}/${ov.trainingDaysTotal}`, "séances / sem.")}
+      ${tile(ov.checkinSubmittedThisWeek ? "✓" : "—", "bilan reçu")}
+      ${tile(ov.weightDelta !== null && ov.weightDelta !== undefined ? (ov.weightDelta > 0 ? "+" : "") + ov.weightDelta + " kg" : "—", "poids")}
+    </div>
+    <div style="font-size:12.5px;color:var(--textDim);margin-bottom:${warn ? "6px" : "18px"};">Dernière séance : ${days === null ? "aucune" : days === 0 ? "aujourd'hui" : "il y a " + days + " jour" + (days > 1 ? "s" : "")}</div>
+    ${warn ? `<div style="font-size:12.5px;color:var(--danger);font-weight:700;margin-bottom:18px;">⚠️ ${esc(warn)}</div>` : ""}`;
+  } else {
+    html += `<div class="info-box" style="margin-bottom:16px;">Chargement des chiffres…</div>`;
+  }
+  html += `<div class="section-label">SUIVI</div>
+    ${row(`data-open-bilan="${c.id}"`, "📋", "Bilan de la semaine", ov ? (ov.checkinSubmittedThisWeek ? "Reçu cette semaine" : "Pas encore reçu") : "Voir les bilans et objectifs")}
+    ${row(`data-view-video-feedback="${c.id}"`, "🎥", "Retours vidéo", nv ? `${nv} à corriger` : "Aucune vidéo en attente", nv || "")}
+    ${row(`data-view-schedule="${c.id}"`, "🗓", "Séances de la semaine", "Fait / à faire, RPE, commentaires")}
+    ${row(`data-view-performance="${c.id}"`, "📈", "Performance", "Progression, stagnation, régression")}
+    <div class="section-label" style="margin-top:14px;">PROGRAMME</div>
+    ${row(`data-open-builder="${c.id}"`, "🛠", c.program_json ? "Modifier le programme" : "Construire le programme", c.program_json ? "Jours, exercices, séries" : "Aucun programme pour l'instant")}
+    ${row(`data-edit-videos="${c.id}"`, "▶️", "Démos vidéo des exercices", "Liens vidéo montrés au client")}
+    <details style="margin-top:18px;border:1px dashed var(--border);border-radius:14px;padding:10px 14px;">
+      <summary style="font-size:13px;color:var(--textDim);cursor:pointer;">Options avancées</summary>
+      <div style="padding-top:12px;">
+        <button data-edit-program="${c.id}" style="width:100%;background:none;border:1px solid var(--border);color:var(--textDim);border-radius:12px;padding:10px;font-size:13px;margin-bottom:10px;">Éditer le JSON du programme</button>
+        <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;">Supprimer ce client</button>
+      </div>
+    </details>
+    <div style="height:30px;"></div>`;
+  return html;
+}
+
 function renderCoachScreen() {
   if (!state.coachAuthed) {
     return `
@@ -2306,71 +2367,20 @@ function renderCoachScreen() {
   `;
 
   const sortedClients = state.coachClients.slice().sort((a, b) => coachClientFlagCount(b, todoData) - coachClientFlagCount(a, todoData) || a.name.localeCompare(b.name));
+  if (!sortedClients.length) html += `<div class="info-box">Aucun client pour l'instant. Crée le premier avec « + Nouveau client ».</div>`;
   sortedClients.forEach(c => {
     const ov = c.overview;
-    html += `<div data-client-row="1" data-search="${esc((c.name + " " + c.access_code).toLowerCase())}">`;
-    const isExpanded = state.coachExpandedClientId === c.id;
-    html += `<button class="day-card" data-toggle-client="${c.id}" style="margin-bottom:${isExpanded ? "0" : "12px"};border-radius:${isExpanded ? "16px 16px 0 0" : "16px"};">
-      <div class="day-left" style="flex:1;">
-        <div style="flex:1;">
-          <div class="day-title">${esc(c.name)}${state.coachPendingVideos.some(v => v.client_id === c.id) ? ` <span style="background:var(--accent);color:var(--accentText);font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:2px;">🎥 ${state.coachPendingVideos.filter(v => v.client_id === c.id).length}</span>` : ""}</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;">
-            <span class="access-code-chip" style="font-size:11px;padding:4px 10px;">${esc(c.access_code)}</span>
-            ${ov ? `<span style="font-size:11.5px;color:var(--textDim);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="1" y="9" width="3.5" height="6" rx="1"/><rect x="19.5" y="9" width="3.5" height="6" rx="1"/><line x1="4.5" y1="12" x2="19.5" y2="12"/><rect x="6.5" y="6.5" width="2.5" height="11" rx="0.8"/><rect x="15" y="6.5" width="2.5" height="11" rx="0.8"/></svg> ${ov.sessionsThisWeek}/${ov.trainingDaysTotal}</span>` : ""}
-            ${ov ? (ov.checkinSubmittedThisWeek
-              ? `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(140,170,126,0.18);color:var(--olive);">✓ Bilan reçu</span>`
-              : `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(232,99,46,0.12);color:var(--accentDim);">Bilan en attente</span>`) : ""}
-            ${ov && ov.warning ? `<span style="font-size:11.5px;color:var(--danger);font-weight:700;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3 2 20h20L12 3Z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/></svg></span>` : ""}
-          </div>
-        </div>
-      </div>
-      <span style="color:var(--textDim);font-size:18px;">${isExpanded ? "▾" : "›"}</span>
-    </button>`;
-
-    if (isExpanded) {
-      html += `<div style="border:1px solid var(--border);border-top:none;border-radius:0 0 16px 16px;padding:14px 12px;margin-bottom:12px;">
-        ${ov && ov.warning ? `<div style="font-size:12.5px;color:var(--danger);font-weight:700;padding:6px 0 10px;">${ov.warning}</div>` : ""}
-        ${ov && ov.weightDelta !== null ? `<div style="font-size:12.5px;color:var(--textDim);padding:0 0 10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M12 3v18"/><path d="M5 7l-3 7a4 4 0 0 0 6 0Z"/><path d="M19 7l-3 7a4 4 0 0 0 6 0Z"/><path d="M5 7h14"/><path d="M8 21h8"/></svg> Poids : ${ov.weightDelta > 0 ? "+" : ""}${ov.weightDelta}kg depuis le dernier bilan</div>` : ""}
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-          <button data-open-builder="${c.id}" style="text-align:left;background:var(--card);border:1px solid transparent;box-shadow:var(--shadow-card);border-radius:16px;padding:16px;">
-            <div style="color:var(--accent);margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2Z"/></svg></div>
-            <div style="font-weight:800;font-size:14px;">Construire</div>
-            <div style="font-size:12px;color:var(--textDim);">le programme</div>
-          </button>
-          <button data-open-bilan="${c.id}" style="text-align:left;background:var(--card);border:1px solid transparent;box-shadow:var(--shadow-card);border-radius:16px;padding:16px;">
-            <div style="color:${ov && ov.checkinSubmittedThisWeek ? "var(--olive)" : "var(--accent)"};margin-bottom:8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2" width="6" height="4" rx="1"/></svg></div>
-            <div style="font-weight:800;font-size:14px;">Bilan</div>
-            <div style="font-size:12px;color:${ov && ov.checkinSubmittedThisWeek ? "var(--olive)" : "var(--accentDim)"};font-weight:${ov && ov.checkinSubmittedThisWeek ? "700" : "400"};">${ov ? (ov.checkinSubmittedThisWeek ? "✓ reçu cette semaine" : "pas encore reçu") : "—"}</div>
-          </button>
-        </div>
-
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <button data-view-schedule="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="16" y1="3" x2="16" y2="7"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            Séances
-          </button>
-          <button data-view-performance="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
-            Performance
-          </button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <button data-edit-videos="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>
-            Démos vidéo
-          </button>
-          <button data-view-video-feedback="${c.id}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:10px 4px;color:var(--textDim);font-size:11px;position:relative;">
-            ${state.coachPendingVideos.some(v => v.client_id === c.id) ? `<span style="position:absolute;top:4px;right:18%;background:var(--accent);color:var(--accentText);font-size:9px;font-weight:800;border-radius:999px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;">${state.coachPendingVideos.filter(v => v.client_id === c.id).length}</span>` : ""}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
-            Retours vidéo
-          </button>
-        </div>
-        <button data-edit-program="${c.id}" style="width:100%;background:none;border:none;color:var(--textDim);font-size:11.5px;padding:4px 0 10px;text-decoration:underline;">Éditer le JSON du programme</button>
-        <button data-delete-client="${c.id}" class="danger-btn" style="width:100%;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer ce client et toutes ses données</button>
-      </div>`;
-    }
-    html += `</div>`;
+    const days = ov && ov.lastSessionDate ? daysSinceISO(ov.lastSessionDate) : null;
+    const sub = ov ? `${ov.sessionsThisWeek}/${ov.trainingDaysTotal} séances cette semaine · ${days === null ? "aucune séance" : days === 0 ? "séance aujourd'hui" : "dernière il y a " + days + " j"}` : "Chargement…";
+    html += `<div data-client-row="1" data-search="${esc((c.name + " " + c.access_code).toLowerCase())}">
+      <button class="day-card" data-open-client="${c.id}" style="margin-bottom:10px;">
+        <div class="day-left" style="flex:1;min-width:0;"><div style="flex:1;min-width:0;">
+          <div class="day-title">${esc(c.name)}</div>
+          <div class="day-sub">${sub}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">${coachClientBadges(c, todoData)}</div>
+        </div></div>
+        <span style="color:var(--textDim);font-size:18px;">›</span>
+      </button></div>`;
   });
   }
 
@@ -2847,10 +2857,13 @@ async function attachCoachHandlers() {
     document.querySelectorAll("[data-client-row]").forEach(r => { r.style.display = (!q || r.dataset.search.includes(q)) ? "" : "none"; });
   };
 
-  document.querySelectorAll("[data-toggle-client]").forEach(b => b.onclick = () => {
-    state.coachExpandedClientId = state.coachExpandedClientId === b.dataset.toggleClient ? null : b.dataset.toggleClient;
+  document.querySelectorAll("[data-open-client]").forEach(b => b.onclick = () => {
+    state.coachDetailClientId = b.dataset.openClient;
+    state.coachDetailView = "fiche";
     render();
+    window.scrollTo(0, 0);
   });
+  document.querySelectorAll("[data-back-coach-list]").forEach(b => b.onclick = () => { state.coachDetailView = null; render(); window.scrollTo(0, 0); });
 
   document.querySelectorAll("[data-delete-client]").forEach(b => b.onclick = async () => {
     const clientId = b.dataset.deleteClient;
@@ -2863,6 +2876,9 @@ async function attachCoachHandlers() {
     if (error) { showToast("Erreur lors de la suppression : " + error.message); return; }
     state.coachClients = state.coachClients.filter(c => c.id !== clientId);
     state.coachExpandedClientId = null;
+    state.coachDetailView = null;
+    state.coachPendingVideos = state.coachPendingVideos.filter(v => v.client_id !== clientId);
+    updateNotifBadge();
     showToast(`${c.name} et toutes ses données ont été supprimés.`);
     render();
   });
@@ -3184,7 +3200,7 @@ async function attachCoachHandlers() {
     if (error) { showToast("Erreur lors de l'enregistrement."); return; }
     const c = state.coachClients.find(c => c.id === clientId);
     if (c) c.program_json = parsed;
-    state.coachDetailView = null;
+    state.coachDetailView = "fiche";
     showToast("Programme mis à jour.");
     render();
   };
@@ -3232,7 +3248,7 @@ async function attachCoachHandlers() {
     }
 
     showToast(applyAll ? "Vidéos enregistrées pour tous les clients concernés." : "Vidéos enregistrées.");
-    state.coachDetailView = null;
+    state.coachDetailView = "fiche";
     render();
   };
 
@@ -3416,7 +3432,7 @@ async function attachCoachHandlers() {
   });
 
   const backCoachDetail = document.querySelector("[data-back-coach-detail]");
-  if (backCoachDetail) backCoachDetail.onclick = () => { state.coachDetailView = null; render(); };
+  if (backCoachDetail) backCoachDetail.onclick = () => { state.coachDetailView = state.coachDetailClientId ? "fiche" : null; render(); window.scrollTo(0, 0); };
 
   const saveFollowup = document.querySelector("[data-save-followup]");
   if (saveFollowup) saveFollowup.onclick = async () => {
