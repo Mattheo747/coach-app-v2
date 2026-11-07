@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "66";
+const APP_VERSION = "67";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1232,17 +1232,63 @@ function stripStoreNames(query) {
 }
 
 function mapOffProducts(products) {
-  return (products || [])
-    .map(p => (p && (p.document || p._source)) ? (p.document || p._source) : p)
-    .filter(p => p && p.product_name && p.nutriments && p.nutriments["energy-kcal_100g"] != null)
-    .map(p => ({
-      name: p.product_name, brand: p.brands || "",
-      kcalPer100: Math.round(p.nutriments["energy-kcal_100g"] || 0),
-      proteinPer100: Math.round(p.nutriments["proteins_100g"] || 0),
-      carbsPer100: Math.round(p.nutriments["carbohydrates_100g"] || 0),
-      fatPer100: Math.round(p.nutriments["fat_100g"] || 0),
-      source: "off",
-    }));
+  const r1 = x => Math.round((Number(x) || 0) * 10) / 10;
+  const out = [];
+  (products || []).forEach(raw => {
+    const p = raw && (raw.document || raw._source) ? (raw.document || raw._source) : raw;
+    if (!p) return;
+    const name = (p.product_name_fr || p.product_name || "").trim();
+    const n = p.nutriments;
+    if (!name || !n || Array.isArray(n)) return;
+    let kcal = n["energy-kcal_100g"];
+    if (kcal == null && n["energy-kcal"] != null) kcal = n["energy-kcal"];
+    if (kcal == null && n["energy_100g"] != null) kcal = Number(n["energy_100g"]) / 4.184;   // kJ -> kcal
+    if (kcal == null || isNaN(Number(kcal))) return;
+    out.push({
+      name, brand: (p.brands || "").split(",")[0].trim(),
+      kcalPer100: Math.round(Number(kcal)),
+      proteinPer100: r1(n["proteins_100g"]), carbsPer100: r1(n["carbohydrates_100g"]), fatPer100: r1(n["fat_100g"]),
+      source: "off", _cats: Array.isArray(p.categories_tags) ? p.categories_tags.join(" ") : "",
+    });
+  });
+  return out;
+}
+
+// --- Recherche par MARQUE ---------------------------------------------------------------
+// "bonne maman", "confiture bonne maman", "lidl"… : on repère la marque dans la requête en testant
+// les suites de mots (ex. "bonne-maman") sur l'API Open Food Facts v2, qui filtre exactement par marque,
+// puis on garde les produits correspondant aux autres mots ("confiture"). Les produits sont triés par popularité.
+function brandSlug(words) {
+  return words.join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+const BRAND_STOPWORDS = new Set(["de", "du", "des", "la", "le", "les", "au", "aux", "et", "un", "une", "d", "l"]);
+function brandCandidates(query) {
+  const words = normalizeSearchText(query.trim()).normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+  const cands = [];
+  for (let n = Math.min(3, words.length); n >= 1; n--) {
+    for (let i = 0; i + n <= words.length; i++) {
+      const seq = words.slice(i, i + n);
+      if (seq.every(w => BRAND_STOPWORDS.has(w) || w.length < 2)) continue;
+      if (n === 1 && (seq[0].length < 3 || words.length > 1)) continue;   // un seul mot isolé = marque seulement si la requête n'a qu'un mot
+      const slug = brandSlug(seq);
+      if (slug && !cands.some(x => x.slug === slug)) cands.push({ slug, rest: words.filter((w, k) => k < i || k >= i + n) });
+    }
+  }
+  return cands.slice(0, 6);
+}
+async function searchBrandV2(cand, signal) {
+  const url = `https://world.openfoodfacts.org/api/v2/search?brands_tags=${encodeURIComponent(cand.slug)}&fields=code,product_name,product_name_fr,brands,nutriments,categories_tags&page_size=100&sort_by=unique_scans_n`;
+  const data = await offFetchJson(url, signal, 7000);
+  let list = mapOffProducts(data.products);
+  const rest = cand.rest.filter(w => !BRAND_STOPWORDS.has(w) && w.length >= 3);
+  if (rest.length && list.length) {
+    const filtered = list.filter(pr => {
+      const hay = normalizeSearchText(pr.name + " " + pr._cats).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return rest.every(w => hay.includes(w.replace(/s$/, "")));
+    });
+    if (filtered.length) list = filtered;
+  }
+  return list;
 }
 
 // L'ancienne API (world.openfoodfacts.org/cgi/search.pl) est dépréciée par Open Food Facts et
@@ -1280,13 +1326,19 @@ async function fetchOpenFoodFactsResults(query, signal) {
   }
   // Recherche principale + recherche par marque / enseigne EN PARALLÈLE (avant : l'une après l'autre).
   const quiet = p => p.catch(e => { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; return null; });
-  const [main, byBrand, byStore] = await Promise.all([
+  const brandJobs = query.trim().length >= 3 ? brandCandidates(query).map(cd => quiet(searchBrandV2(cd, signal))) : [];
+  const [main, byBrand, byStore, ...brandLists] = await Promise.all([
     quiet(searchNew(query)),
     query.trim().length >= 3 ? quiet(searchNew(`brands:"${query}"`)) : Promise.resolve([]),
     query.trim().length >= 3 ? quiet(searchNew(`stores:"${query}"`)) : Promise.resolve([]),
+    ...brandJobs,
   ]);
-  let results = main || [];
-  if (main === null) {
+  // Produits d'une marque détectée : en premier (c'est ce que la personne cherche quand elle tape une marque)
+  let brandProducts = [];
+  const bseen = new Set();
+  brandLists.forEach(list => (list || []).forEach(pr => { const k = pr.name + "|" + pr.brand; if (!bseen.has(k)) { bseen.add(k); brandProducts.push(pr); } }));
+  let results = [...brandProducts, ...(main || [])];
+  if (main === null && !brandProducts.length) {
     state.offDebug.newApiError = "indisponible ou lent";
     state.offDebug.legacyUsed = true;
     try { results = await searchLegacy(query); } catch (e) { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; results = []; state.offDebug.legacyError = e.message || String(e); }
@@ -1295,8 +1347,10 @@ async function fetchOpenFoodFactsResults(query, signal) {
     const simplified = stripStoreNames(query);
     if (simplified && simplified !== query) { try { results = await searchNew(simplified); } catch (e) { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; } }
   }
-  const seen = new Set(results.map(r => r.name));
-  [...(byBrand || []), ...(byStore || [])].forEach(p => { if (!seen.has(p.name)) { seen.add(p.name); results.push(p); } });
+  const seen = new Set(); const dedup = [];
+  [...results, ...(byBrand || []), ...(byStore || [])].forEach(p => { const k = p.name + "|" + p.brand; if (!seen.has(k)) { seen.add(k); dedup.push(p); } });
+  results = dedup.slice(0, 120);
+  if (results.length === 0) { try { results = await searchLegacy(query); } catch (e) { if (e && e.name === "AbortError" && signal && signal.aborted) throw e; } }
   if (main !== null || results.length) {
     offCache.set(key, results);
     if (offCache.size > 60) offCache.delete(offCache.keys().next().value);
@@ -1334,8 +1388,8 @@ function updateLiveFoodResults() {
   const cacheKey = normalizeSearchText(query.trim()).replace(/\s+/g, " ");
   const apply = (offResults) => {
     if (document.getElementById("foodSearchInput")?.value !== query) return;
-    const have = new Set(state.foodSearchResults.map(r => r.name));
-    state.foodSearchResults = [...state.foodSearchResults, ...offResults.filter(r => !have.has(r.name))];
+    const have = new Set(state.foodSearchResults.map(r => r.name + "|" + (r.brand || "")));
+    state.foodSearchResults = [...state.foodSearchResults, ...offResults.filter(r => !have.has(r.name + "|" + (r.brand || "")))];
     state.foodOffPending = false;
     container.innerHTML = renderFoodResultsHTML();
     container.querySelectorAll("[data-select-food]").forEach(b => b.onclick = () => {
