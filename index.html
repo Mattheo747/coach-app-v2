@@ -279,7 +279,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "68";
+const APP_VERSION = "69";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -315,6 +315,27 @@ function isoWeekKey(dateStr) {
   const firstThursday = new Date(d.getFullYear(), 0, 4);
   const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
   return `${d.getFullYear()}-W${week}`;
+}
+
+// Rend un programme "à toute épreuve" : jours sans liste d'exercices, exercices sans nom / séries / repos…
+// (ex. JSON édité à la main) ne font plus planter l'appli.
+function normalizeProgram(p) {
+  if (!Array.isArray(p) || !p.length) return DEFAULT_PROGRAM;
+  return p.filter(d => d && typeof d === "object").map((d, i) => {
+    const id = d.id || `d${i + 1}`;
+    return {
+      ...d, id, num: d.num || i + 1, day: d.day || "", name: d.name == null ? "" : String(d.name),
+      exercises: Array.isArray(d.exercises) ? d.exercises.filter(e => e && typeof e === "object").map((e, j) => ({
+        ...e, id: e.id || `${id}-e${j + 1}`, name: e.name == null || e.name === "" ? "Exercice" : String(e.name),
+        muscle: e.muscle || "", sets: e.sets || "2x8-10", rest: e.rest || "2min",
+      })) : [],
+    };
+  });
+}
+// Nom de fichier sûr pour le stockage (accents, espaces et symboles font refuser l'envoi par Supabase).
+function safeFileName(name) {
+  const s = String(name || "fichier").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^[_.]+/, "");
+  return (s || "fichier").slice(-80);
 }
 
 // Accepte les nombres saisis avec une virgule (ex: "82,5") comme avec un point.
@@ -1125,7 +1146,10 @@ function searchLocalFoods(query) {
     id: r.id, name: r.title, brand: "", kcalTotal: r.kcal, proteinTotal: r.protein,
     carbsTotal: r.carbs, fatTotal: r.fat, source: "recipe",
   }));
-  const exact = [...fromCustom, ...fromScanned, ...fromFastFood, ...fromLibrary, ...fromRecipes];
+  // Dans chaque groupe, les noms qui COMMENCENT par la recherche passent en premier ("Poulet (blanc)" avant "Sandwich poulet").
+  const starts = a => (normalizeSearchText(a.name).startsWith(q) ? 0 : 1);
+  const byStart = arr => arr.slice().sort((a, b) => starts(a) - starts(b));
+  const exact = [...byStart(fromCustom), ...byStart(fromScanned), ...byStart(fromLibrary), ...byStart(fromFastFood), ...fromRecipes];
   // Si rien ne correspond exactement, on propose les aliments dont l'orthographe se rapproche le plus.
   if (exact.length === 0) return fuzzyMatchFoods(q);
   return exact;
@@ -1772,7 +1796,7 @@ async function loadClientByCode(code) {
     const { data: clientRow, error } = await sb.from("clients").select("*").eq("access_code", code).maybeSingle();
     if (error || !clientRow) return false;
     const { data: progRow } = await sb.from("programs").select("program_json").eq("client_id", clientRow.id).maybeSingle();
-    const program = (progRow && progRow.program_json) ? progRow.program_json : DEFAULT_PROGRAM;
+    const program = normalizeProgram(progRow && progRow.program_json);
     const { data: logs } = await sb.from("session_logs").select("*").eq("client_id", clientRow.id).order("log_date", { ascending: true });
     const { data: notesRows } = await sb.from("exercise_notes").select("*").eq("client_id", clientRow.id);
     state.client = { id: clientRow.id, name: clientRow.name, access_code: clientRow.access_code };
@@ -1820,7 +1844,7 @@ async function loadClientByCode(code) {
     try {
       const snap = JSON.parse(cached);
       state.client = snap.client;
-      state.program = snap.program;
+      state.program = normalizeProgram(snap.program);
       state.sessionLogs = snap.sessionLogs || [];
       state.notes = snap.notes || {};
       state.nutritionTargets = snap.nutritionTargets || null;
@@ -2833,7 +2857,7 @@ async function loadCoachData() {
   const { data } = await sb.from("clients").select("*, programs(program_json)").order("created_at", { ascending: false });
   state.coachClients = (data || []).map(c => ({
     id: c.id, name: c.name, access_code: c.access_code,
-    program_json: c.programs ? c.programs.program_json : null,
+    program_json: c.programs && c.programs.program_json ? normalizeProgram(c.programs.program_json) : null,
   }));
   const { data: docsData } = await sb.from("documents").select("*, clients(name)").order("created_at", { ascending: false });
   state.coachDocuments = docsData || [];
@@ -3196,6 +3220,7 @@ async function attachCoachHandlers() {
     const raw = document.getElementById("programJsonEditor").value;
     let parsed;
     try { parsed = JSON.parse(raw); } catch (e) { alert("JSON invalide : " + e.message); return; }
+    if (!Array.isArray(parsed) || !parsed.length || parsed.some(d => !d || typeof d !== "object" || !Array.isArray(d.exercises))) { alert("Le programme doit être une liste de jours, chacun avec une liste « exercises »."); return; }
     const { error } = await sb.from("programs").update({ program_json: parsed, updated_at: new Date().toISOString() }).eq("client_id", clientId);
     if (error) { showToast("Erreur lors de l'enregistrement."); return; }
     const c = state.coachClients.find(c => c.id === clientId);
@@ -3264,7 +3289,7 @@ async function attachCoachHandlers() {
     if (!title || !file) { alert("Ajoute un titre et choisis un fichier PDF."); return; }
     docUploadBtn.textContent = "Envoi…";
     docUploadBtn.disabled = true;
-    const path = `${Date.now()}-${file.name}`;
+    const path = `${Date.now()}-${safeFileName(file.name)}`;
     const { error: uploadError } = await sb.storage.from("documents").upload(path, file);
     if (uploadError) { alert("Erreur d'upload : " + uploadError.message); docUploadBtn.textContent = "⬆ Envoyer le document"; docUploadBtn.disabled = false; return; }
     const { data: urlData } = sb.storage.from("documents").getPublicUrl(path);
@@ -4160,6 +4185,8 @@ async function planLogMeal(idx) {
 function renderNutrition() {
   if (state.nutritionSelectedDate === null) state.nutritionSelectedDate = todayISO();
   if (planEligible() && state.nutritionView === "plan" && !state.nutritionActiveMeal) return renderCoachPlan();
+  // Un aliment est sélectionné : sa fiche (grammes + Ajouter) occupe le haut de l'écran, rien à faire défiler.
+  if (state.selectedFood && state.nutritionActiveMeal) return `<div style="padding-top:20px;"></div>` + renderSelectedFoodCard();
   if (state.nutritionLogs === null) { loadNutritionLogsForDate(state.nutritionSelectedDate); }
 
   const t = state.nutritionTargets;
@@ -6800,7 +6827,7 @@ function attachHandlers() {
       const input = document.getElementById(inputId);
       const file = input && input.files[0];
       if (!file) return existingUrl || null;
-      const path = `${state.client.id}-${isoWeekKey(todayISO())}-${inputId}-${Date.now()}-${file.name}`;
+      const path = `${state.client.id}-${isoWeekKey(todayISO())}-${inputId}-${Date.now()}-${safeFileName(file.name)}`;
       const { error } = await sb.storage.from("checkin-photos").upload(path, file);
       if (error) { showToast(`Erreur d'upload (${inputId}) : ${error.message}`); return existingUrl || null; }
       const { data } = sb.storage.from("checkin-photos").getPublicUrl(path);
