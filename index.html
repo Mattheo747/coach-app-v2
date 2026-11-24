@@ -103,45 +103,51 @@
   .ex-card { background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 18px;
     overflow: hidden; margin-bottom: 14px; }
   /* ===== Écran séance (style CoachApp) ===== */
-  .ses { --g: var(--accent); font-family: 'Barlow', -apple-system, sans-serif; padding-top: 18px; }
+  .ses { --g: var(--accent); font-family: 'Barlow', -apple-system, sans-serif; padding-top: 14px; }
   .ses input, .ses button { font-family: 'Barlow', -apple-system, sans-serif; }
-  .ses-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
-  .ses-title { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 700; font-size: 46px; line-height: 1; letter-spacing: .2px; text-transform: uppercase; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52vw; }
+  .ses-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
+  .ses-title { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 700; font-size: 28px; line-height: 1; text-transform: uppercase; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46vw; }
   .ses-ic { background: none; border: none; color: var(--textDim); padding: 0; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
-  .ses-sub { font-size: 17px; color: var(--textDim); margin-top: 6px; font-weight: 500; }
-  .ses-live { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 2.5px; color: var(--g); }
-  .ses-live i { width: 9px; height: 9px; border-radius: 50%; background: var(--g); display: inline-block; }
-  .ses-timer { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 800; font-size: 70px; line-height: .95; color: var(--g); font-variant-numeric: tabular-nums; }
-  .ses-bar { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; margin-bottom: 22px; }
+  .ses-ic svg { width: 20px; height: 20px; }
+  .ses-sub { font-size: 12.5px; color: var(--textDim); margin-top: 4px; font-weight: 500; }
+  .ses-live { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-weight: 700; font-size: 11px; letter-spacing: 1.8px; color: var(--g); }
+  .ses-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--g); display: inline-block; }
+  .ses-timer { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 800; font-size: 44px; line-height: .95; color: var(--g); font-variant-numeric: tabular-nums; }
+  .ses-bar { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; margin-bottom: 16px; }
   .ses-bar > div { height: 100%; background: var(--g); border-radius: 99px; transition: width .25s; }
-  .ses-card { background: var(--card); border: 1px solid var(--border); border-radius: 28px; margin-bottom: 16px; overflow: hidden; }
+  .ses-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; margin-bottom: 12px; overflow: hidden; }
   .ses-card.superset-member { border: 1.5px solid var(--orange); }
-  .ses-head { width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 20px 22px 14px; display: block; }
-  .ses-head-top { display: flex; align-items: center; gap: 12px; }
-  .ses-bubble { flex: none; width: 46px; height: 46px; border-radius: 50%; background: var(--border); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--textDim); }
-  .ses-name { font-weight: 700; font-size: 22px; line-height: 1.15; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ses-count { font-size: 17px; font-weight: 600; color: var(--textDim); white-space: nowrap; }
-  .ses-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
-  .ses-chip, .ses-chip-muscle, .ses-chip-rest { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; font-size: 20px; font-weight: 500; }
+  .ses-head { width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 14px 15px 10px; display: block; }
+  .ses-head-top { display: flex; align-items: center; gap: 9px; }
+  .ses-bubble { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--border); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: var(--textDim); }
+  .ses-name { font-weight: 700; font-size: 16px; line-height: 1.15; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ses-count { font-size: 12px; font-weight: 600; color: var(--textDim); white-space: nowrap; }
+  .ses-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; align-items: center; }
+  .ses-chip, .ses-chip-muscle, .ses-chip-rest { display: inline-flex; align-items: center; gap: 4px; padding: 4px 11px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+  .ses-chip-rest svg { width: 12px; height: 12px; }
   .ses-chip { background: rgba(127,127,127,.16); color: var(--text); }
   .ses-chip-muscle { background: rgba(46,143,214,.2); color: var(--orange); font-weight: 600; }
-  .ses-chip-rest { color: var(--textDim); padding-left: 6px; }
-  .ses-body { padding: 0 22px 20px; }
-  .ses-last-date { display: inline-flex; align-items: center; gap: 8px; color: var(--g); font-size: 20px; font-weight: 500; }
-  .ses-chip-g { background: rgba(240,122,61,.16); color: var(--g); padding: 7px 16px; border-radius: 999px; font-size: 20px; font-weight: 600; }
+  .ses-chip-rest { color: var(--textDim); padding-left: 2px; }
+  .ses-body { padding: 0 15px 14px; }
+  .ses-last-date { display: inline-flex; align-items: center; gap: 5px; color: var(--g); font-size: 13px; font-weight: 500; }
+  .ses-last-date svg { width: 14px; height: 14px; }
+  .ses-chip-g { background: rgba(240,122,61,.16); color: var(--g); padding: 4px 11px; border-radius: 999px; font-size: 13px; font-weight: 600; }
   body.light .ses-chip-g { background: rgba(232,99,46,.12); }
-  .ses-table-head { display: grid; grid-template-columns: 34px 1fr 1fr 54px; gap: 12px; margin: 22px 0 8px; font-size: 17px; font-weight: 600; letter-spacing: 1.5px; color: var(--textDim); text-align: center; }
-  .ses-set-row { display: grid; grid-template-columns: 34px 1fr 1fr 54px; gap: 12px; align-items: center; margin-bottom: 12px; }
-  .ses-set-num { font-size: 22px; color: var(--textDim); text-align: center; font-weight: 500; }
-  .ses-in { width: 100%; height: 66px; border-radius: 18px; border: none; background: rgba(127,127,127,.14); color: var(--text); text-align: center; font-size: 30px; font-weight: 600; padding: 0 6px; min-width: 0; }
+  .ses-table-head { display: grid; grid-template-columns: 22px 1fr 1fr 36px; gap: 8px; margin: 14px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--textDim); text-align: center; }
+  .ses-set-row { display: grid; grid-template-columns: 22px 1fr 1fr 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .ses-set-num { font-size: 14px; color: var(--textDim); text-align: center; font-weight: 500; }
+  .ses-in { width: 100%; height: 42px; border-radius: 12px; border: none; background: rgba(127,127,127,.14); color: var(--text); text-align: center; font-size: 19px; font-weight: 600; padding: 0 4px; min-width: 0; }
   .ses-in.dim { color: var(--textDim); font-weight: 500; }
   .ses-in::placeholder { color: var(--textDim); opacity: .8; }
-  .ses-ok { width: 54px; height: 54px; border-radius: 16px; border: none; background: rgba(127,127,127,.14); color: var(--accentText); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .ses-ok { width: 36px; height: 36px; border-radius: 10px; border: none; background: rgba(127,127,127,.14); color: var(--accentText); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .ses-ok svg { width: 19px; height: 19px; }
   .ses-ok.on { background: var(--g); }
-  .ses-note { display: flex; align-items: center; gap: 14px; border-top: 1px solid var(--border); margin-top: 16px; padding-top: 18px; }
+  .ses-note { display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 12px; }
   .ses-note-ic { color: var(--gold); display: inline-flex; flex: none; }
-  .ses-note-in { flex: 1; min-width: 0; border: none !important; background: none !important; padding: 0 !important; font-size: 20px; color: var(--text); }
+  .ses-note-ic svg { width: 18px; height: 18px; }
+  .ses-note-in { flex: 1; min-width: 0; border: none !important; background: none !important; padding: 0 !important; font-size: 14px; color: var(--text); }
   .ses-note-in::placeholder { color: var(--textDim); }
+  .ses .validate-btn { margin-top: 14px; padding: 14px; font-size: 15px; }
   .ex-card.superset-member { border: 1.5px solid var(--orange); }
   .ex-head { width: 100%; text-align: left; background: none; border: none; padding: 16px 18px;
     display: flex; justify-content: space-between; align-items: flex-start; }
@@ -317,7 +323,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "71";
+const APP_VERSION = "72";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
