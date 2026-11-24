@@ -13,7 +13,7 @@
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -102,6 +102,46 @@
     align-items: center; gap: 6px; font-size: 14px; padding: 0; }
   .ex-card { background: var(--card); border: 1px solid transparent; box-shadow: var(--shadow-card); border-radius: 18px;
     overflow: hidden; margin-bottom: 14px; }
+  /* ===== Écran séance (style CoachApp) ===== */
+  .ses { --g: var(--accent); font-family: 'Barlow', -apple-system, sans-serif; padding-top: 18px; }
+  .ses input, .ses button { font-family: 'Barlow', -apple-system, sans-serif; }
+  .ses-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
+  .ses-title { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 700; font-size: 46px; line-height: 1; letter-spacing: .2px; text-transform: uppercase; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52vw; }
+  .ses-ic { background: none; border: none; color: var(--textDim); padding: 0; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+  .ses-sub { font-size: 17px; color: var(--textDim); margin-top: 6px; font-weight: 500; }
+  .ses-live { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 2.5px; color: var(--g); }
+  .ses-live i { width: 9px; height: 9px; border-radius: 50%; background: var(--g); display: inline-block; }
+  .ses-timer { font-family: 'Barlow Condensed', 'Barlow', sans-serif; font-weight: 800; font-size: 70px; line-height: .95; color: var(--g); font-variant-numeric: tabular-nums; }
+  .ses-bar { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; margin-bottom: 22px; }
+  .ses-bar > div { height: 100%; background: var(--g); border-radius: 99px; transition: width .25s; }
+  .ses-card { background: var(--card); border: 1px solid var(--border); border-radius: 28px; margin-bottom: 16px; overflow: hidden; }
+  .ses-card.superset-member { border: 1.5px solid var(--orange); }
+  .ses-head { width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 20px 22px 14px; display: block; }
+  .ses-head-top { display: flex; align-items: center; gap: 12px; }
+  .ses-bubble { flex: none; width: 46px; height: 46px; border-radius: 50%; background: var(--border); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; color: var(--textDim); }
+  .ses-name { font-weight: 700; font-size: 22px; line-height: 1.15; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ses-count { font-size: 17px; font-weight: 600; color: var(--textDim); white-space: nowrap; }
+  .ses-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+  .ses-chip, .ses-chip-muscle, .ses-chip-rest { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; font-size: 20px; font-weight: 500; }
+  .ses-chip { background: rgba(127,127,127,.16); color: var(--text); }
+  .ses-chip-muscle { background: rgba(46,143,214,.2); color: var(--orange); font-weight: 600; }
+  .ses-chip-rest { color: var(--textDim); padding-left: 6px; }
+  .ses-body { padding: 0 22px 20px; }
+  .ses-last-date { display: inline-flex; align-items: center; gap: 8px; color: var(--g); font-size: 20px; font-weight: 500; }
+  .ses-chip-g { background: rgba(240,122,61,.16); color: var(--g); padding: 7px 16px; border-radius: 999px; font-size: 20px; font-weight: 600; }
+  body.light .ses-chip-g { background: rgba(232,99,46,.12); }
+  .ses-table-head { display: grid; grid-template-columns: 34px 1fr 1fr 54px; gap: 12px; margin: 22px 0 8px; font-size: 17px; font-weight: 600; letter-spacing: 1.5px; color: var(--textDim); text-align: center; }
+  .ses-set-row { display: grid; grid-template-columns: 34px 1fr 1fr 54px; gap: 12px; align-items: center; margin-bottom: 12px; }
+  .ses-set-num { font-size: 22px; color: var(--textDim); text-align: center; font-weight: 500; }
+  .ses-in { width: 100%; height: 66px; border-radius: 18px; border: none; background: rgba(127,127,127,.14); color: var(--text); text-align: center; font-size: 30px; font-weight: 600; padding: 0 6px; min-width: 0; }
+  .ses-in.dim { color: var(--textDim); font-weight: 500; }
+  .ses-in::placeholder { color: var(--textDim); opacity: .8; }
+  .ses-ok { width: 54px; height: 54px; border-radius: 16px; border: none; background: rgba(127,127,127,.14); color: var(--accentText); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .ses-ok.on { background: var(--g); }
+  .ses-note { display: flex; align-items: center; gap: 14px; border-top: 1px solid var(--border); margin-top: 16px; padding-top: 18px; }
+  .ses-note-ic { color: var(--gold); display: inline-flex; flex: none; }
+  .ses-note-in { flex: 1; min-width: 0; border: none !important; background: none !important; padding: 0 !important; font-size: 20px; color: var(--text); }
+  .ses-note-in::placeholder { color: var(--textDim); }
   .ex-card.superset-member { border: 1.5px solid var(--orange); }
   .ex-head { width: 100%; text-align: left; background: none; border: none; padding: 16px 18px;
     display: flex; justify-content: space-between; align-items: flex-start; }
@@ -277,7 +317,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "70";
+const APP_VERSION = "71";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1609,7 +1649,7 @@ let state = {
   sessionLogs: [], // { id, dayId, date, entries }
   notes: {},
   tab: "accueil",
-  openDayId: null,
+  openDayId: null, sessionStartedAt: null, sesHelp: false,
   recapLogId: null,
   recapRpe: null,
   recapComment: "",
@@ -3612,6 +3652,28 @@ function renderHome() {
 }
 
 /* ---------------- Exercise card ---------------- */
+function isSetDone(r) {
+  if (!r) return false;
+  if (r.done === true) return true;
+  if (r.done === false) return false;
+  return r.kg !== "" && r.kg !== undefined && r.kg !== null;
+}
+function groupTargetRows(rows) {
+  const out = [];
+  rows.forEach(r => { const l = out[out.length - 1]; if (l && l.r === r) l.n++; else out.push({ r, n: 1 }); });
+  return out;
+}
+const SES_ICON = {
+  video: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><rect x="2" y="6" width="14" height="12" rx="3"/><path d="m16 10 6-3v10l-6-3"/></svg>`,
+  up: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><path d="m6 15 6-6 6 6"/></svg>`,
+  down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><path d="m6 9 6 6 6-6"/></svg>`,
+  trend: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg>`,
+  timer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>`,
+  note: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="26" height="26"><path d="m5 12 5 5 9-10"/></svg>`,
+  help: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="34" height="34"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.2M12 17.5h.01"/></svg>`,
+  close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="30" height="30"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
+};
 function renderExerciseCard(exo, day, opts) {
   opts = opts || {};
   const rows = parseTargetSets(exo.sets);
@@ -3620,83 +3682,97 @@ function renderExerciseCard(exo, day, opts) {
   const suggestion = buildSuggestion(last, rows);
   const isOpen = state.openEx[exo.id] !== false;
   const currentRows = state.sessionInputs[exo.id] || rows.map(r => ({ reps: r, kg: "" }));
-  const doneCount = currentRows.filter(r => r.kg !== "" && r.kg !== undefined).length;
+  const doneCount = currentRows.filter(isSetDone).length;
+  const rest = String(exo.rest || "").replace(/^\s*⏱\s*/, "").trim();
 
   let inner = "";
   if (isOpen) {
-    inner += `<div class="row"><span style="color:var(--textDim);font-size:13px;">Cible</span>
-      ${rows.map(r => `<span class="pill">${esc(r)}</span>`).join("")}
-      <span style="color:var(--textDim);font-size:13px;margin-left:4px;">⏱ ${esc(exo.rest)}</span>
-    </div>`;
-
     if (last) {
-      inner += `<div style="margin-bottom:12px;">
-        <div class="last-perf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><polyline points="3 17 9 11 13 15 21 6"/><polyline points="15 6 21 6 21 12"/></svg> Semaine dernière · ${formatDateFR(last.date)}</div>
-        <div class="row" style="margin-bottom:${suggestion ? "10px" : "0"};">
-          ${last.sets.map(s => `<span class="chip-lastweek">${esc(s.reps)} × ${esc(s.kg)}kg</span>`).join("")}
-        </div>
-        ${suggestion ? `<div class="objective"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg> ${esc(suggestion)}</div>` : ""}
-      </div>`;
+      inner += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px;">
+        <span class="ses-last-date">${SES_ICON.trend}<span>${esc(last.date)}</span></span>
+        ${last.sets.map(s => `<span class="ses-chip-g">${esc(s.kg)} kg × ${esc(s.reps)}</span>`).join("")}
+      </div>
+      ${suggestion ? `<div class="objective" style="margin:8px 0 4px;">🎯 ${esc(suggestion)}</div>` : ""}`;
     } else {
-      inner += `<div style="font-size:13px;color:var(--textDim);margin-bottom:12px;font-style:italic;">Première fois sur cet exercice — enregistre tes charges pour suivre ta progression.</div>`;
+      inner += `<div style="font-size:14px;color:var(--textDim);font-style:italic;">Première fois sur cet exercice — enregistre tes charges pour suivre ta progression.</div>`;
     }
-
-    inner += `<div class="set-row" style="margin-bottom:4px;">
-      <div style="font-size:12px;color:var(--textDim);">Série</div>
-      <div style="font-size:12px;color:var(--textDim);">Reps</div>
-      <div style="font-size:12px;color:var(--textDim);">kg</div>
-    </div>`;
+    inner += `<div class="ses-table-head"><div>#</div><div>CHARGE</div><div>REPS</div><div></div></div>`;
     currentRows.forEach((row, i) => {
-      inner += `<div class="set-row">
-        <div class="set-num">${i + 1}</div>
-        <input data-set-field="reps" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.reps)}" />
-        <input data-set-field="kg" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.kg)}" placeholder="kg" />
+      const done = isSetDone(row);
+      const lastKg = last && last.sets[Math.min(i, last.sets.length - 1)] ? last.sets[Math.min(i, last.sets.length - 1)].kg : "";
+      const repsDim = String(row.reps) === String(rows[i]);
+      inner += `<div class="ses-set-row">
+        <div class="ses-set-num">${i + 1}</div>
+        <input class="ses-in" inputmode="decimal" data-set-field="kg" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.kg)}" placeholder="${esc(lastKg !== "" ? lastKg : "kg")}" />
+        <input class="ses-in ${repsDim ? "dim" : ""}" data-set-field="reps" data-ex-id="${exo.id}" data-idx="${i}" value="${esc(row.reps)}" />
+        <button class="ses-ok ${done ? "on" : ""}" data-set-done="1" data-ex-id="${exo.id}" data-idx="${i}" aria-label="Valider la série ${i + 1}">${done ? SES_ICON.check : ""}</button>
       </div>`;
     });
-
-    inner += `<input class="note-input" data-note-ex="${exo.id}" value="${esc(state.notes[exo.id] || "")}" placeholder="Ajouter ma note perso…" />`;
+    inner += `<label class="ses-note"><span class="ses-note-ic">${SES_ICON.note}</span><input class="ses-note-in" data-note-ex="${exo.id}" value="${esc(state.notes[exo.id] || "")}" placeholder="Ajouter ma note perso…" /></label>`;
   }
 
-  const cardClass = opts.superset ? "ex-card superset-member" : "ex-card";
+  const cardClass = opts.superset ? "ses-card superset-member" : "ses-card";
+  const vid = exo.video ? `<a href="${esc(exo.video)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="ses-ic" aria-label="Voir la vidéo">${SES_ICON.video}</a>` : "";
   return `<div class="${cardClass}">
-    <button class="ex-head" data-toggle-ex="${exo.id}">
-      <div style="flex:1;padding-right:10px;">
-        <div class="ex-name">${esc(exo.name)} ${exo.video ? `<a href="${esc(exo.video)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg></a>` : ""}</div>
-        <span class="pill">${esc(exo.muscle)}</span>
+    <button class="ses-head" data-toggle-ex="${exo.id}">
+      <div class="ses-head-top">
+        <span class="ses-bubble" data-ex-bubble="${exo.id}">${doneCount}</span>
+        <span class="ses-name">${esc(exo.name)}</span>
+        <span class="ses-count" data-ex-count="${exo.id}">${doneCount}/${rows.length}</span>
+        <span style="flex:1;"></span>
+        ${vid}
+        <span class="ses-ic">${isOpen ? SES_ICON.up : SES_ICON.down}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;color:var(--textDim);font-family:var(--mono);">${doneCount}/${rows.length}</span>
-        <span style="color:var(--textDim);">${isOpen ? "▾" : "▸"}</span>
+      <div class="ses-chips">
+        ${exo.muscle ? `<span class="ses-chip-muscle">${esc(exo.muscle)}</span>` : ""}
+        ${groupTargetRows(rows).map(g => `<span class="ses-chip">${g.n} × ${esc(g.r)}</span>`).join("")}
+        ${rest ? `<span class="ses-chip-rest">${SES_ICON.timer}${esc(rest)}</span>` : ""}
       </div>
     </button>
-    ${isOpen ? `<div class="ex-body">${inner}</div>` : ""}
+    ${isOpen ? `<div class="ses-body">${inner}</div>` : ""}
   </div>`;
 }
 
 /* ---------------- Session ---------------- */
+function fmtSesTimer(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return (h > 0 ? String(h).padStart(2, "0") + ":" : "") + String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+}
 function renderSession(day) {
+  if (!state.sessionStartedAt) state.sessionStartedAt = Date.now();
   const groups = groupExercises(day.exercises);
   let totalSets = 0, filledSets = 0;
   day.exercises.forEach(e => {
     const rows = parseTargetSets(e.sets);
     totalSets += rows.length;
     const cur = state.sessionInputs[e.id] || [];
-    filledSets += cur.filter(r => r.kg !== "" && r.kg !== undefined).length;
+    filledSets += cur.filter(isSetDone).length;
   });
+  const pct = totalSets ? Math.round(filledSets / totalSets * 100) : 0;
 
-  let html = `
-    <div style="margin:20px 0 4px;">
-      <button class="back-btn" data-back="1">← Retour</button>
+  let html = `<div class="ses">
+    <div class="ses-top">
+      <div style="min-width:0;">
+        <div style="display:flex;align-items:center;gap:14px;"><span class="ses-title">${esc(dayLabel(day, true))}</span>
+          <button class="ses-ic" data-ses-help="1" aria-label="Aide">${SES_ICON.help}</button>
+          <button class="ses-ic" data-ses-close="1" aria-label="Quitter">${SES_ICON.close}</button></div>
+        <div class="ses-sub"><span id="sesCount">${filledSets}/${totalSets} séries validées</span> · ${day.exercises.length} exercices</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="ses-live"><i></i>SÉANCE</div>
+        <div class="ses-timer" id="sesTimer">${fmtSesTimer(Date.now() - state.sessionStartedAt)}</div>
+      </div>
     </div>
-    <div class="h1" style="font-size:26px;margin-top:10px;color:var(--accent);">${esc(dayLabel(day, true))}</div>
-    <div class="subtitle">${day.exercises.length} exercices · ${formatDateFR(todayISO())}</div>
+    <div class="ses-bar"><div id="sesBar" style="width:${pct}%;"></div></div>
+    ${state.sesHelp ? `<div class="info-box" style="margin-bottom:14px;">Valide chaque série avec le carré à droite. Les chiffres en gris sont tes repères (dernière séance et objectif). Ta saisie est sauvegardée automatiquement si tu quittes.</div>` : ""}
   `;
 
   groups.forEach(group => {
     if (group.type === "single") {
       html += renderExerciseCard(group.items[0], day);
     } else {
-      html += `<div class="superset-wrap"><div class="superset-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg> Superset — enchaîne sans repos entre les deux</div>`;
+      html += `<div class="superset-wrap"><div class="superset-label">🔥 Superset — enchaîne sans repos entre les deux</div>`;
       group.items.forEach((exo, idx) => {
         html += renderExerciseCard(exo, day, { superset: true });
         if (idx < group.items.length - 1) {
@@ -3707,9 +3783,9 @@ function renderSession(day) {
     }
   });
 
-  html += `<button class="validate-btn" data-validate="${day.id}" ${filledSets === 0 ? "disabled" : ""}>
-    ✓ Valider la séance (${filledSets}/${totalSets} séries)
-  </button>`;
+  html += `<button class="validate-btn" id="sesValidate" data-validate="${day.id}" ${filledSets === 0 ? "disabled" : ""}>
+    ✓ Terminer la séance (${filledSets}/${totalSets} séries)
+  </button></div>`;
 
   return html;
 }
@@ -4388,7 +4464,7 @@ function saveSessionDraftToStorage() {
   try {
     if (state.openDayId && state.sessionInputs && Object.keys(state.sessionInputs).length) {
       localStorage.setItem(SESSION_DRAFT_KEY, JSON.stringify({
-        dayId: state.openDayId, inputs: state.sessionInputs, savedAt: Date.now(),
+        dayId: state.openDayId, inputs: state.sessionInputs, savedAt: Date.now(), startedAt: state.sessionStartedAt || null,
       }));
     } else {
       localStorage.removeItem(SESSION_DRAFT_KEY);
@@ -4406,6 +4482,7 @@ function loadSessionDraftFromStorage() {
     if (d && d.dayId && d.savedAt && Date.now() - d.savedAt < 24 * 3600 * 1000) {
       state.openDayId = d.dayId;
       state.sessionInputs = d.inputs || {};
+      state.sessionStartedAt = d.startedAt || null;
     } else {
       localStorage.removeItem(SESSION_DRAFT_KEY);
     }
@@ -5652,11 +5729,12 @@ function attachHandlers() {
           const d = JSON.parse(raw);
           if (d && d.dayId === targetDayId && d.savedAt && Date.now() - d.savedAt < 24 * 3600 * 1000) {
             state.sessionInputs = d.inputs || {};
+            state.sessionStartedAt = d.startedAt || Date.now();
             restored = true;
           }
         }
       } catch (e) {}
-      if (!restored) state.sessionInputs = {};
+      if (!restored) { state.sessionInputs = {}; state.sessionStartedAt = Date.now(); }
       state.openEx = {};
     }
     state.openDayId = targetDayId;
@@ -5679,11 +5757,45 @@ function attachHandlers() {
       const exo = day.exercises.find(e => e.id === exId);
       const rows = parseTargetSets(exo.sets);
       if (!state.sessionInputs[exId]) state.sessionInputs[exId] = rows.map(r => ({ reps: r, kg: "" }));
-      state.sessionInputs[exId][idx][field] = inp.value;
+      const row = state.sessionInputs[exId][idx];
+      row[field] = inp.value;
+      if (field === "kg") {
+        row.done = inp.value !== "";
+        const ok = inp.closest(".ses-set-row").querySelector(".ses-ok");
+        if (ok) { ok.classList.toggle("on", row.done); ok.innerHTML = row.done ? SES_ICON.check : ""; }
+      } else {
+        inp.classList.toggle("dim", String(inp.value) === String(rows[idx]));
+      }
       updateCountersOnly();
       saveSessionDraftToStorage();
     };
   });
+
+  app.querySelectorAll("[data-set-done]").forEach(btn => btn.onclick = () => {
+    const exId = btn.dataset.exId, idx = parseInt(btn.dataset.idx, 10);
+    const day = state.program.find(d => d.id === state.openDayId); if (!day) return;
+    const exo = day.exercises.find(e => e.id === exId); if (!exo) return;
+    const rows = parseTargetSets(exo.sets);
+    if (!state.sessionInputs[exId]) state.sessionInputs[exId] = rows.map(r => ({ reps: r, kg: "" }));
+    const row = state.sessionInputs[exId][idx];
+    if (isSetDone(row)) { row.done = false; row.kg = ""; }
+    else {
+      if (row.kg === "" || row.kg === undefined) {
+        const hist = getExerciseHistory(exId); const last = hist[hist.length - 1];
+        const ref = last && last.sets[Math.min(idx, last.sets.length - 1)];
+        if (ref && ref.kg !== "" && ref.kg !== undefined) row.kg = String(ref.kg);
+        else { showToast("Entre d'abord ta charge."); const inp = btn.closest(".ses-set-row").querySelector('[data-set-field="kg"]'); if (inp) inp.focus(); return; }
+      }
+      row.done = true;
+    }
+    saveSessionDraftToStorage();
+    render();
+  });
+
+  const sesClose = app.querySelector("[data-ses-close]");
+  if (sesClose) sesClose.onclick = () => { state.openDayId = null; render(); };
+  const sesHelp = app.querySelector("[data-ses-help]");
+  if (sesHelp) sesHelp.onclick = () => { state.sesHelp = !state.sesHelp; render(); };
 
   app.querySelectorAll("[data-note-ex]").forEach(inp => {
     inp.onblur = async () => {
@@ -5703,7 +5815,7 @@ function attachHandlers() {
     const prList = [];
     day.exercises.forEach(e => {
       const rows = state.sessionInputs[e.id] || [];
-      const filled = rows.filter(r => r.kg !== "" && r.kg !== undefined && r.kg !== null)
+      const filled = rows.filter(r => isSetDone(r) && r.kg !== "" && r.kg !== undefined && r.kg !== null)
         .map(r => ({ reps: r.reps, kg: r.kg }));
       if (filled.length) {
         entries[e.id] = filled;
@@ -5721,6 +5833,7 @@ function attachHandlers() {
     state.sessionLogs.push({ id: data.id, dayId, date: dateStr, entries });
     state.openDayId = null;
     state.sessionInputs = {};
+    state.sessionStartedAt = null;
     clearSessionDraftFromStorage();
     state.recapLogId = data.id;
     state.recapRpe = null;
@@ -6327,21 +6440,27 @@ function updateCountersOnly() {
     const rows = parseTargetSets(e.sets);
     totalSets += rows.length;
     const cur = state.sessionInputs[e.id] || [];
-    filledSets += cur.filter(r => r.kg !== "" && r.kg !== undefined).length;
+    filledSets += cur.filter(isSetDone).length;
   });
   const validateBtn = app.querySelector("[data-validate]");
   if (validateBtn) {
-    validateBtn.textContent = `✓ Valider la séance (${filledSets}/${totalSets} séries)`;
+    validateBtn.textContent = `✓ Terminer la séance (${filledSets}/${totalSets} séries)`;
     validateBtn.disabled = filledSets === 0;
   }
+  const cnt = document.getElementById("sesCount"); if (cnt) cnt.textContent = `${filledSets}/${totalSets} séries validées`;
+  const bar = document.getElementById("sesBar"); if (bar) bar.style.width = (totalSets ? Math.round(filledSets / totalSets * 100) : 0) + "%";
   day.exercises.forEach(e => {
     const rows = parseTargetSets(e.sets);
     const cur = state.sessionInputs[e.id] || rows.map(r => ({ reps: r, kg: "" }));
-    const doneCount = cur.filter(r => r.kg !== "" && r.kg !== undefined).length;
-    const btn = app.querySelector(`[data-toggle-ex="${e.id}"] span[style*="font-family:var(--mono)"]`);
-    if (btn) btn.textContent = `${doneCount}/${rows.length}`;
+    const doneCount = cur.filter(isSetDone).length;
+    const c = app.querySelector(`[data-ex-count="${e.id}"]`); if (c) c.textContent = `${doneCount}/${rows.length}`;
+    const bb = app.querySelector(`[data-ex-bubble="${e.id}"]`); if (bb) bb.textContent = doneCount;
   });
 }
+setInterval(() => {
+  const el = document.getElementById("sesTimer");
+  if (el && state.sessionStartedAt) el.textContent = fmtSesTimer(Date.now() - state.sessionStartedAt);
+}, 1000);
 
 /* ---------------- Init ---------------- */
 document.querySelectorAll(".nav-btn").forEach(b => b.onclick = () => {
