@@ -17,8 +17,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: #0E1A24; --card: #1A2E3F; --border: #30506A;
@@ -279,7 +277,7 @@ const COACH_PASSWORD = "mattheo2026"; // change-le en me le demandant si besoin
 const COACH_AUTH_KEY = "mattheophysic_coach_authed";
 // À incrémenter à chaque mise à jour envoyée sur GitHub : ça déclenche le message
 // "Appli mise à jour" pour les gens qui rouvrent l'appli après un changement.
-const APP_VERSION = "69";
+const APP_VERSION = "70";
 const APP_VERSION_KEY = "mattheophysic_app_version";
 
 // IMPORTANT : on utilise la date LOCALE du téléphone, pas toISOString() (qui convertit
@@ -1643,7 +1641,7 @@ let state = {
   waterTarget: null,
   coachMessage: null,
   nutritionTargets: null,
-  nutritionView: "track", planDay: null, planShowShop: false, planCache: null, planPick: null,
+  nutritionView: "track", planType: null, planLogged: {}, planCache: null, planPick: null,
   foodLogsToday: null,
   foodSearchResults: [],
   foodSearchQuery: "",
@@ -1657,10 +1655,6 @@ let state = {
   showDaytypeEdit: false,
   metaCalcDraft: null,
   metaCalcResult: null,
-  courseView: "home", // home | tracking | summary | history
-  courseRuns: null,
-  activeRun: null, // { type, status, startedAt, pausedMs, pauseStartedAt, distanceKm, gpsPath, elevationGain }
-  runnerWeight: null,
   offDebug: null,
   expandedMeals: {},
   nutritionLogs: null,
@@ -1872,7 +1866,6 @@ async function loadClientByCode(code) {
 async function boot() {
   const previousVersion = localStorage.getItem(APP_VERSION_KEY);
   localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
-  loadActiveRunFromStorage();
   loadSessionDraftFromStorage();
 
   const saved = localStorage.getItem(ACCESS_KEY);
@@ -1958,24 +1951,6 @@ function render() {
   } else if (state.tab === "videofeedback") {
     if (state.myVideoSubmissions === null) loadMyVideoSubmissions();
     app.innerHTML = renderVideoFeedback();
-  } else if (state.tab === "course") {
-    app.innerHTML = state.courseView === "tracking" ? renderCourseTracking()
-      : state.courseView === "summary" ? renderCourseSummary()
-      : state.courseView === "history" ? renderCourseHistory()
-      : renderCourseHome();
-    if (state.courseView === "home" && state.courseRuns === null) loadCourseRuns();
-    if (state.courseView === "summary" && state.courseRuns === null) loadCourseRuns();
-    if (state.courseView === "tracking") {
-      nav.style.display = "none";
-      if (state.activeRun && state.activeRun.status === "running") {
-        if (state.activeRun.type === "exterieur") startGpsWatch();
-        acquireWakeLock();
-        startCourseTick();
-      }
-      if (state.activeRun && state.activeRun.type === "exterieur") setupCourseMap(false);
-    } else if (state.courseView === "summary" && state.activeRun && state.activeRun.type === "exterieur") {
-      setupCourseMap(true);
-    }
   } else if (state.tab === "documents") {
     app.innerHTML = renderDocuments();
     if (state.documents === null) loadDocuments();
@@ -3940,7 +3915,6 @@ const PLAN_MEALS = [
   { key: "encas", slot: "encas", label: "Encas / dessert (4h)", share: 0.12 },
   { key: "soir", slot: "repas", label: "Soir", share: 0.28 },
 ];
-const PLAN_DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
 function planNormName(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 function planEligible() {
@@ -4035,151 +4009,132 @@ function planFinishDay(dishes, T) {
   planCalibrate(meals, T);
   return { meals, total: planSum(meals) };
 }
-function planBuildWeek(targets, dayTypes, seed, lock) {
-  const rnd = planRng(seed);
-  const used = {}, byId = {};
-  PLAN_DISHES.forEach(d => byId[d.id] = d);
-  const days = [];
-  PLAN_DAYS.forEach(dayName => {
-    const type = dayTypes[dayName] || "on";
-    const T = planTargetsFor(targets, type);
-    let dishes = lock && lock[dayName] && lock[dayName].length === 4 && lock[dayName].every(id => byId[id]) ? lock[dayName].map(id => byId[id]) : planChooseDay(T, used, rnd);
-    dishes.forEach(d => { used[d.id] = (used[d.id] || 0) + 1; });
-    const fin = planFinishDay(dishes, T);
-    days.push({ day: dayName, type, target: T, ...fin });
-  });
-  return days;
+/* ---------- Journée type (Matthéo & Rolandia) : une journée ON et une journée OFF déjà prêtes, repas modifiables ---------- */
+function planJtKey() { return `mattheophysic_jt_${state.client.id}`; }
+function planJtGet() {
+  try { const p = JSON.parse(localStorage.getItem(planJtKey()) || "null"); if (p && typeof p === "object") return { on: p.on || null, off: p.off || null, v: { on: (p.v && p.v.on) || 0, off: (p.v && p.v.off) || 0 } }; } catch (e) {}
+  return { on: null, off: null, v: { on: 0, off: 0 } };
 }
-function planWeekDates() {
-  const now = new Date();
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7), 12);
-  const out = {};
-  PLAN_DAYS.forEach((d, i) => { const x = new Date(monday); x.setDate(monday.getDate() + i); out[d] = x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); });
-  return out;
+function planJtSave(p) { try { localStorage.setItem(planJtKey(), JSON.stringify(p)); } catch (e) {} state.planCache = null; }
+function planTodayType() {
+  const dn = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"][new Date().getDay()];
+  const pd = (state.program || []).find(x => x.day === dn);
+  return pd && pd.isRest ? "off" : "on";
 }
-function planPrefsKey() { return `mattheophysic_plan_prefs_${state.client.id}_${isoWeekKey(todayISO())}`; }
-function planGetPrefs() {
-  try { const p = JSON.parse(localStorage.getItem(planPrefsKey()) || "null"); if (p && typeof p === "object") return { v: p.v || 0, lock: p.lock || {} }; } catch (e) {}
-  return { v: 0, lock: {} };
-}
-function planSavePrefs(p) { try { localStorage.setItem(planPrefsKey(), JSON.stringify(p)); } catch (e) {} state.planCache = null; }
-function planDayTypes() {
-  const dayTypes = {};
-  PLAN_DAYS.forEach(d => { const pd = (state.program || []).find(x => x.day === d); dayTypes[d] = pd ? (pd.isRest ? "off" : "on") : "on"; });
-  return dayTypes;
-}
-function getCoachPlan() {
+function planCurType() { return state.planType === "on" || state.planType === "off" ? state.planType : planTodayType(); }
+function getCoachPlan(type) {
   const t = state.nutritionTargets;
   if (!t || !t.kcal_on) return null;
-  const prefs = planGetPrefs();
-  const dayTypes = planDayTypes();
-  const key = JSON.stringify([state.client.id, isoWeekKey(todayISO()), prefs, t, dayTypes]);
-  if (state.planCache && state.planCache.key === key) return state.planCache.days;
-  const days = planBuildWeek(t, dayTypes, `${state.client.id}|${isoWeekKey(todayISO())}|${prefs.v}`, prefs.lock);
-  state.planCache = { key, days };
-  return days;
-}
-// Fige la semaine affichée (les autres jours ne bougent plus quand on modifie un jour)
-function planLockWeek() {
-  const prefs = planGetPrefs();
-  const days = getCoachPlan();
-  PLAN_DAYS.forEach(d => { if (!prefs.lock[d]) prefs.lock[d] = days.find(x => x.day === d).meals.map(m => m.dish.id); });
-  return prefs;
-}
-function planSetDish(dayName, idx, dishId) {
-  const prefs = planLockWeek();
-  prefs.lock[dayName] = prefs.lock[dayName].slice(); prefs.lock[dayName][idx] = dishId;
-  planSavePrefs(prefs);
-}
-function planRegenDay(dayName) {
-  const prefs = planLockWeek();
-  const t = state.nutritionTargets, type = planDayTypes()[dayName];
+  const prefs = planJtGet();
+  const key = JSON.stringify([state.client.id, type, prefs, t]);
+  if (state.planCache && state.planCache.key === key) return state.planCache.day;
   const T = planTargetsFor(t, type);
-  const used = {};
-  PLAN_DAYS.forEach(d => { if (d !== dayName) prefs.lock[d].forEach(id => { used[id] = (used[id] || 0) + 1; }); });
-  prefs.rg = (prefs.rg || 0) + 1;
-  const dishes = planChooseDay(T, used, planRng(`${state.client.id}|${dayName}|${Date.now()}`));
-  prefs.lock[dayName] = dishes.map(d => d.id);
-  planSavePrefs(prefs);
+  const byId = {}; PLAN_DISHES.forEach(d => byId[d.id] = d);
+  const saved = prefs[type];
+  const dishes = saved && saved.length === 4 && saved.every(id => byId[id]) ? saved.map(id => byId[id]) : planChooseDay(T, {}, planRng(`${state.client.id}|${type}|${prefs.v[type]}`));
+  const day = { type, target: T, ...planFinishDay(dishes, T) };
+  state.planCache = { key, day };
+  return day;
+}
+function planSetDish(type, idx, dishId) {
+  const day = getCoachPlan(type); if (!day) return;
+  const ids = day.meals.map(m => m.dish.id); ids[idx] = dishId;
+  const prefs = planJtGet(); prefs[type] = ids; planJtSave(prefs);
+}
+function planNewDay(type) {
+  const prefs = planJtGet(); prefs.v[type] = (prefs.v[type] || 0) + 1; prefs[type] = null; planJtSave(prefs);
 }
 function planNutriToggle() {
   const v = state.nutritionView === "plan" ? "plan" : "track";
   const b = (id, label) => `<button data-nutri-view="${id}" style="flex:1;border-radius:999px;padding:9px;font-size:13px;font-weight:700;border:1px solid ${v === id ? "var(--accent)" : "var(--border)"};background:${v === id ? "var(--accent)" : "none"};color:${v === id ? "var(--accentText)" : "var(--textDim)"};">${label}</button>`;
-  return `<div style="display:flex;gap:6px;margin-bottom:14px;">${b("track", "Suivi du jour")}${b("plan", "Plan coach")}</div>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;">${b("track", "Suivi du jour")}${b("plan", "Journée type")}</div>`;
+}
+const PLAN_COL = { p: "var(--orange)", c: "var(--accent)", f: "var(--gold)" };
+function planMacros(o, size) {
+  const s = size || 12.5;
+  return `<span style="font-size:${s}px;font-weight:800;white-space:nowrap;"><span style="color:${PLAN_COL.p};">P ${Math.round(o.p)}</span> <span style="color:${PLAN_COL.c};">G ${Math.round(o.c)}</span> <span style="color:${PLAN_COL.f};">L ${Math.round(o.f)}</span></span>`;
 }
 function planPickerHtml(day, idx) {
   const slot = PLAN_MEALS[idx].slot;
   const opts = PLAN_DISHES.filter(d => d.slots.includes(slot) && d.id !== day.meals[idx].dish.id);
   const kc = day.target.kcal * PLAN_MEALS[idx].share;
-  return `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px;"><div style="font-size:12px;color:var(--textDim);margin-bottom:6px;">Choisis un autre plat (les quantités et les kcal du jour sont recalculés) :</div>
-    ${opts.map(d => { const m = planFitMeal(d, kc); return `<button data-plan-set="${d.id}" style="width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);padding:9px 0;color:inherit;font:inherit;">
-      <div style="font-weight:700;font-size:13.5px;">${esc(d.name)}</div>
-      <div style="font-size:11.5px;color:var(--textDim);">≈ ${Math.round(m.kcal)} kcal · ${Math.round(m.p)}g prot · ${Math.round(m.c)}g gluc · ${Math.round(m.f)}g lip</div></button>`; }).join("")}</div>`;
+  return `<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:8px;"><div style="font-size:12px;color:var(--textDim);margin-bottom:4px;">Touche un plat pour le remplacer (quantités recalculées pour tomber sur tes kcal) :</div>
+    ${opts.map(d => { const m = planFitMeal(d, kc); return `<button data-plan-set="${d.id}" style="width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);padding:10px 0;color:inherit;font:inherit;display:flex;justify-content:space-between;gap:10px;align-items:center;">
+      <span style="font-weight:700;font-size:13.5px;">${esc(d.name)}</span>
+      <span style="text-align:right;"><div style="font-size:12px;font-weight:800;">${Math.round(m.kcal)} kcal</div>${planMacros(m, 11)}</span></button>`; }).join("")}</div>`;
 }
 function planIngLine(it) {
   const d = PLAN_ING[it.key];
+  const kc = Math.round(d.k * it.g / 100);
   let extra = "";
-  if (d.u && it.g >= d.u[1] * 0.6) { const n = Math.round(it.g / d.u[1] * 2) / 2; extra = ` <span style="color:var(--textDim);">(≈ ${n} ${d.u[0]}${n > 1 && d.u[0] !== "œuf" ? "s" : n > 1 ? "s" : ""})</span>`; }
-  return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:3px 0;"><span>${esc(d.n)}${it.extra ? ` <span class="pill" style="font-size:10px;padding:1px 7px;">complément</span>` : ""}${extra}</span><b style="white-space:nowrap;">${it.g} g</b></div>`;
+  if (d.u && it.g >= d.u[1] * 0.6) { const n = Math.round(it.g / d.u[1] * 2) / 2; extra = ` (≈ ${n} ${d.u[0]}${n > 1 ? "s" : ""})`; }
+  return `<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--border);">
+    <div style="min-width:0;"><div style="font-size:14px;font-weight:600;">${esc(d.n)}${it.extra ? ` <span class="pill" style="font-size:10px;padding:1px 7px;">complément</span>` : ""}</div>
+    <div style="font-size:12px;color:var(--textDim);">${it.g} g${extra} · ${kc} kcal</div></div></div>`;
 }
+function planLoggedKey(type, idx, dish) { return `${todayISO()}|${type}|${idx}|${dish.id}`; }
 function renderCoachPlan() {
   let html = `<div style="padding-top:20px;"></div>` + planNutriToggle();
-  const days = getCoachPlan();
-  if (!days) return html + `<div class="info-box">Ton coach n'a pas encore défini tes objectifs de calories et de macros. Le plan apparaîtra dès que ce sera fait.</div>`;
-  if (!PLAN_DAYS.includes(state.planDay)) { const dn = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][new Date().getDay()]; state.planDay = dn; }
-  const day = days.find(d => d.day === state.planDay) || days[0];
-  const dates = planWeekDates();
-  html += `<div class="h1" style="font-size:24px;margin:0 0 4px;">PLAN COACH</div>
-    <div class="subtitle" style="margin-bottom:12px;">Ta semaine de repas, calculée pour tes calories et macros (jours ON / OFF).</div>
-    <div class="day-tabs">${days.map(d => `<button class="day-tab ${d.day === day.day ? "active" : ""}" data-plan-day="${d.day}">${d.day.slice(0, 3)} <span style="font-size:10px;opacity:.8;">${d.type === "on" ? "ON" : "OFF"}</span></button>`).join("")}</div>`;
+  const type = planCurType();
+  const day = getCoachPlan(type);
+  if (!day) return html + `<div class="info-box">Ton coach n'a pas encore défini tes objectifs de calories et de macros. La journée type apparaîtra dès que ce sera fait.</div>`;
   const T = day.target, tot = day.total;
-  const dev = (a, b) => b ? Math.round(a - b) : 0;
-  const chip = (label, a, b, unit) => { const d = dev(a, b); const ok = b ? Math.abs(d) <= Math.max(5, b * 0.06) : true; return `<div style="flex:1;text-align:center;"><div style="font-weight:800;">${Math.round(a)}${unit} <span style="font-size:11px;font-weight:600;color:${ok ? "var(--olive)" : "var(--gold)"};">/ ${Math.round(b)}${unit}</span></div><div style="font-size:11.5px;color:var(--textDim);">${label}</div></div>`; };
-  const wkT = days.reduce((a, d) => a + d.target.kcal, 0), wkG = days.reduce((a, d) => a + d.total.kcal, 0);
-  html += `<div style="font-size:12.5px;color:var(--textDim);margin-bottom:10px;">Semaine : <b style="color:var(--text);">${Math.round(wkG)} kcal</b> pour un objectif de ${Math.round(wkT)} kcal</div>`;
+  const logged = state.planLogged || {};
+  const tb = (id, label) => `<button data-plan-type="${id}" style="flex:1;border-radius:12px;padding:10px;font-size:13.5px;font-weight:800;border:1px solid ${type === id ? "var(--accent)" : "var(--border)"};background:${type === id ? "var(--accent)" : "none"};color:${type === id ? "var(--accentText)" : "var(--textDim)"};">${label}</button>`;
+  html += `<div class="h1" style="font-size:24px;margin:0 0 4px;">JOURNÉE TYPE</div>
+    <div class="subtitle" style="margin-bottom:12px;">Une journée déjà prête, calculée pour tes calories et tes macros. Tu peux changer chaque repas.</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">${tb("on", "🏋️ Entraînement")}${tb("off", "😴 Repos")}</div>`;
+  const bar = (label, a, b, col) => { const pct = b ? Math.min(100, Math.round(a / b * 100)) : 0; return `<div style="margin-top:9px;"><div style="display:flex;justify-content:space-between;font-size:12.5px;"><b style="color:${col};">${label}</b><span><b>${Math.round(a)}</b> / ${Math.round(b)} g</span></div><div style="height:7px;border-radius:99px;background:var(--border);margin-top:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${col};border-radius:99px;"></div></div></div>`; };
   html += `<div class="chart-card" style="margin-bottom:14px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><b>${day.day} · jour ${day.type === "on" ? "ON (entraînement)" : "OFF (repos)"}</b><span style="font-size:12px;color:var(--textDim);">${dates[day.day].split("-").reverse().slice(0, 2).join("/")}</span></div>
-    <div style="display:flex;gap:6px;">${chip("kcal", tot.kcal, T.kcal, "")}${chip("Prot.", tot.p, T.p, "g")}${chip("Gluc.", tot.c, T.c, "g")}${chip("Lip.", tot.f, T.f, "g")}</div>
+    <div style="text-align:center;"><div style="font-size:30px;font-weight:900;line-height:1.1;">${Math.round(tot.kcal)} <span style="font-size:15px;color:var(--textDim);font-weight:700;">/ ${Math.round(T.kcal)} kcal</span></div>
+    <div style="font-size:12.5px;color:var(--textDim);margin-top:2px;">${Math.abs(Math.round(tot.kcal - T.kcal)) <= 5 ? "Objectif atteint ✓" : (Math.round(T.kcal - tot.kcal) > 0 ? Math.round(T.kcal - tot.kcal) + " kcal restantes" : Math.round(tot.kcal - T.kcal) + " kcal au-dessus")}</div></div>
+    ${bar("Protéines", tot.p, T.p, PLAN_COL.p)}${bar("Glucides", tot.c, T.c, PLAN_COL.c)}${bar("Lipides", tot.f, T.f, PLAN_COL.f)}
   </div>`;
   day.meals.forEach((m, idx) => {
     const meta = PLAN_MEALS[idx];
+    const done = !!logged[planLoggedKey(type, idx, m.dish)];
     html += `<div class="ex-card" style="margin-bottom:12px;"><div class="ex-body" style="padding-top:14px;">
-      <div style="font-size:11.5px;font-weight:800;color:var(--accent);letter-spacing:.5px;">${meta.label.toUpperCase()}</div>
-      <div style="font-weight:800;font-size:15px;margin:3px 0 10px;">${esc(m.dish.name)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.5px;">${meta.label.toUpperCase()}</div>
+        <div style="text-align:right;"><div style="font-weight:900;font-size:15px;">${Math.round(m.kcal)} kcal</div>${planMacros(m)}</div>
+      </div>
+      <div style="font-weight:800;font-size:16px;margin:4px 0 8px;">${esc(m.dish.name)}</div>
       ${m.items.map(planIngLine).join("")}
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;"><span class="chip-lastweek">${Math.round(m.kcal)} kcal</span><span class="chip-lastweek">${Math.round(m.p)}g prot</span><span class="chip-lastweek">${Math.round(m.c)}g gluc</span><span class="chip-lastweek">${Math.round(m.f)}g lip</span></div>
-      <div style="display:flex;gap:8px;">
-        <button class="validate-btn" style="margin-top:0;padding:11px;font-size:13px;flex:2;" data-plan-log="${idx}">+ Ajouter à mon suivi</button>
-        <button data-plan-pick="${idx}" style="flex:1;border:1px solid var(--border);background:none;color:var(--text);border-radius:14px;font-size:13px;font-weight:700;">↔ Changer</button>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="validate-btn" style="margin-top:0;padding:11px;font-size:13.5px;flex:2;${done ? "opacity:.6;" : ""}" data-plan-log="${idx}" ${done ? "disabled" : ""}>${done ? "✓ Consigné" : "+ Consigner"}</button>
+        <button data-plan-pick="${idx}" style="flex:1;border:1px solid var(--border);background:none;color:var(--text);border-radius:14px;font-size:13.5px;font-weight:700;">↔ Changer</button>
       </div>
       ${state.planPick === idx ? planPickerHtml(day, idx) : ""}
     </div></div>`;
   });
-  html += `<button class="link-btn" data-plan-regen="${day.day}" style="width:100%;margin:6px 0 4px;">🔄 Autre proposition pour ${day.day.toLowerCase()}</button>
-    <button class="link-btn" data-plan-variant="1" style="width:100%;margin:0 0 14px;">🗓 Proposer une autre semaine complète</button>`;
-  // Liste de courses
-  const agg = {};
-  days.forEach(d => d.meals.forEach(m => m.items.forEach(it => { agg[it.key] = (agg[it.key] || 0) + it.g; })));
-  html += `<button class="day-card" data-plan-shop="1" style="margin-bottom:8px;"><div class="day-left"><div><div class="day-title">🛒 Liste de courses de la semaine</div><div class="day-sub">Total des quantités à prévoir</div></div></div><span style="color:var(--textDim);">${state.planShowShop ? "▾" : "›"}</span></button>`;
-  if (state.planShowShop) {
-    html += `<div class="ex-card" style="margin-bottom:14px;"><div class="ex-body" style="padding-top:12px;">${Object.keys(agg).sort((a, b) => PLAN_ING[a].n.localeCompare(PLAN_ING[b].n)).map(k => `<div style="display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0;"><span>${esc(PLAN_ING[k].n)}</span><b>${agg[k] >= 1000 ? (agg[k] / 1000).toFixed(2).replace(".", ",") + " kg" : Math.round(agg[k] / 10) * 10 + " g"}</b></div>`).join("")}</div></div>`;
-  }
-  html += `<div style="font-size:11.5px;color:var(--textDim);line-height:1.5;margin-bottom:20px;">Poids : viandes et poissons <b>crus</b>, riz / pâtes / patate douce <b>cuits</b>. Les légumes, huiles et sauces restent fixes ; les quantités de féculents et de protéines s'adaptent à tes objectifs.</div>`;
+  const allDone = day.meals.every((m, i) => logged[planLoggedKey(type, i, m.dish)]);
+  html += `<button class="validate-btn" data-plan-logall="1" style="width:100%;margin:4px 0 10px;" ${allDone ? "disabled" : ""}>${allDone ? "✓ Journée consignée" : "Consigner toute ma journée"}</button>
+    <button class="link-btn" data-plan-newday="1" style="width:100%;margin:0 0 14px;">🔄 Proposer une autre journée type</button>
+    <div style="font-size:11.5px;color:var(--textDim);line-height:1.5;margin-bottom:20px;">P = protéines · G = glucides · L = lipides (en grammes). Viandes et poissons <b>crus</b>, riz / pâtes / patate douce <b>cuits</b>. Les quantités s'adaptent à tes objectifs du jour.</div>`;
   return html;
 }
-async function planLogMeal(idx) {
-  const days = getCoachPlan(); if (!days) return;
-  const day = days.find(d => d.day === state.planDay); if (!day) return;
+async function planLogMeal(idx, silent) {
+  const type = planCurType();
+  const day = getCoachPlan(type); if (!day) return false;
   const m = day.meals[idx]; const meta = PLAN_MEALS[idx];
-  const date = planWeekDates()[day.day];
-  showToast("Ajout…");
-  const entry = { client_id: state.client.id, log_date: date, food_name: m.dish.name + " (plan coach)", grams: 1,
+  if (!state.planLogged) state.planLogged = {};
+  const lk = planLoggedKey(type, idx, m.dish);
+  if (state.planLogged[lk]) return true;
+  const date = todayISO();
+  const entry = { client_id: state.client.id, log_date: date, food_name: m.dish.name + " (journée type)", grams: 1,
     kcal: Math.round(m.kcal), protein: Math.round(m.p * 10) / 10, carbs: Math.round(m.c * 10) / 10, fat: Math.round(m.f * 10) / 10, meal: meta.key };
   const { data, error } = await sb.from("food_logs").insert(entry).select().single();
-  if (error) { showToast("Erreur lors de l'ajout."); return; }
+  if (error) { showToast("Erreur lors de l'ajout."); return false; }
+  state.planLogged[lk] = true;
   if (state.nutritionLogs && state.nutritionSelectedDate === date) state.nutritionLogs.push(data);
-  if (date === todayISO() && state.foodLogsToday) state.foodLogsToday.push(data);
-  showToast("Repas ajouté à ton suivi !");
+  if (state.foodLogsToday) state.foodLogsToday.push(data);
+  if (!silent) { showToast("Repas ajouté à ton suivi !"); render(); }
+  return true;
+}
+async function planLogAll() {
+  showToast("Ajout…");
+  for (let i = 0; i < 4; i++) { if (!(await planLogMeal(i, true))) return; }
+  showToast("Journée ajoutée à ton suivi !"); render();
 }
 
 function renderNutrition() {
@@ -4420,23 +4375,6 @@ async function loadDocuments() {
   render();
 }
 
-/* ---------------- Course à pied ---------------- */
-const ACTIVE_RUN_KEY = "mattheophysic_active_run";
-const RUNNER_WEIGHT_KEY = "mattheophysic_runner_weight";
-let gpsWatchId = null;
-let wakeLockSentinel = null;
-let courseTickInterval = null;
-let courseMapInstance = null;
-let coursePolyline = null;
-
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function formatDuration(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
@@ -4444,53 +4382,6 @@ function formatDuration(totalSeconds) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-function formatPace(secPerKm) {
-  if (!secPerKm || !isFinite(secPerKm) || secPerKm <= 0) return "—";
-  const m = Math.floor(secPerKm / 60), s = Math.round(secPerKm % 60);
-  return `${m}'${String(s).padStart(2, "0")}/km`;
-}
-
-function estimateRunCalories(weightKg, distanceKm, durationSeconds) {
-  if (!weightKg || !distanceKm || !durationSeconds) return null;
-  const hours = durationSeconds / 3600;
-  const speedKmh = distanceKm / hours;
-  let met;
-  if (speedKmh < 8) met = 7;
-  else if (speedKmh < 9.7) met = 8.3;
-  else if (speedKmh < 11.3) met = 9.8;
-  else if (speedKmh < 12.9) met = 11;
-  else if (speedKmh < 14.5) met = 11.8;
-  else if (speedKmh < 16.1) met = 12.8;
-  else met = 14.5;
-  return Math.round(met * weightKg * hours);
-}
-
-function saveActiveRunToStorage() {
-  try {
-    if (state.activeRun) localStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(state.activeRun));
-    else localStorage.removeItem(ACTIVE_RUN_KEY);
-  } catch (e) { /* stockage indisponible : tant pis, la session en cours continue */ }
-}
-
-function loadActiveRunFromStorage() {
-  try {
-    const raw = localStorage.getItem(ACTIVE_RUN_KEY);
-    if (!raw) return;
-    const r = JSON.parse(raw);
-    // Une sortie "oubliée" depuis plus de 24h est abandonnée plutôt que réutilisée telle quelle.
-    if (r && r.startedAt && Date.now() - r.startedAt < 24 * 3600 * 1000) state.activeRun = r;
-    else localStorage.removeItem(ACTIVE_RUN_KEY);
-  } catch (e) { /* rien à restaurer */ }
-  try {
-    const w = localStorage.getItem(RUNNER_WEIGHT_KEY);
-    if (w) state.runnerWeight = toNum(w);
-  } catch (e) {}
-}
-
-// Sauvegarde locale de la séance en train d'être loggée (poids/reps saisis, jour en cours).
-// Sans ça, fermer l'appli ou la mettre en arrière-plan quelques minutes entre deux séries
-// (très fréquent en pratique — le temps de repos, un appel, l'écran qui se verrouille…)
-// fait perdre toute la saisie en cours, puisqu'elle ne vivait qu'en mémoire JS.
 const SESSION_DRAFT_KEY = "mattheophysic_session_draft";
 
 function saveSessionDraftToStorage() {
@@ -4523,477 +4414,6 @@ function loadSessionDraftFromStorage() {
 
 function clearSessionDraftFromStorage() {
   try { localStorage.removeItem(SESSION_DRAFT_KEY); } catch (e) {}
-}
-
-function getActiveRunElapsedSeconds() {
-  const r = state.activeRun;
-  if (!r) return 0;
-  const now = Date.now();
-  let pausedMs = r.pausedMs || 0;
-  if (r.status === "paused" && r.pauseStartedAt) pausedMs += (now - r.pauseStartedAt);
-  return Math.floor((now - r.startedAt - pausedMs) / 1000);
-}
-
-function startRun(type) {
-  state.activeRun = {
-    type, status: "running", startedAt: Date.now(), pausedMs: 0, pauseStartedAt: null,
-    distanceKm: 0, gpsPath: [], elevationGain: 0,
-  };
-  saveActiveRunToStorage();
-  state.courseView = "tracking";
-  render();
-  if (type === "exterieur") startGpsWatch();
-  acquireWakeLock();
-  startCourseTick();
-}
-
-function pauseRun() {
-  if (!state.activeRun) return;
-  state.activeRun.status = "paused";
-  state.activeRun.pauseStartedAt = Date.now();
-  saveActiveRunToStorage();
-  stopGpsWatch();
-  releaseWakeLock();
-  stopCourseTick();
-  render();
-}
-
-function resumeRun() {
-  if (!state.activeRun) return;
-  const now = Date.now();
-  state.activeRun.pausedMs = (state.activeRun.pausedMs || 0) + (now - (state.activeRun.pauseStartedAt || now));
-  state.activeRun.pauseStartedAt = null;
-  state.activeRun.status = "running";
-  saveActiveRunToStorage();
-  if (state.activeRun.type === "exterieur") startGpsWatch();
-  acquireWakeLock();
-  startCourseTick();
-  render();
-}
-
-function stopRun() {
-  if (!state.activeRun) return;
-  const finalElapsed = getActiveRunElapsedSeconds();
-  stopGpsWatch();
-  releaseWakeLock();
-  stopCourseTick();
-  state.activeRun.status = "completed";
-  state.activeRun.finalElapsedSeconds = finalElapsed;
-  saveActiveRunToStorage();
-  state.courseView = "summary";
-  render();
-}
-
-function startGpsWatch() {
-  if (gpsWatchId != null) return;
-  if (!navigator.geolocation) { showToast("La géolocalisation n'est pas disponible sur cet appareil."); return; }
-  gpsWatchId = navigator.geolocation.watchPosition(onGpsPosition, onGpsError, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
-}
-
-function stopGpsWatch() {
-  if (gpsWatchId != null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-}
-
-function onGpsPosition(pos) {
-  if (!state.activeRun || state.activeRun.status !== "running") return;
-  const { latitude, longitude, altitude, accuracy } = pos.coords;
-  const path = state.activeRun.gpsPath;
-  // On ignore les points GPS trop imprécis (mauvais signal) plutôt que de filtrer sur la distance —
-  // cette dernière approche jetait aussi du vrai mouvement entre deux points rapprochés,
-  // ce qui sous-comptait fortement la distance réelle.
-  const isAccurate = accuracy == null || accuracy <= 25;
-  if (isAccurate && path.length > 0) {
-    const last = path[path.length - 1];
-    const segKm = haversineKm(last.lat, last.lng, latitude, longitude);
-    // On ne filtre plus que les sauts aberrants (signal perturbé) — on garde tout mouvement réel.
-    if (segKm < 0.3) {
-      state.activeRun.distanceKm += segKm;
-      if (altitude != null && last.alt != null) {
-        const gain = altitude - last.alt;
-        // Seuil plus large : le capteur d'altitude d'un téléphone est bruyant, un seuil trop bas
-        // transforme ce bruit en fausse montée cumulée.
-        if (gain > 1.5) state.activeRun.elevationGain += gain;
-      }
-    }
-  }
-  path.push({ lat: latitude, lng: longitude, alt: altitude ?? null, t: Date.now() });
-  saveActiveRunToStorage();
-  updateCourseMapLive();
-  updateCourseTickDisplay();
-}
-
-function onGpsError() {
-  showToast("Signal GPS perdu — vérifie que la localisation est autorisée pour cette appli.");
-}
-
-async function acquireWakeLock() {
-  try {
-    if ("wakeLock" in navigator) wakeLockSentinel = await navigator.wakeLock.request("screen");
-  } catch (e) { /* pas grave si indisponible sur cet appareil */ }
-}
-
-function releaseWakeLock() {
-  if (wakeLockSentinel) { wakeLockSentinel.release().catch(() => {}); wakeLockSentinel = null; }
-}
-
-function startCourseTick() {
-  if (courseTickInterval) return;
-  courseTickInterval = setInterval(updateCourseTickDisplay, 1000);
-}
-
-function stopCourseTick() {
-  if (courseTickInterval) { clearInterval(courseTickInterval); courseTickInterval = null; }
-}
-
-function updateCourseTickDisplay() {
-  if (!state.activeRun || state.activeRun.status !== "running") return;
-  const elapsed = getActiveRunElapsedSeconds();
-  const timerEl = document.getElementById("courseTimer");
-  if (timerEl) timerEl.textContent = formatDuration(elapsed);
-  const distEl = document.getElementById("courseDistance");
-  if (distEl) distEl.textContent = `${formatNum(Math.round(state.activeRun.distanceKm * 100) / 100)} km`;
-  const paceEl = document.getElementById("coursePace");
-  if (paceEl) paceEl.textContent = state.activeRun.distanceKm > 0.05 ? formatPace(elapsed / state.activeRun.distanceKm) : "—";
-}
-
-function setupCourseMap(fitFullRoute) {
-  const el = document.getElementById("courseMap");
-  if (!el || typeof L === "undefined") return;
-  if (courseMapInstance) { courseMapInstance.remove(); courseMapInstance = null; coursePolyline = null; }
-  const path = (state.activeRun && state.activeRun.gpsPath) || [];
-  const center = path.length > 0 ? [path[path.length - 1].lat, path[path.length - 1].lng] : [46.6, 2.5];
-  courseMapInstance = L.map(el, { zoomControl: false, attributionControl: false }).setView(center, path.length > 0 ? 16 : 5);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(courseMapInstance);
-  if (path.length > 1) {
-    const latlngs = path.map(p => [p.lat, p.lng]);
-    coursePolyline = L.polyline(latlngs, { color: "#a9744a", weight: 4 }).addTo(courseMapInstance);
-    if (fitFullRoute) courseMapInstance.fitBounds(coursePolyline.getBounds(), { padding: [20, 20] });
-  }
-}
-
-function updateCourseMapLive() {
-  if (!courseMapInstance || !state.activeRun) return;
-  const latlngs = state.activeRun.gpsPath.map(p => [p.lat, p.lng]);
-  if (latlngs.length === 0) return;
-  if (!coursePolyline) coursePolyline = L.polyline(latlngs, { color: "#a9744a", weight: 4 }).addTo(courseMapInstance);
-  else coursePolyline.setLatLngs(latlngs);
-  courseMapInstance.setView(latlngs[latlngs.length - 1], Math.max(courseMapInstance.getZoom(), 16));
-}
-
-async function loadCourseRuns() {
-  const { data } = await sb.from("runs").select("*").eq("client_id", state.client.id).eq("status", "completed").order("started_at", { ascending: false });
-  state.courseRuns = data || [];
-  render();
-}
-
-async function saveRunToSupabase() {
-  const r = state.activeRun;
-  let distanceKm = r.distanceKm;
-  if (r.type === "tapis") {
-    distanceKm = toNum(document.getElementById("courseManualDistance").value) || 0;
-    if (distanceKm <= 0) { alert("Entre la distance parcourue."); return; }
-  }
-  const durationSeconds = r.finalElapsedSeconds;
-  const avgPaceSecPerKm = distanceKm > 0 ? Math.round(durationSeconds / distanceKm) : null;
-  const weightInput = document.getElementById("courseWeightInput");
-  const weight = (weightInput && toNum(weightInput.value)) || state.runnerWeight;
-  if (weight) { state.runnerWeight = weight; try { localStorage.setItem(RUNNER_WEIGHT_KEY, String(weight)); } catch (e) {} }
-  const calories = estimateRunCalories(weight, distanceKm, durationSeconds);
-  const payload = {
-    client_id: state.client.id, run_type: r.type, started_at: new Date(r.startedAt).toISOString(),
-    duration_seconds: durationSeconds, distance_km: Math.round(distanceKm * 100) / 100,
-    avg_pace_seconds_per_km: avgPaceSecPerKm, elevation_gain_m: r.type === "exterieur" ? Math.round(r.elevationGain) : null,
-    calories_burned: calories, gps_path: r.type === "exterieur" ? r.gpsPath : null, status: "completed",
-  };
-  const saveBtn = document.getElementById("saveRunBtn");
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Enregistrement…"; }
-  const { error } = await sb.from("runs").insert(payload);
-  if (error) { showToast("Erreur lors de l'enregistrement."); if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "✓ Enregistrer cette sortie"; } return; }
-  state.activeRun = null;
-  saveActiveRunToStorage();
-  state.courseView = "home";
-  state.courseRuns = null;
-  showToast("Sortie enregistrée !");
-  render();
-}
-
-function renderCourseHome() {
-  let html = `<button class="back-btn" data-back-to-profil="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
-    <div class="h1" style="font-size:26px;margin-top:10px;">COURSE À PIED</div>`;
-
-  if (state.activeRun && (state.activeRun.status === "running" || state.activeRun.status === "paused")) {
-    const elapsed = getActiveRunElapsedSeconds();
-    html += `<button data-resume-to-tracking="1" class="validate-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Sortie en cours (${formatDuration(elapsed)}) — Reprendre
-    </button>`;
-  } else {
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;">
-      <button data-start-run="exterieur" style="text-align:center;background:var(--card);border:1px solid transparent;box-shadow:var(--shadow-card);border-radius:18px;padding:22px 12px;">
-        <div style="color:var(--accent);margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28" style="margin:0 auto;display:block;"><circle cx="12" cy="12" r="9"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div>
-        <div style="font-weight:800;">Extérieur</div>
-        <div style="font-size:12px;color:var(--textDim);">Suivi GPS</div>
-      </button>
-      <button data-start-run="tapis" style="text-align:center;background:var(--card);border:1px solid transparent;box-shadow:var(--shadow-card);border-radius:18px;padding:22px 12px;">
-        <div style="color:var(--accent);margin-bottom:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28" style="margin:0 auto;display:block;"><rect x="2" y="14" width="20" height="4" rx="1"/><path d="M6 14V9a2 2 0 0 1 2-2h1"/><circle cx="15" cy="6" r="2"/><path d="M13 10l4 2-2 4"/></svg></div>
-        <div style="font-weight:800;">Tapis</div>
-        <div style="font-size:12px;color:var(--textDim);">Chrono simple</div>
-      </button>
-    </div>`;
-  }
-
-  html += `<button class="day-card" data-goto-course-history="1">
-    <div class="day-left"><div class="day-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><line x1="5" y1="20" x2="5" y2="14"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="19" y1="20" x2="19" y2="4"/></svg></div>
-      <div><div class="day-title">Historique complet</div><div class="day-sub">${state.courseRuns ? state.courseRuns.length + " sortie" + (state.courseRuns.length > 1 ? "s" : "") + " enregistrée" + (state.courseRuns.length > 1 ? "s" : "") : "…"}</div></div>
-    </div>
-    <span style="color:var(--textDim);">›</span>
-  </button>`;
-
-  if (state.courseRuns && state.courseRuns.length > 0) {
-    html += `<div class="section-label" style="margin-top:18px;">Dernières sorties</div>`;
-    state.courseRuns.slice(0, 3).forEach(r => {
-      html += `<div class="day-card" style="cursor:default;">
-        <div class="day-left"><div>
-          <div class="day-title">${r.run_type === "exterieur" ? "Extérieur" : "Tapis"} · ${formatDateFR(r.started_at.slice(0, 10))}</div>
-          <div class="day-sub">${formatNum(r.distance_km)}km · ${formatDuration(r.duration_seconds)} · ${formatPace(r.avg_pace_seconds_per_km)}</div>
-        </div></div>
-      </div>`;
-    });
-  }
-  return html;
-}
-
-function renderCourseTracking() {
-  const r = state.activeRun;
-  if (!r) { state.courseView = "home"; return renderCourseHome(); }
-  const elapsed = getActiveRunElapsedSeconds();
-  const pace = r.distanceKm > 0.05 ? elapsed / r.distanceKm : null;
-
-  let html = `<div style="padding-top:24px;text-align:center;">
-    <div style="font-size:13px;color:var(--textDim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${r.type === "exterieur" ? "Course extérieure" : "Tapis de course"}${r.status === "paused" ? " · en pause" : ""}</div>
-    <div id="courseTimer" style="font-size:56px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--accent);">${formatDuration(elapsed)}</div>
-  </div>`;
-
-  html += `<div class="stat-row" style="margin-top:20px;">
-    <div class="stat-card"><div class="stat-value" id="courseDistance">${formatNum(Math.round(r.distanceKm * 100) / 100)} km</div><div class="stat-label">Distance</div></div>
-    <div class="stat-card"><div class="stat-value" id="coursePace">${formatPace(pace)}</div><div class="stat-label">Allure moyenne</div></div>
-  </div>`;
-
-  if (r.type === "exterieur") {
-    html += `<div id="courseMap" style="width:100%;height:260px;border-radius:16px;overflow:hidden;margin-bottom:20px;background:var(--card);"></div>`;
-  }
-
-  html += `<div style="display:flex;gap:10px;">
-    ${r.status === "running"
-      ? `<button data-pause-run="1" style="flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:16px;font-weight:800;">⏸ Pause</button>`
-      : `<button data-resume-run="1" class="validate-btn" style="flex:1;margin-top:0;">▶ Reprendre</button>`}
-    <button data-stop-run="1" style="flex:1;background:var(--danger);border:none;color:#fff;border-radius:14px;padding:16px;font-weight:800;">Terminer</button>
-  </div>`;
-  return html;
-}
-
-function computeKmSplits(gpsPath) {
-  if (!gpsPath || gpsPath.length < 2) return [];
-  const splits = [];
-  let cumDist = 0;
-  let nextThreshold = 1;
-  let splitStartTime = gpsPath[0].t;
-  for (let i = 1; i < gpsPath.length; i++) {
-    const prev = gpsPath[i - 1], cur = gpsPath[i];
-    const segKm = haversineKm(prev.lat, prev.lng, cur.lat, cur.lng);
-    if (segKm >= 0.3) continue; // même filtrage que pendant l'enregistrement : on ne rejette que les sauts aberrants
-    cumDist += segKm;
-    if (cumDist >= nextThreshold) {
-      splits.push({ km: nextThreshold, seconds: (cur.t - splitStartTime) / 1000 });
-      splitStartTime = cur.t;
-      nextThreshold += 1;
-    }
-  }
-  const lastPoint = gpsPath[gpsPath.length - 1];
-  const partialKm = Math.round((cumDist - (nextThreshold - 1)) * 100) / 100;
-  if (partialKm > 0.05) {
-    splits.push({ km: nextThreshold - 1 + partialKm, seconds: (lastPoint.t - splitStartTime) / 1000, partial: true, partialKm });
-  }
-  return splits;
-}
-
-function getRunFeedbackMessages(distanceKm, avgPaceSecPerKm, pastRuns) {
-  if (!pastRuns) return [];
-  if (pastRuns.length === 0) return ["🎉 Bravo pour cette première sortie enregistrée !"];
-
-  const messages = [];
-  const maxDist = Math.max(...pastRuns.map(r => r.distance_km));
-  const avgDist = pastRuns.reduce((s, r) => s + r.distance_km, 0) / pastRuns.length;
-  const pastPaces = pastRuns.filter(r => r.avg_pace_seconds_per_km).map(r => r.avg_pace_seconds_per_km);
-  const bestPace = pastPaces.length ? Math.min(...pastPaces) : null;
-  const avgPace = pastPaces.length ? pastPaces.reduce((s, p) => s + p, 0) / pastPaces.length : null;
-
-  if (distanceKm > maxDist) messages.push("🏆 Bravo, c'est ta plus longue distance parcourue jusqu'ici !");
-  else if (distanceKm > avgDist * 1.05) messages.push("👏 Tu es allé plus loin qu'à tes sorties précédentes !");
-
-  if (avgPaceSecPerKm && bestPace != null && avgPaceSecPerKm < bestPace) messages.push("⚡ Nouveau record d'allure, félicitations !");
-  else if (avgPaceSecPerKm && avgPace != null && avgPaceSecPerKm < avgPace * 0.97) messages.push("🔥 Meilleure allure que ta moyenne récente !");
-
-  if (messages.length === 0) messages.push("💪 Sortie enregistrée, continue comme ça !");
-  return messages;
-}
-
-function renderCourseSummary() {
-  const r = state.activeRun;
-  if (!r) { state.courseView = "home"; return renderCourseHome(); }
-
-  let html = `<div class="h1" style="font-size:26px;margin-top:20px;">RÉSUMÉ DE LA SORTIE</div>
-    <div class="subtitle">${r.type === "exterieur" ? "Extérieur" : "Tapis de course"} · ${formatDateFR(localDateStr(new Date(r.startedAt)))}</div>`;
-
-  if (r.type === "exterieur" && state.courseRuns !== null) {
-    const pace = r.distanceKm > 0 ? r.finalElapsedSeconds / r.distanceKm : null;
-    const feedback = getRunFeedbackMessages(r.distanceKm, pace, state.courseRuns);
-    if (feedback.length > 0) {
-      html += `<div class="info-box" style="margin-top:14px;">${feedback.map(m => `<div>${esc(m)}</div>`).join("")}</div>`;
-    }
-  }
-
-  if (r.type === "exterieur") {
-    html += `<div id="courseMap" style="width:100%;height:220px;border-radius:16px;overflow:hidden;margin:16px 0;background:var(--card);"></div>`;
-  }
-
-  html += `<div class="stat-row">
-    <div class="stat-card"><div class="stat-value">${formatDuration(r.finalElapsedSeconds)}</div><div class="stat-label">Temps</div></div>
-    <div class="stat-card"><div class="stat-value">${r.type === "exterieur" ? formatNum(Math.round(r.distanceKm * 100) / 100) + " km" : "—"}</div><div class="stat-label">Distance</div></div>
-  </div>`;
-
-  if (r.type === "exterieur") {
-    const pace = r.distanceKm > 0 ? r.finalElapsedSeconds / r.distanceKm : null;
-    html += `<div class="stat-row">
-      <div class="stat-card"><div class="stat-value">${formatPace(pace)}</div><div class="stat-label">Allure moyenne</div></div>
-      <div class="stat-card"><div class="stat-value">${Math.round(r.elevationGain)} m</div><div class="stat-label">Dénivelé positif</div></div>
-    </div>
-    <div style="font-size:11.5px;color:var(--textDim);margin:-10px 0 16px;">Le dénivelé est une estimation — moins précis que la distance, selon le GPS du téléphone.</div>`;
-
-    const splits = computeKmSplits(r.gpsPath);
-    if (splits.length > 0) {
-      const bestSeconds = Math.min(...splits.filter(s => !s.partial).map(s => s.seconds));
-      html += `<div class="ex-card" style="margin-bottom:16px;"><div class="ex-body" style="padding-top:16px;">
-        <div style="font-weight:800;margin-bottom:12px;font-size:14.5px;">Kilomètre par kilomètre</div>
-        ${splits.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border);">
-          <span style="font-size:13.5px;color:var(--textDim);">${s.partial ? `Dernier ${formatNum(s.partialKm)}km` : `Km ${s.km}`}</span>
-          <span style="font-weight:700;${!s.partial && s.seconds === bestSeconds ? "color:var(--olive);" : ""}">${formatDuration(s.seconds)}${!s.partial && s.seconds === bestSeconds ? " ⚡" : ""}</span>
-        </div>`).join("")}
-      </div></div>`;
-    }
-  }
-
-  html += `<div class="ex-card"><div class="ex-body" style="padding-top:16px;">`;
-  if (r.type === "tapis") {
-    html += `<div class="section-label" style="margin-top:0;">Distance parcourue</div>
-      <input id="courseManualDistance" placeholder="distance en km (ex: 5.2)" style="margin-bottom:8px;" />
-      <div id="tapisFeedback"></div>
-      <div style="margin-bottom:6px;"></div>`;
-  }
-  html += `<div class="section-label" style="margin-top:0;">Ton poids (pour estimer les calories brûlées)</div>
-    <input id="courseWeightInput" placeholder="poids en kg" value="${state.runnerWeight ?? ""}" style="margin-bottom:16px;" />
-    <button class="validate-btn" id="saveRunBtn" style="margin-top:0;">✓ Enregistrer cette sortie</button>
-  </div></div>`;
-  return html;
-}
-
-function renderCourseHistory() {
-  let html = `<button class="back-btn" data-back-course-home="1" style="margin-top:20px;margin-bottom:4px;">← Retour</button>
-    <div class="h1" style="font-size:26px;margin-top:10px;">HISTORIQUE</div>`;
-
-  if (state.courseRuns === null) { html += `<div class="empty-state">Chargement…</div>`; return html; }
-  if (state.courseRuns.length === 0) {
-    html += `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;display:inline-block;"><circle cx="12" cy="12" r="9"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></svg><div>Aucune sortie enregistrée pour l'instant.</div></div>`;
-    return html;
-  }
-
-  const runs = state.courseRuns;
-  const bestPace = runs.filter(r => r.avg_pace_seconds_per_km).reduce((best, r) => !best || r.avg_pace_seconds_per_km < best.avg_pace_seconds_per_km ? r : best, null);
-  const longest = runs.reduce((best, r) => !best || r.distance_km > best.distance_km ? r : best, null);
-
-  html += `<div class="stat-row">
-    <div class="stat-card"><div style="color:var(--gold);margin-bottom:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.5-2-1-3-1-2-.2-4 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.2.4-2.3 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg></div><div class="stat-value" style="color:var(--gold);font-size:19px;">${bestPace ? formatPace(bestPace.avg_pace_seconds_per_km) : "—"}</div><div class="stat-label">Meilleure allure</div></div>
-    <div class="stat-card"><div style="color:var(--olive);margin-bottom:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="9"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div><div class="stat-value" style="color:var(--olive);font-size:19px;">${longest ? formatNum(longest.distance_km) + "km" : "—"}</div><div class="stat-label">Plus longue sortie</div></div>
-  </div>`;
-
-  const withPace = [...runs].reverse().filter(r => r.avg_pace_seconds_per_km);
-  if (withPace.length >= 2) {
-    const w = 320, h = 170, padL = 42, padR = 10, padT = 14, padB = 22;
-    const paces = withPace.map(r => r.avg_pace_seconds_per_km);
-    const maxP = Math.max(...paces), minP = Math.min(...paces);
-    const range = (maxP - minP) || 30;
-    const plotW = w - padL - padR, plotH = h - padT - padB;
-    const stepX = withPace.length > 1 ? plotW / (withPace.length - 1) : 0;
-    // Allure rapide en haut du graphique (comme une "performance" qui monte), lente en bas.
-    const coords = withPace.map((r, i) => ({ x: padL + stepX * i, y: padT + ((r.avg_pace_seconds_per_km - minP) / range) * plotH, r }));
-    const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
-    const areaPath = `${path} L${coords[coords.length - 1].x},${padT + plotH} L${coords[0].x},${padT + plotH} Z`;
-    const midP = (maxP + minP) / 2;
-    html += `<div class="chart-card" style="margin-top:6px;">
-      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Évolution de l'allure <span style="font-weight:400;">(plus haut = plus rapide)</span></div>
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:170px;">
-        <defs><linearGradient id="paceGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
-          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
-        </linearGradient></defs>
-        <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--border)" stroke-width="1" />
-        <line x1="${padL}" y1="${padT + plotH / 2}" x2="${w - padR}" y2="${padT + plotH / 2}" stroke="var(--border)" stroke-width="1" />
-        <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
-        <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatPace(minP)}</text>
-        <text x="${padL - 6}" y="${padT + plotH / 2 + 3}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatPace(midP)}</text>
-        <text x="${padL - 6}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatPace(maxP)}</text>
-        <path d="${areaPath}" fill="url(#paceGrad)" stroke="none" />
-        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2.5" />
-        ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="3.5" fill="var(--accent)"><title>${formatDateFR(c.r.started_at.slice(0, 10))} — ${formatPace(c.r.avg_pace_seconds_per_km)}</title></circle>`).join("")}
-        <text x="${coords[0].x}" y="${h - 4}" text-anchor="start" font-size="9" fill="var(--textDim)">${formatDateFR(coords[0].r.started_at.slice(0, 10))}</text>
-        <text x="${coords[coords.length - 1].x}" y="${h - 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatDateFR(coords[coords.length - 1].r.started_at.slice(0, 10))}</text>
-      </svg>
-    </div>`;
-  }
-
-  const allByDate = [...runs].reverse();
-  if (allByDate.length >= 2) {
-    const w = 320, h = 170, padL = 34, padR = 10, padT = 14, padB = 22;
-    const dists = allByDate.map(r => r.distance_km);
-    const maxD = Math.max(...dists, 0.5);
-    const plotW = w - padL - padR, plotH = h - padT - padB;
-    const stepX = allByDate.length > 1 ? plotW / (allByDate.length - 1) : 0;
-    const coords = allByDate.map((r, i) => ({ x: padL + stepX * i, y: padT + plotH - (r.distance_km / maxD) * plotH, r }));
-    const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
-    const areaPath = `${path} L${coords[coords.length - 1].x},${padT + plotH} L${coords[0].x},${padT + plotH} Z`;
-    html += `<div class="chart-card" style="margin-top:14px;">
-      <div style="font-size:13px;color:var(--textDim);margin-bottom:10px;">Évolution de la distance</div>
-      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:170px;">
-        <defs><linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--olive)" stop-opacity="0.28"/>
-          <stop offset="100%" stop-color="var(--olive)" stop-opacity="0"/>
-        </linearGradient></defs>
-        <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="var(--border)" stroke-width="1" />
-        <line x1="${padL}" y1="${padT + plotH / 2}" x2="${w - padR}" y2="${padT + plotH / 2}" stroke="var(--border)" stroke-width="1" />
-        <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="var(--border)" stroke-width="1" />
-        <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatNum(Math.round(maxD * 10) / 10)}km</text>
-        <text x="${padL - 6}" y="${padT + plotH / 2 + 3}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatNum(Math.round(maxD * 5) / 10)}km</text>
-        <text x="${padL - 6}" y="${padT + plotH + 4}" text-anchor="end" font-size="9" fill="var(--textDim)">0km</text>
-        <path d="${areaPath}" fill="url(#distGrad)" stroke="none" />
-        <path d="${path}" fill="none" stroke="var(--olive)" stroke-width="2.5" />
-        ${coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="3.5" fill="var(--olive)"><title>${formatDateFR(c.r.started_at.slice(0, 10))} — ${formatNum(c.r.distance_km)}km</title></circle>`).join("")}
-        <text x="${coords[0].x}" y="${h - 4}" text-anchor="start" font-size="9" fill="var(--textDim)">${formatDateFR(coords[0].r.started_at.slice(0, 10))}</text>
-        <text x="${coords[coords.length - 1].x}" y="${h - 4}" text-anchor="end" font-size="9" fill="var(--textDim)">${formatDateFR(coords[coords.length - 1].r.started_at.slice(0, 10))}</text>
-      </svg>
-    </div>`;
-  }
-
-  html += `<div class="section-label" style="margin-top:18px;">Toutes les sorties</div>`;
-  runs.forEach(r => {
-    html += `<div class="day-card" style="cursor:default;">
-      <div class="day-left"><div>
-        <div class="day-title">${r.run_type === "exterieur" ? "Extérieur" : "Tapis"} · ${formatDateFR(r.started_at.slice(0, 10))}</div>
-        <div class="day-sub">${formatNum(r.distance_km)}km · ${formatDuration(r.duration_seconds)} · ${formatPace(r.avg_pace_seconds_per_km)}${r.elevation_gain_m ? ` · D+ ${Math.round(r.elevation_gain_m)}m` : ""}${r.calories_burned ? ` · ${r.calories_burned} kcal` : ""}</div>
-      </div></div>
-      <button data-delete-run="${r.id}" style="background:none;border:none;color:var(--danger);padding:4px 6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
-    </div>`;
-  });
-  return html;
 }
 
 function renderMetabolismeCalculator() {
@@ -5921,11 +5341,6 @@ function renderProfil() {
         <div class="tool-title">Historique</div>
         <div class="tool-sub">Consulter ou corriger une séance</div>
       </button>
-      <button class="tool-card" data-goto-tab="course">
-        <div class="tool-icon" style="background:rgba(34,124,190,0.14);color:var(--orange);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="17" cy="4" r="2"/><path d="M10.5 19 8 22"/><path d="m8 14 3-3 3 3 4-6"/><path d="M5 22 8.5 16 6 13l3-5"/><path d="M13 8 9 10l1 4"/></svg></div>
-        <div class="tool-title">Course à pied</div>
-        <div class="tool-sub">Chrono, GPS, historique</div>
-      </button>
       <button class="tool-card" data-goto-tab="metabolisme">
         <div class="tool-icon" style="background:rgba(212,168,75,0.18);color:var(--gold);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M13 2 3 14h7l-1 8 11-14h-7z"/></svg></div>
         <div class="tool-title">Métabolisme</div>
@@ -6448,16 +5863,12 @@ function attachHandlers() {
   if (backToProfil) backToProfil.onclick = () => { state.tab = "profil"; state.checkinOpen = false; render(); };
 
   app.querySelectorAll("[data-nutri-view]").forEach(b => b.onclick = () => { state.nutritionView = b.dataset.nutriView; render(); window.scrollTo(0, 0); });
-  app.querySelectorAll("[data-plan-day]").forEach(b => b.onclick = () => { state.planDay = b.dataset.planDay; state.planPick = null; render(); });
+  app.querySelectorAll("[data-plan-type]").forEach(b => b.onclick = () => { state.planType = b.dataset.planType; state.planPick = null; render(); });
   app.querySelectorAll("[data-plan-log]").forEach(b => b.onclick = () => planLogMeal(parseInt(b.dataset.planLog, 10)));
-  app.querySelectorAll("[data-plan-shop]").forEach(b => b.onclick = () => { state.planShowShop = !state.planShowShop; render(); });
-  app.querySelectorAll("[data-plan-variant]").forEach(b => b.onclick = () => {
-    const pr = planGetPrefs(); planSavePrefs({ v: pr.v + 1, lock: {} });
-    state.planPick = null; render(); window.scrollTo(0, 0);
-  });
-  app.querySelectorAll("[data-plan-regen]").forEach(b => b.onclick = () => { planRegenDay(b.dataset.planRegen); state.planPick = null; render(); });
+  app.querySelectorAll("[data-plan-logall]").forEach(b => b.onclick = () => planLogAll());
+  app.querySelectorAll("[data-plan-newday]").forEach(b => b.onclick = () => { planNewDay(planCurType()); state.planPick = null; render(); });
   app.querySelectorAll("[data-plan-pick]").forEach(b => b.onclick = () => { const i = parseInt(b.dataset.planPick, 10); state.planPick = state.planPick === i ? null : i; render(); });
-  app.querySelectorAll("[data-plan-set]").forEach(b => b.onclick = () => { planSetDish(state.planDay, state.planPick, b.dataset.planSet); state.planPick = null; render(); });
+  app.querySelectorAll("[data-plan-set]").forEach(b => b.onclick = () => { planSetDish(planCurType(), state.planPick, b.dataset.planSet); state.planPick = null; render(); });
   app.querySelectorAll("[data-set-daytype]").forEach(b => b.onclick = () => {
     state.nutritionDayType = b.dataset.setDaytype;
     state.showDaytypeEdit = false;
@@ -6707,56 +6118,6 @@ function attachHandlers() {
 
   const toggleIcsBtn = app.querySelector("[data-toggle-ics-form]");
   if (toggleIcsBtn) toggleIcsBtn.onclick = () => { state.showIcsForm = !state.showIcsForm; render(); };
-
-  app.querySelectorAll("[data-start-run]").forEach(b => b.onclick = () => { startRun(b.dataset.startRun); });
-
-  const resumeToTracking = app.querySelector("[data-resume-to-tracking]");
-  if (resumeToTracking) resumeToTracking.onclick = () => { state.courseView = "tracking"; render(); };
-
-  const pauseRunBtn = app.querySelector("[data-pause-run]");
-  if (pauseRunBtn) pauseRunBtn.onclick = () => { pauseRun(); };
-
-  const resumeRunBtn = app.querySelector("[data-resume-run]");
-  if (resumeRunBtn) resumeRunBtn.onclick = () => { resumeRun(); };
-
-  const stopRunBtn = app.querySelector("[data-stop-run]");
-  if (stopRunBtn) stopRunBtn.onclick = () => {
-    if (confirm("Terminer cette sortie ?")) stopRun();
-  };
-
-  const gotoCourseHistory = app.querySelector("[data-goto-course-history]");
-  if (gotoCourseHistory) gotoCourseHistory.onclick = () => {
-    state.courseView = "history";
-    if (state.courseRuns === null) loadCourseRuns();
-    render();
-  };
-
-  const backCourseHome = app.querySelector("[data-back-course-home]");
-  if (backCourseHome) backCourseHome.onclick = () => { state.courseView = "home"; render(); };
-
-  const courseManualDistance = app.querySelector("#courseManualDistance");
-  if (courseManualDistance) courseManualDistance.oninput = () => {
-    const feedbackEl = document.getElementById("tapisFeedback");
-    if (!feedbackEl || !state.activeRun) return;
-    const distanceKm = toNum(courseManualDistance.value);
-    if (!distanceKm || distanceKm <= 0 || state.courseRuns === null) { feedbackEl.innerHTML = ""; return; }
-    const pace = state.activeRun.finalElapsedSeconds / distanceKm;
-    const feedback = getRunFeedbackMessages(distanceKm, pace, state.courseRuns);
-    feedbackEl.innerHTML = feedback.length > 0 ? `<div class="info-box" style="margin-bottom:14px;">${feedback.map(m => `<div>${esc(m)}</div>`).join("")}</div>` : "";
-  };
-
-  const saveRunBtn = app.querySelector("#saveRunBtn");
-  if (saveRunBtn) saveRunBtn.onclick = () => { saveRunToSupabase(); };
-
-  app.querySelectorAll("[data-delete-run]").forEach(b => b.onclick = async () => {
-    if (!confirm("Supprimer cette sortie ? Cette action est définitive.")) return;
-    const runId = b.dataset.deleteRun;
-    const { error } = await sb.from("runs").delete().eq("id", runId);
-    if (error) { showToast("Erreur lors de la suppression."); return; }
-    state.courseRuns = state.courseRuns.filter(r => r.id !== runId);
-    showToast("Sortie supprimée.");
-    render();
-  });
 
   const calcMetaBtn = app.querySelector("#calcMetaBtn");
   if (calcMetaBtn) calcMetaBtn.onclick = () => {
@@ -7039,12 +6400,6 @@ document.getElementById("manualBarcodeInput").onkeydown = (e) => {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && scannerInstance) {
     closeScanner();
-  }
-  // L'OS libère automatiquement le verrou d'écran dès que l'appli passe en arrière-plan ;
-  // on le redemande au retour si une course est toujours en cours, sinon l'écran peut
-  // s'éteindre en plein milieu d'une sortie après un simple passage d'appli.
-  if (!document.hidden && state.activeRun && state.activeRun.status === "running") {
-    acquireWakeLock();
   }
 });
 
